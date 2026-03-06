@@ -33,11 +33,13 @@ print(status)
 
 ## Authentication
 
-All API requests require an API key. You can generate one from your [SentiSense account settings](https://app.sentisense.ai/settings).
+All API requests require an API key. You can generate one from your [Developer Console](https://app.sentisense.ai/settings/developer).
 
 ```python
 client = SentiSenseClient("your-api-key")
 ```
+
+For full endpoint documentation, request/response schemas, and interactive examples, see the [API Documentation](https://sentisense.ai/docs/api/).
 
 ## API Reference
 
