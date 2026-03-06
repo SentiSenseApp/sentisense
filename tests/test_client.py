@@ -141,6 +141,128 @@ class TestInstitutionalEndpoints:
         )
 
 
+class TestDocumentEndpoints:
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_documents_by_ticker(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[{"id": "doc1"}])
+        result = client.get_documents_by_ticker("AAPL", source="news", days=7, limit=10)
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/ticker/AAPL",
+            params={"source": "news", "days": 7, "limit": 10},
+        )
+        assert result == [{"id": "doc1"}]
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_documents_by_ticker_range(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_documents_by_ticker_range("AAPL", "2025-01-01", "2025-01-31")
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/ticker/AAPL/range",
+            params={"startDate": "2025-01-01", "endDate": "2025-01-31"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_search_documents(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[{"id": "doc1"}])
+        result = client.search_documents("AI earnings", source="reddit", limit=5)
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/search",
+            params={"query": "AI earnings", "source": "reddit", "limit": 5},
+        )
+        assert len(result) == 1
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_documents_by_source(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_documents_by_source("x", hours=24)
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/source/x",
+            params={"hours": 24},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stories(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[{"cluster": {}}])
+        client.get_stories(limit=5, expanded=True)
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/stories",
+            params={"limit": 5, "expanded": True},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_story(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"cluster": {"id": "abc"}})
+        result = client.get_story("abc")
+        mock_get.assert_called_once_with("/api/v1/documents/stories/abc")
+        assert result["cluster"]["id"] == "abc"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stories_by_ticker(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stories_by_ticker("TSLA", limit=3)
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/stories/ticker/TSLA",
+            params={"limit": 3},
+        )
+
+
+class TestEntityMetricsEndpoints:
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_mentions(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": []})
+        client.get_mentions("AAPL", source="reddit", start_date="2025-01-01")
+        mock_get.assert_called_once_with(
+            "/api/v1/entity-metrics/stocks/AAPL/mentions",
+            params={"source": "reddit", "startDate": "2025-01-01"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_mention_count(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"count": 42})
+        result = client.get_mention_count("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v1/entity-metrics/stocks/AAPL/mentions/count",
+            params={},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_mention_count_by_source(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_mention_count_by_source("TSLA", start_date="2025-01-01", end_date="2025-01-31")
+        mock_get.assert_called_once_with(
+            "/api/v1/entity-metrics/stocks/TSLA/mentions/count/by-source",
+            params={"startDate": "2025-01-01", "endDate": "2025-01-31"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_sentiment(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"sentiment": 0.75})
+        result = client.get_sentiment("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v1/entity-metrics/stocks/AAPL/sentiment",
+            params={},
+        )
+        assert result["sentiment"] == 0.75
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_sentiment_by_source(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_sentiment_by_source("AAPL", date="2025-01-15")
+        mock_get.assert_called_once_with(
+            "/api/v1/entity-metrics/stocks/AAPL/sentiment/by-source",
+            params={"date": "2025-01-15"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_average_sentiment(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_average_sentiment("NVDA", start_date="2025-01-01", end_date="2025-03-01")
+        mock_get.assert_called_once_with(
+            "/api/v1/entity-metrics/stocks/NVDA/sentiment/average",
+            params={"startDate": "2025-01-01", "endDate": "2025-03-01"},
+        )
+
+
 class TestErrorHandling:
     def test_401_raises_authentication_error(self, client):
         with patch.object(client.session, "get", return_value=_mock_response(401, {"message": "Invalid API key"}, "Unauthorized")):

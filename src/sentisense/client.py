@@ -164,3 +164,305 @@ class SentiSenseClient:
             "/api/v1/institutional/activist",
             params={"reportDate": report_date},
         ).json()
+
+    # ── Document & news endpoints ───────────────────────────────
+
+    def get_documents_by_ticker(
+        self,
+        ticker: str,
+        source: Optional[str] = None,
+        days: Optional[int] = None,
+        hours: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get news articles and social posts for a stock.
+
+        Args:
+            ticker: Stock ticker symbol.
+            source: Filter by source — "news", "reddit", "x", or "substack".
+            days: Look back N days.
+            hours: Look back N hours.
+            limit: Maximum number of results.
+        """
+        params: Dict[str, Any] = {}
+        if source:
+            params["source"] = source
+        if days is not None:
+            params["days"] = days
+        if hours is not None:
+            params["hours"] = hours
+        if limit is not None:
+            params["limit"] = limit
+        return self._get(f"/api/v1/documents/ticker/{ticker}", params=params).json()
+
+    def get_documents_by_ticker_range(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        source: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get news articles for a stock within a date range.
+
+        Args:
+            ticker: Stock ticker symbol.
+            start_date: Start date (e.g. "2025-01-01").
+            end_date: End date (e.g. "2025-01-31").
+            source: Filter by source — "news", "reddit", "x", or "substack".
+            limit: Maximum number of results.
+        """
+        params: Dict[str, Any] = {"startDate": start_date, "endDate": end_date}
+        if source:
+            params["source"] = source
+        if limit is not None:
+            params["limit"] = limit
+        return self._get(f"/api/v1/documents/ticker/{ticker}/range", params=params).json()
+
+    def get_documents_by_entity(
+        self,
+        entity_id: str,
+        source: Optional[str] = None,
+        days: Optional[int] = None,
+        hours: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get documents for a knowledge base entity.
+
+        Args:
+            entity_id: KB entity ID.
+            source: Filter by source — "news", "reddit", "x", or "substack".
+            days: Look back N days.
+            hours: Look back N hours.
+            limit: Maximum number of results.
+        """
+        params: Dict[str, Any] = {}
+        if source:
+            params["source"] = source
+        if days is not None:
+            params["days"] = days
+        if hours is not None:
+            params["hours"] = hours
+        if limit is not None:
+            params["limit"] = limit
+        return self._get(f"/api/v1/documents/entity/{entity_id}", params=params).json()
+
+    def search_documents(
+        self,
+        query: str,
+        source: Optional[str] = None,
+        days: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search news and social posts with a natural language query.
+
+        Args:
+            query: Search query string.
+            source: Filter by source — "news", "reddit", "x", or "substack".
+            days: Look back N days.
+            limit: Maximum number of results.
+        """
+        params: Dict[str, Any] = {"query": query}
+        if source:
+            params["source"] = source
+        if days is not None:
+            params["days"] = days
+        if limit is not None:
+            params["limit"] = limit
+        return self._get("/api/v1/documents/search", params=params).json()
+
+    def get_documents_by_source(
+        self,
+        source: str,
+        days: Optional[int] = None,
+        hours: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get latest documents from a specific source.
+
+        Args:
+            source: Source type — "news", "reddit", "x", or "substack".
+            days: Look back N days.
+            hours: Look back N hours.
+            limit: Maximum number of results.
+        """
+        params: Dict[str, Any] = {}
+        if days is not None:
+            params["days"] = days
+        if hours is not None:
+            params["hours"] = hours
+        if limit is not None:
+            params["limit"] = limit
+        return self._get(f"/api/v1/documents/source/{source}", params=params).json()
+
+    def get_stories(
+        self,
+        limit: Optional[int] = None,
+        days: Optional[int] = None,
+        offset: Optional[int] = None,
+        expanded: Optional[bool] = None,
+        filter_hours: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get AI-curated news story clusters.
+
+        Args:
+            limit: Maximum number of stories.
+            days: Look back N days.
+            offset: Pagination offset.
+            expanded: Include full story details.
+            filter_hours: Filter stories from last N hours.
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if days is not None:
+            params["days"] = days
+        if offset is not None:
+            params["offset"] = offset
+        if expanded is not None:
+            params["expanded"] = expanded
+        if filter_hours is not None:
+            params["filterHours"] = filter_hours
+        return self._get("/api/v1/documents/stories", params=params).json()
+
+    def get_story(self, cluster_id: str) -> Dict[str, Any]:
+        """Get a single story with all source documents.
+
+        Args:
+            cluster_id: Story cluster ID.
+        """
+        return self._get(f"/api/v1/documents/stories/{cluster_id}").json()
+
+    def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get news stories for a specific stock.
+
+        Args:
+            ticker: Stock ticker symbol.
+            limit: Maximum number of stories.
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        return self._get(f"/api/v1/documents/stories/ticker/{ticker}", params=params).json()
+
+    # ── Entity metrics endpoints ────────────────────────────────
+
+    def get_mentions(
+        self,
+        symbol: str,
+        source: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get mention data for a stock across news and social media.
+
+        Args:
+            symbol: Stock ticker symbol.
+            source: Filter by source — "news", "reddit", "x", or "substack".
+            start_date: Start date (e.g. "2025-01-01").
+            end_date: End date (e.g. "2025-01-31").
+        """
+        params: Dict[str, Any] = {}
+        if source:
+            params["source"] = source
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/mentions", params=params).json()
+
+    def get_mention_count(
+        self,
+        symbol: str,
+        source: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get total mention count for a stock.
+
+        Args:
+            symbol: Stock ticker symbol.
+            source: Filter by source — "news", "reddit", "x", or "substack".
+            start_date: Start date (e.g. "2025-01-01").
+            end_date: End date (e.g. "2025-01-31").
+        """
+        params: Dict[str, Any] = {}
+        if source:
+            params["source"] = source
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/mentions/count", params=params).json()
+
+    def get_mention_count_by_source(
+        self,
+        symbol: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get mention counts broken down by source (news, reddit, x, substack).
+
+        Args:
+            symbol: Stock ticker symbol.
+            start_date: Start date (e.g. "2025-01-01").
+            end_date: End date (e.g. "2025-01-31").
+        """
+        params: Dict[str, Any] = {}
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/mentions/count/by-source", params=params).json()
+
+    def get_sentiment(
+        self,
+        symbol: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get sentiment data for a stock.
+
+        Args:
+            symbol: Stock ticker symbol.
+            start_date: Start date (e.g. "2025-01-01").
+            end_date: End date (e.g. "2025-01-31").
+        """
+        params: Dict[str, Any] = {}
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment", params=params).json()
+
+    def get_sentiment_by_source(self, symbol: str, date: Optional[str] = None) -> Dict[str, Any]:
+        """Get sentiment broken down by source (news, reddit, x, substack).
+
+        Args:
+            symbol: Stock ticker symbol.
+            date: Specific date (e.g. "2025-01-15").
+        """
+        params: Dict[str, Any] = {}
+        if date:
+            params["date"] = date
+        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment/by-source", params=params).json()
+
+    def get_average_sentiment(
+        self,
+        symbol: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get average sentiment score for a stock.
+
+        Args:
+            symbol: Stock ticker symbol.
+            start_date: Start date (e.g. "2025-01-01").
+            end_date: End date (e.g. "2025-01-31").
+        """
+        params: Dict[str, Any] = {}
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment/average", params=params).json()
