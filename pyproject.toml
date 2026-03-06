@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sentisense"
+dynamic = ["version"]
+description = "Official Python SDK for the SentiSense market intelligence API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+authors = [
+    { name = "SentiSense", email = "support@sentisense.ai" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
+dependencies = [
+    "requests>=2.20.0",
+]
+keywords = ["sentisense", "finance", "stocks", "market", "sentiment", "api", "sdk"]
+
+[project.urls]
+Homepage = "https://sentisense.ai"
+Documentation = "https://github.com/SentiSenseApp/sentisense#readme"
+Repository = "https://github.com/SentiSenseApp/sentisense"
+Issues = "https://github.com/SentiSenseApp/sentisense/issues"
+
+[tool.hatch.version]
+path = "src/sentisense/__about__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
