@@ -130,12 +130,14 @@ class SentiSenseClient:
         """Get available 13F reporting quarters."""
         return self._get("/api/v1/institutional/quarters").json()
 
-    def get_institutional_flows(self, report_date: str, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_institutional_flows(self, report_date: str, limit: int = 50) -> Dict[str, Any]:
         """Get institutional fund flows for a reporting quarter.
+
+        Returns a dict with ``inflows`` and ``outflows`` lists of flow objects.
 
         Args:
             report_date: Quarter date string (e.g. "2025-03-31").
-            limit: Maximum number of results.
+            limit: Maximum number of results per direction.
         """
         return self._get(
             "/api/v1/institutional/flows",

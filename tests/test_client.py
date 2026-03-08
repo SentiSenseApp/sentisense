@@ -115,12 +115,14 @@ class TestInstitutionalEndpoints:
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_flows(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=[])
-        client.get_institutional_flows("2025-03-31", limit=10)
+        mock_get.return_value = _mock_response(json_data={"inflows": [], "outflows": []})
+        result = client.get_institutional_flows("2025-03-31", limit=10)
         mock_get.assert_called_once_with(
             "/api/v1/institutional/flows",
             params={"reportDate": "2025-03-31", "limit": 10},
         )
+        assert "inflows" in result
+        assert "outflows" in result
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_stock_holders(self, mock_get, client):
