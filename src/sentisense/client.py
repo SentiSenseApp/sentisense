@@ -177,7 +177,10 @@ class SentiSenseClient:
         hours: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """Get news articles and social posts for a stock.
+        """Get document metrics for a stock ticker.
+
+        Returns document objects with sentiment scores, reliability, source URL,
+        and per-entity sentiment classification.
 
         Args:
             ticker: Stock ticker symbol.
@@ -302,16 +305,16 @@ class SentiSenseClient:
         limit: Optional[int] = None,
         days: Optional[int] = None,
         offset: Optional[int] = None,
-        expanded: Optional[bool] = None,
         filter_hours: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Get AI-curated news story clusters.
+
+        Returns story objects with title, sentiment, impact score, and tickers.
 
         Args:
             limit: Maximum number of stories.
             days: Look back N days.
             offset: Pagination offset.
-            expanded: Include full story details.
             filter_hours: Filter stories from last N hours.
         """
         params: Dict[str, Any] = {}
@@ -321,19 +324,9 @@ class SentiSenseClient:
             params["days"] = days
         if offset is not None:
             params["offset"] = offset
-        if expanded is not None:
-            params["expanded"] = expanded
         if filter_hours is not None:
             params["filterHours"] = filter_hours
         return self._get("/api/v1/documents/stories", params=params).json()
-
-    def get_story(self, cluster_id: str) -> Dict[str, Any]:
-        """Get a single story with all source documents.
-
-        Args:
-            cluster_id: Story cluster ID.
-        """
-        return self._get(f"/api/v1/documents/stories/{cluster_id}").json()
 
     def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get news stories for a specific stock.
