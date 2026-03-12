@@ -180,7 +180,9 @@ class SentiSenseClient:
         """Get document metrics for a stock ticker.
 
         Returns document objects with sentiment scores, reliability, source URL,
-        and per-entity sentiment classification.
+        and per-entity sentiment classification. Each document includes a
+        ``sentiment`` array of objects with ``ticker``, ``name``, ``entityId``,
+        ``entityType``, and ``sentiment`` fields.
 
         Args:
             ticker: Stock ticker symbol.
@@ -310,6 +312,8 @@ class SentiSenseClient:
         """Get AI-curated news story clusters.
 
         Returns story objects with title, sentiment, impact score, and tickers.
+        Each story includes a ``brokeAt`` field (epoch seconds) indicating when
+        the story broke.
 
         Args:
             limit: Maximum number of stories.
