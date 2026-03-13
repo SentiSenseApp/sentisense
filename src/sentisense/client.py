@@ -136,7 +136,7 @@ class SentiSenseClient:
         Returns a dict with ``inflows`` and ``outflows`` lists of flow objects.
 
         Args:
-            report_date: Quarter date string (e.g. "2025-03-31").
+            report_date: Quarter date string (e.g. "2025-12-31").
             limit: Maximum number of results per direction.
         """
         return self._get(
@@ -149,7 +149,7 @@ class SentiSenseClient:
 
         Args:
             ticker: Stock ticker symbol.
-            report_date: Quarter date string (e.g. "2025-03-31").
+            report_date: Quarter date string (e.g. "2025-12-31").
         """
         return self._get(
             f"/api/v1/institutional/holders/{ticker}",
@@ -160,7 +160,7 @@ class SentiSenseClient:
         """Get activist investor positions for a reporting quarter.
 
         Args:
-            report_date: Quarter date string (e.g. "2025-03-31").
+            report_date: Quarter date string (e.g. "2025-12-31").
         """
         return self._get(
             "/api/v1/institutional/activist",

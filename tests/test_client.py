@@ -108,18 +108,18 @@ class TestStockEndpoints:
 class TestInstitutionalEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_quarters(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=["2025-03-31"])
+        mock_get.return_value = _mock_response(json_data=["2025-12-31"])
         result = client.get_institutional_quarters()
         mock_get.assert_called_once_with("/api/v1/institutional/quarters")
-        assert result == ["2025-03-31"]
+        assert result == ["2025-12-31"]
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_flows(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data={"inflows": [], "outflows": []})
-        result = client.get_institutional_flows("2025-03-31", limit=10)
+        result = client.get_institutional_flows("2025-12-31", limit=10)
         mock_get.assert_called_once_with(
             "/api/v1/institutional/flows",
-            params={"reportDate": "2025-03-31", "limit": 10},
+            params={"reportDate": "2025-12-31", "limit": 10},
         )
         assert "inflows" in result
         assert "outflows" in result
@@ -127,19 +127,19 @@ class TestInstitutionalEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_stock_holders(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[])
-        client.get_stock_holders("AAPL", "2025-03-31")
+        client.get_stock_holders("AAPL", "2025-12-31")
         mock_get.assert_called_once_with(
             "/api/v1/institutional/holders/AAPL",
-            params={"reportDate": "2025-03-31"},
+            params={"reportDate": "2025-12-31"},
         )
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_activist_positions(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[])
-        client.get_activist_positions("2025-03-31")
+        client.get_activist_positions("2025-12-31")
         mock_get.assert_called_once_with(
             "/api/v1/institutional/activist",
-            params={"reportDate": "2025-03-31"},
+            params={"reportDate": "2025-12-31"},
         )
 
 
