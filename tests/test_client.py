@@ -208,6 +208,67 @@ class TestDocumentEndpoints:
         )
 
 
+class TestMetricsV2Endpoints:
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_metrics_defaults(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[{"timestamp": 1700000000000, "value": 5}])
+        result = client.get_metrics("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v2/metrics/entity/AAPL/metric/mentions",
+            params={},
+        )
+        assert result == [{"timestamp": 1700000000000, "value": 5}]
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_metrics_with_all_params(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_metrics(
+            "TSLA",
+            metric_type="sentiment",
+            start_time=1700000000000,
+            end_time=1700100000000,
+            max_data_points=50,
+        )
+        mock_get.assert_called_once_with(
+            "/api/v2/metrics/entity/TSLA/metric/sentiment",
+            params={"startTime": 1700000000000, "endTime": 1700100000000, "maxDataPoints": 50},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_metrics_sentisense_score(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_metrics("NVDA", metric_type="sentisense_score")
+        mock_get.assert_called_once_with(
+            "/api/v2/metrics/entity/NVDA/metric/sentisense_score",
+            params={},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_metrics_distribution_defaults(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"news": 10, "reddit": 5})
+        result = client.get_metrics_distribution("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v2/metrics/entity/AAPL/distribution/mentions",
+            params={"dimension": "source"},
+        )
+        assert result == {"news": 10, "reddit": 5}
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_metrics_distribution_with_time_range(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_metrics_distribution(
+            "MSFT",
+            metric_type="sentiment",
+            dimension="source",
+            start_time=1700000000000,
+            end_time=1700100000000,
+        )
+        mock_get.assert_called_once_with(
+            "/api/v2/metrics/entity/MSFT/distribution/sentiment",
+            params={"dimension": "source", "startTime": 1700000000000, "endTime": 1700100000000},
+        )
+
+
 class TestEntityMetricsEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_mentions(self, mock_get, client):

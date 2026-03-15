@@ -36,8 +36,14 @@ news = client.get_documents_by_ticker("TSLA", source="news", days=7)
 # Search across news and social media
 results = client.search_documents("AI earnings surprise")
 
-# Get sentiment for a stock
-sentiment = client.get_sentiment("NVDA")
+# Get mention time series for a stock (v2 metrics API)
+mentions = client.get_metrics("NVDA", metric_type="mentions")
+
+# Get sentiment time series
+sentiment = client.get_metrics("NVDA", metric_type="sentiment")
+
+# Get mentions broken down by source
+dist = client.get_metrics_distribution("NVDA", metric_type="mentions", dimension="source")
 ```
 
 ## Authentication
@@ -78,7 +84,18 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `get_story(cluster_id)` | Single story with all source documents |
 | `get_stories_by_ticker(ticker, limit?)` | Stories for a specific stock |
 
-### Sentiment & Mentions
+### Metrics (v2)
+
+| Method | Description |
+|--------|-------------|
+| `get_metrics(symbol, metric_type="mentions", start_time?, end_time?, max_data_points?)` | Time series for a metric (mentions, sentiment, sentisense_score, social_dominance, creators) |
+| `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time?, end_time?)` | Metric distribution by dimension (e.g. mentions by source) |
+
+> **Note:** `start_time` and `end_time` are epoch milliseconds.
+
+### Sentiment & Mentions (deprecated)
+
+The following methods hit the v1 entity-metrics endpoints which return empty data. Use the v2 metrics methods above instead.
 
 | Method | Description |
 |--------|-------------|

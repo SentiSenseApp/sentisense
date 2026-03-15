@@ -344,7 +344,67 @@ class SentiSenseClient:
             params["limit"] = limit
         return self._get(f"/api/v1/documents/stories/ticker/{ticker}", params=params).json()
 
-    # ── Entity metrics endpoints ────────────────────────────────
+    # ── Metrics endpoints (v2) ──────────────────────────────────
+
+    def get_metrics(
+        self,
+        symbol: str,
+        metric_type: str = "mentions",
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        max_data_points: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get time series metrics for a stock (mentions, sentiment, etc.).
+
+        Args:
+            symbol: Stock ticker symbol (e.g. "AAPL").
+            metric_type: Metric to retrieve — "mentions", "sentiment",
+                "sentisense_score", "social_dominance", or "creators".
+            start_time: Start of window as epoch milliseconds.
+            end_time: End of window as epoch milliseconds.
+            max_data_points: Maximum number of data points to return.
+        """
+        params: Dict[str, Any] = {}
+        if start_time is not None:
+            params["startTime"] = start_time
+        if end_time is not None:
+            params["endTime"] = end_time
+        if max_data_points is not None:
+            params["maxDataPoints"] = max_data_points
+        return self._get(
+            f"/api/v2/metrics/entity/{symbol}/metric/{metric_type}",
+            params=params,
+        ).json()
+
+    def get_metrics_distribution(
+        self,
+        symbol: str,
+        metric_type: str = "mentions",
+        dimension: str = "source",
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Get metric distribution by dimension (e.g., mentions by source).
+
+        Args:
+            symbol: Stock ticker symbol (e.g. "AAPL").
+            metric_type: Metric to retrieve — "mentions", "sentiment",
+                "sentisense_score", "social_dominance", or "creators".
+            dimension: Dimension to break down by (e.g. "source").
+            start_time: Start of window as epoch milliseconds.
+            end_time: End of window as epoch milliseconds.
+        """
+        params: Dict[str, Any] = {"dimension": dimension}
+        if start_time is not None:
+            params["startTime"] = start_time
+        if end_time is not None:
+            params["endTime"] = end_time
+        return self._get(
+            f"/api/v2/metrics/entity/{symbol}/distribution/{metric_type}",
+            params=params,
+        ).json()
+
+    # ── Entity metrics endpoints (DEPRECATED — use get_metrics / get_metrics_distribution) ──
 
     def get_mentions(
         self,
@@ -354,6 +414,10 @@ class SentiSenseClient:
         end_date: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get mention data for a stock across news and social media.
+
+        .. deprecated::
+            Use :meth:`get_metrics` with ``metric_type="mentions"`` instead.
+            This method hits the v1 entity-metrics endpoint which returns empty data.
 
         Args:
             symbol: Stock ticker symbol.
@@ -379,6 +443,10 @@ class SentiSenseClient:
     ) -> Dict[str, Any]:
         """Get total mention count for a stock.
 
+        .. deprecated::
+            Use :meth:`get_metrics` with ``metric_type="mentions"`` instead.
+            This method hits the v1 entity-metrics endpoint which returns empty data.
+
         Args:
             symbol: Stock ticker symbol.
             source: Filter by source — "news", "reddit", "x", or "substack".
@@ -402,6 +470,11 @@ class SentiSenseClient:
     ) -> Dict[str, Any]:
         """Get mention counts broken down by source (news, reddit, x, substack).
 
+        .. deprecated::
+            Use :meth:`get_metrics_distribution` with ``metric_type="mentions"``
+            and ``dimension="source"`` instead.
+            This method hits the v1 entity-metrics endpoint which returns empty data.
+
         Args:
             symbol: Stock ticker symbol.
             start_date: Start date (e.g. "2025-01-01").
@@ -422,6 +495,10 @@ class SentiSenseClient:
     ) -> Dict[str, Any]:
         """Get sentiment data for a stock.
 
+        .. deprecated::
+            Use :meth:`get_metrics` with ``metric_type="sentiment"`` instead.
+            This method hits the v1 entity-metrics endpoint which returns empty data.
+
         Args:
             symbol: Stock ticker symbol.
             start_date: Start date (e.g. "2025-01-01").
@@ -436,6 +513,11 @@ class SentiSenseClient:
 
     def get_sentiment_by_source(self, symbol: str, date: Optional[str] = None) -> Dict[str, Any]:
         """Get sentiment broken down by source (news, reddit, x, substack).
+
+        .. deprecated::
+            Use :meth:`get_metrics_distribution` with ``metric_type="sentiment"``
+            and ``dimension="source"`` instead.
+            This method hits the v1 entity-metrics endpoint which returns empty data.
 
         Args:
             symbol: Stock ticker symbol.
@@ -453,6 +535,10 @@ class SentiSenseClient:
         end_date: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get average sentiment score for a stock.
+
+        .. deprecated::
+            Use :meth:`get_metrics` with ``metric_type="sentiment"`` instead.
+            This method hits the v1 entity-metrics endpoint which returns empty data.
 
         Args:
             symbol: Stock ticker symbol.
