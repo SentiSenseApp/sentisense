@@ -344,6 +344,17 @@ class SentiSenseClient:
             params["limit"] = limit
         return self._get(f"/api/v1/documents/stories/ticker/{ticker}", params=params).json()
 
+    # ── Market summary endpoint ────────────────────────────────
+
+    def get_market_summary(self) -> Dict[str, Any]:
+        """Get the AI-generated market summary.
+
+        Returns a dict with ``headline``, ``expandedContent`` (markdown),
+        ``topActiveStocks``, ``totalMentions``, ``lastUpdated``, and
+        ``generatedAt`` fields.
+        """
+        return self._get("/api/v1/market-summary").json()
+
     # ── Metrics endpoints (v2) ──────────────────────────────────
 
     def get_metrics(
