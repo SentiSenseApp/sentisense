@@ -213,6 +213,57 @@ class SentiSenseClient:
         """
         return self._get("/api/v1/insider/cluster-buys", params={"lookbackDays": lookback_days}).json()
 
+    # ── Insights endpoints ──────────────────────────────────────
+
+    def get_stock_insights(
+        self,
+        ticker: str,
+        urgency: Optional[str] = None,
+        insight_type: Optional[str] = None,
+    ) -> Any:
+        """Get AI-generated insights for a specific stock.
+
+        PRO-gated. Free/unauthenticated users receive a preview with ``isPreview: true``:
+        the top 3 insights in full, plus a ``locked`` list of metadata-only entries
+        (type, urgency, timestamp) showing what additional signals exist.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+            urgency: Filter by urgency level -- ``"low"``, ``"medium"``, or ``"high"``.
+            insight_type: Filter by insight type (e.g., ``"insider_buy_signal"``).
+
+        Returns:
+            List of insight objects for PRO users, or preview dict for free users.
+        """
+        params: Dict[str, Any] = {}
+        if urgency:
+            params["urgency"] = urgency
+        if insight_type:
+            params["insightType"] = insight_type
+        return self._get(f"/api/v1/insights/stock/{ticker.upper()}", params=params).json()
+
+    def get_market_insights(self) -> Any:
+        """Get AI-generated market-level insights.
+
+        PRO-gated. Free/unauthenticated users receive a preview with ``isPreview: true``:
+        the top 5 insights in full, plus a ``locked`` list of metadata-only entries.
+
+        Returns:
+            List of insight objects for PRO users, or preview dict for free users.
+        """
+        return self._get("/api/v1/insights/market").json()
+
+    def get_insight_types(self, ticker: str) -> List[str]:
+        """Get available insight types for a specific stock.
+
+        No authentication required. Returns a list of insight type strings
+        such as ``"insider_buy_signal"``, ``"institutional_position_change"``, or ``"volume_anomaly_high"``.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+        """
+        return self._get(f"/api/v1/insights/stock/{ticker.upper()}/types").json()
+
     # ── Document & news endpoints ───────────────────────────────
 
     def get_documents_by_ticker(
