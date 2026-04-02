@@ -1,11 +1,13 @@
 """SentiSense API client."""
 
+import random
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from sentisense.__about__ import __version__
-from sentisense.exceptions import _raise_for_status
+from sentisense.exceptions import SentiSenseError, _raise_for_status
 
 
 class SentiSenseClient:
@@ -27,9 +29,11 @@ class SentiSenseClient:
         *,
         base_url: str = BASE_URL,
         timeout: float = 30.0,
+        max_retries: int = 3,
     ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_retries = max_retries
         self.session = requests.Session()
         self.session.headers.update({
             "X-SentiSense-API-Key": api_key,
@@ -43,29 +47,36 @@ class SentiSenseClient:
             return path
         return f"{self.base_url}{path}"
 
-    def _get(self, path: str, **kwargs: Any) -> requests.Response:
+    def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         kwargs.setdefault("timeout", self.timeout)
-        resp = self.session.get(self._url(path), **kwargs)
-        _raise_for_status(resp)
-        return resp
+        url = self._url(path)
+        for attempt in range(self.max_retries + 1):
+            resp = getattr(self.session, method)(url, **kwargs)
+            if resp.ok:
+                return resp
+            is_retryable = resp.status_code == 429 or resp.status_code >= 500
+            if is_retryable and attempt < self.max_retries:
+                if resp.status_code == 429:
+                    ra = resp.headers.get("Retry-After")
+                    delay = float(ra) if ra else 60.0
+                else:
+                    delay = min(1.0 * (2 ** attempt), 60.0) + random.random()
+                time.sleep(delay)
+                continue
+            _raise_for_status(resp)
+        raise SentiSenseError("All retries exhausted")
+
+    def _get(self, path: str, **kwargs: Any) -> requests.Response:
+        return self._request("get", path, **kwargs)
 
     def _post(self, path: str, **kwargs: Any) -> requests.Response:
-        kwargs.setdefault("timeout", self.timeout)
-        resp = self.session.post(self._url(path), **kwargs)
-        _raise_for_status(resp)
-        return resp
+        return self._request("post", path, **kwargs)
 
     def _put(self, path: str, **kwargs: Any) -> requests.Response:
-        kwargs.setdefault("timeout", self.timeout)
-        resp = self.session.put(self._url(path), **kwargs)
-        _raise_for_status(resp)
-        return resp
+        return self._request("put", path, **kwargs)
 
     def _delete(self, path: str, **kwargs: Any) -> requests.Response:
-        kwargs.setdefault("timeout", self.timeout)
-        resp = self.session.delete(self._url(path), **kwargs)
-        _raise_for_status(resp)
-        return resp
+        return self._request("delete", path, **kwargs)
 
     # ── Stock endpoints ─────────────────────────────────────────
 

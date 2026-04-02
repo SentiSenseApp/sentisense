@@ -31,6 +31,16 @@ class NotFoundError(SentiSenseError):
 class RateLimitError(SentiSenseError):
     """Raised on 429 responses (rate limit exceeded)."""
 
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        response: Optional[requests.Response] = None,
+        retry_after: Optional[int] = None,
+    ):
+        super().__init__(message, status_code, response)
+        self.retry_after = retry_after
+
 
 class APIError(SentiSenseError):
     """Raised on other non-2xx responses."""
@@ -55,6 +65,13 @@ def _raise_for_status(response: requests.Response) -> None:
     elif status == 404:
         raise NotFoundError(**kwargs)
     elif status == 429:
-        raise RateLimitError(**kwargs)
+        ra_header = response.headers.get("Retry-After")
+        retry_after: Optional[int] = None
+        if ra_header:
+            try:
+                retry_after = int(ra_header)
+            except ValueError:
+                pass
+        raise RateLimitError(**kwargs, retry_after=retry_after)
     else:
         raise APIError(**kwargs)
