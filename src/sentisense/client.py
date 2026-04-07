@@ -228,6 +228,54 @@ class SentiSenseClient:
         """
         return self._get("/api/v1/insider/cluster-buys", params={"lookbackDays": lookback_days}).json()
 
+    # ── Politicians trading endpoints ──────────────────────────
+
+    def get_politician_activity(self, lookback_days: int = 90) -> Dict[str, Any]:
+        """Get recent congressional STOCK Act trading activity across all politicians.
+
+        PRO-gated. Free/unauthenticated users receive a preview (top 5 trades)
+        with ``isPreview: true`` in the response. Access trades via ``result["data"]``.
+
+        Args:
+            lookback_days: Number of days to look back (1-365). Default 90.
+        """
+        return self._get("/api/v1/politicians/activity", params={"lookbackDays": lookback_days}).json()
+
+    def get_politician_filings(self, ticker: str, lookback_days: int = 90) -> Dict[str, Any]:
+        """Get congressional trades for a specific stock.
+
+        PRO-gated. Free users receive a preview (top 3 trades)
+        with ``isPreview: true`` in the response. Access trades via ``result["data"]``.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"NVDA"``).
+            lookback_days: Number of days to look back (1-365). Default 90.
+        """
+        return self._get(
+            f"/api/v1/politicians/filings/{ticker.upper()}",
+            params={"lookbackDays": lookback_days},
+        ).json()
+
+    def get_politician_members(self) -> Dict[str, Any]:
+        """Get all tracked politicians with trading summary statistics.
+
+        PRO-gated. Free users receive a preview (top 5 members)
+        with ``isPreview: true`` in the response. Access members via ``result["data"]``.
+        """
+        return self._get("/api/v1/politicians/members").json()
+
+    def get_politician_member(self, slug: str) -> Dict[str, Any]:
+        """Get detailed profile for a single politician.
+
+        Returns profile summary, recent trades, and top tickers. PRO-gated.
+        Free users receive a preview-wrapped response.
+        Access detail via ``result["data"]``.
+
+        Args:
+            slug: Politician URL slug (e.g., ``"nancy-pelosi"``). Get slugs from ``get_politician_members()``.
+        """
+        return self._get(f"/api/v1/politicians/member/{slug}").json()
+
     # ── Insights endpoints ──────────────────────────────────────
 
     def get_stock_insights(
