@@ -144,7 +144,8 @@ class SentiSenseClient:
     def get_institutional_flows(self, report_date: str, limit: int = 50) -> Dict[str, Any]:
         """Get institutional fund flows for a reporting quarter.
 
-        Returns a dict with ``inflows`` and ``outflows`` lists of flow objects.
+        Returns a preview-wrapped dict: ``{isPreview, previewReason, data: {inflows, outflows}}``.
+        Access flows via ``result["data"]["inflows"]`` and ``result["data"]["outflows"]``.
 
         Args:
             report_date: Quarter date string (e.g. "2025-12-31").
@@ -155,8 +156,11 @@ class SentiSenseClient:
             params={"reportDate": report_date, "limit": limit},
         ).json()
 
-    def get_stock_holders(self, ticker: str, report_date: str) -> List[Dict[str, Any]]:
+    def get_stock_holders(self, ticker: str, report_date: str) -> Dict[str, Any]:
         """Get institutional holders for a specific stock.
+
+        Returns a preview-wrapped dict: ``{isPreview, previewReason, data: {ticker, companyName, ...}}``.
+        Access holders via ``result["data"]["holders"]``.
 
         Args:
             ticker: Stock ticker symbol.
@@ -478,7 +482,7 @@ class SentiSenseClient:
         Args:
             symbol: Stock ticker symbol (e.g. "AAPL").
             metric_type: Metric to retrieve — "mentions", "sentiment",
-                "sentisense_score", "social_dominance", or "creators".
+                "sentisense", or "social_dominance".
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
             max_data_points: Maximum number of data points to return.
@@ -508,7 +512,7 @@ class SentiSenseClient:
         Args:
             symbol: Stock ticker symbol (e.g. "AAPL").
             metric_type: Metric to retrieve — "mentions", "sentiment",
-                "sentisense_score", "social_dominance", or "creators".
+                "sentisense", or "social_dominance".
             dimension: Dimension to break down by (e.g. "source").
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
