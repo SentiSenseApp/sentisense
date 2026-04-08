@@ -345,7 +345,7 @@ class SentiSenseClient:
         ``result.topTickers``. Check ``result.is_preview`` for tier status.
 
         Args:
-            slug: Politician URL slug (e.g., ``"nancy-pelosi"``).
+            slug: Politician URL slug (e.g., ``"nancy-pelosi-house"``). Get slugs from ``get_politician_members()``.
         """
         return self._unwrap(
             self._get(f"/api/v1/politicians/member/{slug}").json(),
