@@ -187,44 +187,38 @@ class SentiSenseClient:
     def get_insider_activity(self, lookback_days: int = 90) -> Dict[str, Any]:
         """Get market-wide insider activity: top buys and sells aggregated by ticker.
 
-        PRO-gated. Free/unauthenticated users receive a preview (top 5 per direction)
-        with ``isPreview: true`` in the response.
+        PRO-gated. All tiers return a wrapper: ``{isPreview, previewReason, data}``.
+        Free/unauthenticated users receive a truncated preview (top 5 per direction).
+        Access data via ``result["data"]``.
 
         Args:
-            lookback_days: Number of days to look back (1–365). Default 90.
-
-        Returns:
-            Dict with ``buys`` and ``sells`` lists (or ``isPreview``/``data`` wrapper for free users).
+            lookback_days: Number of days to look back (1-365). Default 90.
         """
         return self._get("/api/v1/insider/activity", params={"lookbackDays": lookback_days}).json()
 
-    def get_insider_trades(self, ticker: str, lookback_days: int = 90) -> Any:
+    def get_insider_trades(self, ticker: str, lookback_days: int = 90) -> Dict[str, Any]:
         """Get individual insider transactions for a specific stock.
 
-        PRO-gated. Free users receive a preview of the top 5 transactions.
+        PRO-gated. All tiers return a wrapper: ``{isPreview, previewReason, data}``.
+        Free users receive a preview (top 5 transactions). Access trades via ``result["data"]``.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
-            lookback_days: Number of days to look back (1–365). Default 90.
-
-        Returns:
-            List of trade objects (or ``isPreview``/``data`` wrapper for free users).
+            lookback_days: Number of days to look back (1-365). Default 90.
         """
         return self._get(
             f"/api/v1/insider/trades/{ticker.upper()}",
             params={"lookbackDays": lookback_days},
         ).json()
 
-    def get_insider_cluster_buys(self, lookback_days: int = 90) -> Any:
+    def get_insider_cluster_buys(self, lookback_days: int = 90) -> Dict[str, Any]:
         """Get cluster buy signals: stocks where 3+ distinct insiders bought recently.
 
-        PRO-gated. Free users receive a preview of the top 3 signals.
+        PRO-gated. All tiers return a wrapper: ``{isPreview, previewReason, data}``.
+        Free users receive a preview (top 3 signals). Access data via ``result["data"]``.
 
         Args:
-            lookback_days: Number of days to look back (1–365). Default 90.
-
-        Returns:
-            List of cluster buy objects (or ``isPreview``/``data`` wrapper for free users).
+            lookback_days: Number of days to look back (1-365). Default 90.
         """
         return self._get("/api/v1/insider/cluster-buys", params={"lookbackDays": lookback_days}).json()
 
