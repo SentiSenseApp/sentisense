@@ -2,12 +2,36 @@
 
 import random
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 import requests
 
 from sentisense.__about__ import __version__
 from sentisense.exceptions import SentiSenseError, _raise_for_status
+from sentisense.types import (
+    APIModel,
+    ClusterBuy,
+    CongressTrade,
+    Document,
+    DocumentSearchResponse,
+    Insight,
+    InsiderActivity,
+    InsiderTrade,
+    InstitutionalFlow,
+    InstitutionalFlows,
+    MarketStatus,
+    MarketSummary,
+    PoliticianDetail,
+    PoliticianSummary,
+    PreviewResult,
+    Quarter,
+    SimilarStock,
+    StockDetail,
+    StockPrice,
+    Story,
+)
+
+_M = TypeVar("_M", bound=APIModel)
 
 
 class SentiSenseClient:
@@ -78,31 +102,65 @@ class SentiSenseClient:
     def _delete(self, path: str, **kwargs: Any) -> requests.Response:
         return self._request("delete", path, **kwargs)
 
+    # ── Response parsing helpers ─────────────────────────────────
+
+    def _parse(self, json_data: Any, cls: Type[_M]) -> _M:
+        """Parse a JSON response into a typed model."""
+        return cls.from_dict(json_data)
+
+    def _parse_list(self, json_data: Any, cls: Type[_M]) -> List[_M]:
+        """Parse a JSON array into a list of typed models."""
+        return [cls.from_dict(item) for item in json_data]
+
+    def _unwrap(
+        self,
+        json_data: dict,
+        *,
+        item_cls: Optional[Type[_M]] = None,
+        list_cls: Optional[Type[_M]] = None,
+    ) -> PreviewResult:
+        """Auto-unwrap the preview envelope and parse into typed models.
+
+        PRO-gated endpoints return ``{isPreview, previewReason, data}``.
+        This strips the envelope, parses ``data``, and returns a
+        :class:`~sentisense.types.PreviewResult` with ``.is_preview``
+        and ``.preview_reason`` metadata.
+        """
+        is_preview = json_data.get("isPreview", False)
+        preview_reason = json_data.get("previewReason")
+        data = json_data.get("data", json_data)
+
+        if list_cls is not None and isinstance(data, list):
+            parsed = [list_cls.from_dict(item) for item in data]
+        elif item_cls is not None and isinstance(data, dict):
+            parsed = item_cls.from_dict(data)
+        else:
+            parsed = data
+
+        return PreviewResult(parsed, is_preview, preview_reason)
+
     # ── Stock endpoints ─────────────────────────────────────────
 
-    def get_stock_price(self, ticker: str) -> Dict[str, Any]:
+    def get_stock_price(self, ticker: str) -> StockPrice:
         """Get real-time stock price for a single ticker."""
-        return self._get("/api/v1/stocks/price", params={"ticker": ticker}).json()
+        return self._parse(self._get("/api/v1/stocks/price", params={"ticker": ticker}).json(), StockPrice)
 
-    def get_stock_prices(self, tickers: List[str]) -> List[Dict[str, Any]]:
+    def get_stock_prices(self, tickers: List[str]) -> List[StockPrice]:
         """Get real-time stock prices for multiple tickers."""
-        return self._get("/api/v1/stocks/prices", params={"tickers": ",".join(tickers)}).json()
+        return self._parse_list(self._get("/api/v1/stocks/prices", params={"tickers": ",".join(tickers)}).json(), StockPrice)
 
     def get_stock_profile(self, ticker: str) -> Dict[str, Any]:
         """Get company profile for a stock."""
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 
-    def get_similar_stocks(self, ticker: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_similar_stocks(self, ticker: str, limit: int = 5) -> List[SimilarStock]:
         """Get peer/similar stocks with current prices.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
             limit: Maximum number of results (default 5).
-
-        Returns:
-            List of ``{symbol, name, kbEntityId, price, changePercent}``.
         """
-        return self._get(f"/api/v1/stocks/{ticker}/similar", params={"limit": limit}).json()
+        return self._parse_list(self._get(f"/api/v1/stocks/{ticker}/similar", params={"limit": limit}).json(), SimilarStock)
 
     def get_stock_chart(self, ticker: str, timeframe: str = "1M") -> Dict[str, Any]:
         """Get OHLCV chart data for a stock.
@@ -117,13 +175,13 @@ class SentiSenseClient:
         """Get all available stock tickers."""
         return self._get("/api/v1/stocks").json()
 
-    def get_all_stocks_detailed(self) -> List[Dict[str, Any]]:
+    def get_all_stocks_detailed(self) -> List[StockDetail]:
         """Get all stocks with company names and entity IDs."""
-        return self._get("/api/v1/stocks/detailed").json()
+        return self._parse_list(self._get("/api/v1/stocks/detailed").json(), StockDetail)
 
-    def get_market_status(self) -> Dict[str, Any]:
+    def get_market_status(self) -> MarketStatus:
         """Get current market status (open/closed)."""
-        return self._get("/api/v1/stocks/market-status").json()
+        return self._parse(self._get("/api/v1/stocks/market-status").json(), MarketStatus)
 
     def get_fundamentals(
         self,
@@ -149,138 +207,150 @@ class SentiSenseClient:
 
     # ── Institutional flow endpoints ────────────────────────────
 
-    def get_institutional_quarters(self) -> List[str]:
+    def get_institutional_quarters(self) -> List[Quarter]:
         """Get available 13F reporting quarters."""
-        return self._get("/api/v1/institutional/quarters").json()
+        return self._parse_list(self._get("/api/v1/institutional/quarters").json(), Quarter)
 
-    def get_institutional_flows(self, report_date: str, limit: int = 50) -> Dict[str, Any]:
+    def get_institutional_flows(self, report_date: str, limit: int = 50) -> PreviewResult[InstitutionalFlows]:
         """Get institutional fund flows for a reporting quarter.
 
-        Returns a preview-wrapped dict: ``{isPreview, previewReason, data: {inflows, outflows}}``.
-        Access flows via ``result["data"]["inflows"]`` and ``result["data"]["outflows"]``.
+        Auto-unwrapped. Access flows via ``result.inflows`` and ``result.outflows``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             report_date: Quarter date string (e.g. "2025-12-31").
             limit: Maximum number of results per direction.
         """
-        return self._get(
-            "/api/v1/institutional/flows",
-            params={"reportDate": report_date, "limit": limit},
-        ).json()
+        return self._unwrap(
+            self._get("/api/v1/institutional/flows", params={"reportDate": report_date, "limit": limit}).json(),
+            item_cls=InstitutionalFlows,
+        )
 
-    def get_stock_holders(self, ticker: str, report_date: str) -> Dict[str, Any]:
+    def get_stock_holders(self, ticker: str, report_date: str) -> PreviewResult:
         """Get institutional holders for a specific stock.
 
-        Returns a preview-wrapped dict: ``{isPreview, previewReason, data: {ticker, companyName, ...}}``.
-        Access holders via ``result["data"]["holders"]``.
+        Auto-unwrapped. Check ``result.is_preview`` for tier status.
 
         Args:
             ticker: Stock ticker symbol.
             report_date: Quarter date string (e.g. "2025-12-31").
         """
-        return self._get(
-            f"/api/v1/institutional/holders/{ticker}",
-            params={"reportDate": report_date},
-        ).json()
+        return self._unwrap(
+            self._get(f"/api/v1/institutional/holders/{ticker}", params={"reportDate": report_date}).json(),
+        )
 
-    def get_activist_positions(self, report_date: str) -> List[Dict[str, Any]]:
+    def get_activist_positions(self, report_date: str) -> PreviewResult[List[Dict[str, Any]]]:
         """Get activist investor positions for a reporting quarter.
+
+        Auto-unwrapped. Check ``result.is_preview`` for tier status.
 
         Args:
             report_date: Quarter date string (e.g. "2025-12-31").
         """
-        return self._get(
-            "/api/v1/institutional/activist",
-            params={"reportDate": report_date},
-        ).json()
+        return self._unwrap(
+            self._get("/api/v1/institutional/activist", params={"reportDate": report_date}).json(),
+        )
 
     # ── Insider trading endpoints ───────────────────────────────
 
-    def get_insider_activity(self, lookback_days: int = 90) -> Dict[str, Any]:
+    def get_insider_activity(self, lookback_days: int = 90) -> PreviewResult[InsiderActivity]:
         """Get market-wide insider activity: top buys and sells aggregated by ticker.
 
-        PRO-gated. All tiers return a wrapper: ``{isPreview, previewReason, data}``.
-        Free/unauthenticated users receive a truncated preview (top 5 per direction).
-        Access data via ``result["data"]``.
+        Auto-unwrapped. Access via ``result.buys`` and ``result.sells``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             lookback_days: Number of days to look back (1-365). Default 90.
         """
-        return self._get("/api/v1/insider/activity", params={"lookbackDays": lookback_days}).json()
+        return self._unwrap(
+            self._get("/api/v1/insider/activity", params={"lookbackDays": lookback_days}).json(),
+            item_cls=InsiderActivity,
+        )
 
-    def get_insider_trades(self, ticker: str, lookback_days: int = 90) -> Dict[str, Any]:
+    def get_insider_trades(self, ticker: str, lookback_days: int = 90) -> PreviewResult[List[InsiderTrade]]:
         """Get individual insider transactions for a specific stock.
 
-        PRO-gated. All tiers return a wrapper: ``{isPreview, previewReason, data}``.
-        Free users receive a preview (top 5 transactions). Access trades via ``result["data"]``.
+        Auto-unwrapped. Iterate directly: ``for t in result: ...``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
             lookback_days: Number of days to look back (1-365). Default 90.
         """
-        return self._get(
-            f"/api/v1/insider/trades/{ticker.upper()}",
-            params={"lookbackDays": lookback_days},
-        ).json()
+        return self._unwrap(
+            self._get(f"/api/v1/insider/trades/{ticker.upper()}", params={"lookbackDays": lookback_days}).json(),
+            list_cls=InsiderTrade,
+        )
 
-    def get_insider_cluster_buys(self, lookback_days: int = 90) -> Dict[str, Any]:
+    def get_insider_cluster_buys(self, lookback_days: int = 90) -> PreviewResult[List[ClusterBuy]]:
         """Get cluster buy signals: stocks where 3+ distinct insiders bought recently.
 
-        PRO-gated. All tiers return a wrapper: ``{isPreview, previewReason, data}``.
-        Free users receive a preview (top 3 signals). Access data via ``result["data"]``.
+        Auto-unwrapped. Iterate directly: ``for c in result: ...``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             lookback_days: Number of days to look back (1-365). Default 90.
         """
-        return self._get("/api/v1/insider/cluster-buys", params={"lookbackDays": lookback_days}).json()
+        return self._unwrap(
+            self._get("/api/v1/insider/cluster-buys", params={"lookbackDays": lookback_days}).json(),
+            list_cls=ClusterBuy,
+        )
 
     # ── Politicians trading endpoints ──────────────────────────
 
-    def get_politician_activity(self, lookback_days: int = 90) -> Dict[str, Any]:
+    def get_politician_activity(self, lookback_days: int = 90) -> PreviewResult[List[CongressTrade]]:
         """Get recent congressional STOCK Act trading activity across all politicians.
 
-        PRO-gated. Free/unauthenticated users receive a preview (top 5 trades)
-        with ``isPreview: true`` in the response. Access trades via ``result["data"]``.
+        Auto-unwrapped. Iterate directly: ``for trade in result: ...``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             lookback_days: Number of days to look back (1-365). Default 90.
         """
-        return self._get("/api/v1/politicians/activity", params={"lookbackDays": lookback_days}).json()
+        return self._unwrap(
+            self._get("/api/v1/politicians/activity", params={"lookbackDays": lookback_days}).json(),
+            list_cls=CongressTrade,
+        )
 
-    def get_politician_filings(self, ticker: str, lookback_days: int = 90) -> Dict[str, Any]:
+    def get_politician_filings(self, ticker: str, lookback_days: int = 90) -> PreviewResult[List[CongressTrade]]:
         """Get congressional trades for a specific stock.
 
-        PRO-gated. Free users receive a preview (top 3 trades)
-        with ``isPreview: true`` in the response. Access trades via ``result["data"]``.
+        Auto-unwrapped. Iterate directly: ``for trade in result: ...``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"NVDA"``).
             lookback_days: Number of days to look back (1-365). Default 90.
         """
-        return self._get(
-            f"/api/v1/politicians/filings/{ticker.upper()}",
-            params={"lookbackDays": lookback_days},
-        ).json()
+        return self._unwrap(
+            self._get(f"/api/v1/politicians/filings/{ticker.upper()}", params={"lookbackDays": lookback_days}).json(),
+            list_cls=CongressTrade,
+        )
 
-    def get_politician_members(self) -> Dict[str, Any]:
+    def get_politician_members(self) -> PreviewResult[List[PoliticianSummary]]:
         """Get all tracked politicians with trading summary statistics.
 
-        PRO-gated. Free users receive a preview (top 5 members)
-        with ``isPreview: true`` in the response. Access members via ``result["data"]``.
+        Auto-unwrapped. Iterate directly: ``for member in result: ...``.
+        Check ``result.is_preview`` for tier status.
         """
-        return self._get("/api/v1/politicians/members").json()
+        return self._unwrap(
+            self._get("/api/v1/politicians/members").json(),
+            list_cls=PoliticianSummary,
+        )
 
-    def get_politician_member(self, slug: str) -> Dict[str, Any]:
+    def get_politician_member(self, slug: str) -> PreviewResult[PoliticianDetail]:
         """Get detailed profile for a single politician.
 
-        Returns profile summary, recent trades, and top tickers. PRO-gated.
-        Free users receive a preview-wrapped response.
-        Access detail via ``result["data"]``.
+        Auto-unwrapped. Access via ``result.profile``, ``result.recentTrades``,
+        ``result.topTickers``. Check ``result.is_preview`` for tier status.
 
         Args:
-            slug: Politician URL slug (e.g., ``"nancy-pelosi"``). Get slugs from ``get_politician_members()``.
+            slug: Politician URL slug (e.g., ``"nancy-pelosi"``).
         """
-        return self._get(f"/api/v1/politicians/member/{slug}").json()
+        return self._unwrap(
+            self._get(f"/api/v1/politicians/member/{slug}").json(),
+            item_cls=PoliticianDetail,
+        )
 
     # ── Insights endpoints ──────────────────────────────────────
 
@@ -289,38 +359,37 @@ class SentiSenseClient:
         ticker: str,
         urgency: Optional[str] = None,
         insight_type: Optional[str] = None,
-    ) -> Any:
+    ) -> PreviewResult[List[Insight]]:
         """Get AI-generated insights for a specific stock.
 
-        PRO-gated. Free/unauthenticated users receive a preview with ``isPreview: true``:
-        the top 3 insights in full, plus a ``locked`` list of metadata-only entries
-        (type, urgency, timestamp) showing what additional signals exist.
+        Auto-unwrapped. Iterate directly: ``for i in result: ...``.
+        Check ``result.is_preview`` for tier status.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
-            urgency: Filter by urgency level -- ``"low"``, ``"medium"``, or ``"high"``.
+            urgency: Filter by urgency level: ``"low"``, ``"medium"``, or ``"high"``.
             insight_type: Filter by insight type (e.g., ``"insider_buy_signal"``).
-
-        Returns:
-            List of insight objects for PRO users, or preview dict for free users.
         """
         params: Dict[str, Any] = {}
         if urgency:
             params["urgency"] = urgency
         if insight_type:
             params["insightType"] = insight_type
-        return self._get(f"/api/v1/insights/stock/{ticker.upper()}", params=params).json()
+        return self._unwrap(
+            self._get(f"/api/v1/insights/stock/{ticker.upper()}", params=params).json(),
+            list_cls=Insight,
+        )
 
-    def get_market_insights(self) -> Any:
+    def get_market_insights(self) -> PreviewResult[List[Insight]]:
         """Get AI-generated market-level insights.
 
-        PRO-gated. Free/unauthenticated users receive a preview with ``isPreview: true``:
-        the top 5 insights in full, plus a ``locked`` list of metadata-only entries.
-
-        Returns:
-            List of insight objects for PRO users, or preview dict for free users.
+        Auto-unwrapped. Iterate directly: ``for i in result: ...``.
+        Check ``result.is_preview`` for tier status.
         """
-        return self._get("/api/v1/insights/market").json()
+        return self._unwrap(
+            self._get("/api/v1/insights/market").json(),
+            list_cls=Insight,
+        )
 
     def get_insight_types(self, ticker: str) -> List[str]:
         """Get available insight types for a specific stock.
@@ -342,17 +411,12 @@ class SentiSenseClient:
         days: Optional[int] = None,
         hours: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> DocumentSearchResponse:
         """Get document metrics for a stock ticker.
-
-        Returns document objects with sentiment scores, reliability, source URL,
-        and per-entity sentiment classification. Each document includes a
-        ``sentiment`` array of objects with ``ticker``, ``name``, ``entityId``,
-        ``entityType``, and ``sentiment`` fields.
 
         Args:
             ticker: Stock ticker symbol.
-            source: Filter by source — "news", "reddit", "x", or "substack".
+            source: Filter by source: "news", "reddit", "x", or "substack".
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
@@ -366,7 +430,7 @@ class SentiSenseClient:
             params["hours"] = hours
         if limit is not None:
             params["limit"] = limit
-        return self._get(f"/api/v1/documents/ticker/{ticker}", params=params).json()
+        return self._parse(self._get(f"/api/v1/documents/ticker/{ticker}", params=params).json(), DocumentSearchResponse)
 
     def get_documents_by_ticker_range(
         self,
@@ -375,7 +439,7 @@ class SentiSenseClient:
         end_date: str,
         source: Optional[str] = None,
         limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> DocumentSearchResponse:
         """Get news articles for a stock within a date range.
 
         Args:
@@ -390,7 +454,7 @@ class SentiSenseClient:
             params["source"] = source
         if limit is not None:
             params["limit"] = limit
-        return self._get(f"/api/v1/documents/ticker/{ticker}/range", params=params).json()
+        return self._parse(self._get(f"/api/v1/documents/ticker/{ticker}/range", params=params).json(), DocumentSearchResponse)
 
     def get_documents_by_entity(
         self,
@@ -474,7 +538,7 @@ class SentiSenseClient:
         days: Optional[int] = None,
         offset: Optional[int] = None,
         filter_hours: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Story]:
         """Get AI-curated news story clusters.
 
         Returns story objects with title, sentiment, impact score, and tickers.
@@ -496,9 +560,9 @@ class SentiSenseClient:
             params["offset"] = offset
         if filter_hours is not None:
             params["filterHours"] = filter_hours
-        return self._get("/api/v1/documents/stories", params=params).json()
+        return self._parse_list(self._get("/api/v1/documents/stories", params=params).json(), Story)
 
-    def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Story]:
         """Get news stories for a specific stock.
 
         Args:
@@ -508,18 +572,13 @@ class SentiSenseClient:
         params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
-        return self._get(f"/api/v1/documents/stories/ticker/{ticker}", params=params).json()
+        return self._parse_list(self._get(f"/api/v1/documents/stories/ticker/{ticker}", params=params).json(), Story)
 
     # ── Market summary endpoint ────────────────────────────────
 
-    def get_market_summary(self) -> Dict[str, Any]:
-        """Get the AI-generated market summary.
-
-        Returns a dict with ``headline``, ``expandedContent`` (markdown),
-        ``topActiveStocks``, ``totalMentions``, ``lastUpdated``, and
-        ``generatedAt`` fields.
-        """
-        return self._get("/api/v1/market-summary").json()
+    def get_market_summary(self) -> MarketSummary:
+        """Get the AI-generated market summary."""
+        return self._parse(self._get("/api/v1/market-summary").json(), MarketSummary)
 
     # ── Metrics endpoints (v2) ──────────────────────────────────
 
