@@ -92,6 +92,18 @@ class SentiSenseClient:
         """Get company profile for a stock."""
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 
+    def get_similar_stocks(self, ticker: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get peer/similar stocks with current prices.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+            limit: Maximum number of results (default 5).
+
+        Returns:
+            List of ``{symbol, name, kbEntityId, price, changePercent}``.
+        """
+        return self._get(f"/api/v1/stocks/{ticker}/similar", params={"limit": limit}).json()
+
     def get_stock_chart(self, ticker: str, timeframe: str = "1M") -> Dict[str, Any]:
         """Get OHLCV chart data for a stock.
 
