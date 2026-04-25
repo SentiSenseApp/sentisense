@@ -31,6 +31,7 @@ from sentisense.types import (
     SimilarStock,
     StockDetail,
     StockPrice,
+    StockQuote,
     Story,
     StoryCluster,
 )
@@ -64,6 +65,7 @@ __all__ = [
     "SimilarStock",
     "StockDetail",
     "StockPrice",
+    "StockQuote",
     "Story",
     "StoryCluster",
 ]

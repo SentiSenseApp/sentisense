@@ -86,6 +86,34 @@ class StockPrice(APIModel):
 
 
 @dataclass
+class StockQuote(APIModel):
+    """Aggregate quote snapshot from GET /api/v1/stocks/{ticker}/quote.
+
+    Combines live price, today OHLC, 52-week range, market cap, and key
+    fundamentals into a single payload. All fields except ``ticker`` may be
+    ``None`` when the upstream data source is unavailable.
+    """
+
+    ticker: str = ""
+    currentPrice: Optional[float] = None
+    change: Optional[float] = None
+    changePercent: Optional[float] = None
+    volume: Optional[int] = None
+    open: Optional[float] = None
+    dayHigh: Optional[float] = None
+    dayLow: Optional[float] = None
+    previousClose: Optional[float] = None
+    week52High: Optional[float] = None
+    week52Low: Optional[float] = None
+    marketCap: Optional[float] = None
+    peRatio: Optional[float] = None
+    epsTTM: Optional[float] = None
+    dividendYield: Optional[float] = None
+    timestamp: Optional[int] = None
+    extendedHours: Optional[bool] = None
+
+
+@dataclass
 class SimilarStock(APIModel):
     """Peer/similar stock with optional price data."""
 

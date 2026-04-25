@@ -28,6 +28,7 @@ from sentisense.types import (
     SimilarStock,
     StockDetail,
     StockPrice,
+    StockQuote,
     Story,
 )
 
@@ -144,6 +145,18 @@ class SentiSenseClient:
     def get_stock_price(self, ticker: str) -> StockPrice:
         """Get real-time stock price for a single ticker."""
         return self._parse(self._get("/api/v1/stocks/price", params={"ticker": ticker}).json(), StockPrice)
+
+    def get_stock_quote(self, ticker: str) -> StockQuote:
+        """Get aggregate quote snapshot for a ticker.
+
+        Returns live price, today OHLC, 52-week range, market cap, P/E,
+        EPS TTM, and dividend yield in a single call. All fields except
+        ``ticker`` may be ``None`` when upstream data is unavailable.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+        """
+        return self._parse(self._get(f"/api/v1/stocks/{ticker}/quote").json(), StockQuote)
 
     def get_stock_prices(self, tickers: List[str]) -> List[StockPrice]:
         """Get real-time stock prices for multiple tickers."""
