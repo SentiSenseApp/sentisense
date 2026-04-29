@@ -450,6 +450,12 @@ class InstitutionalFlow(APIModel):
     hedgeFundNetChange: int = 0
     activistActivity: bool = False
     reportDate: str = ""
+    # Quarterly average closing price used to weight the dollar flow. None when no
+    # price is cached for this (quarter, ticker) yet.
+    avgClosePrice: Optional[float] = None
+    # Dollar-weighted net flow: netSharesChange × avgClosePrice. 0 when avgClosePrice
+    # is missing — clients should fall back to displaying netSharesChange.
+    dollarFlowUsd: float = 0.0
 
 
 @dataclass
