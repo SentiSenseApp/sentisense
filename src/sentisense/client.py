@@ -264,6 +264,19 @@ class SentiSenseClient:
             self._get("/api/v1/institutional/activist", params={"reportDate": report_date}).json(),
         )
 
+    def get_institution_detail(self, slug_or_cik: str) -> PreviewResult[Dict[str, Any]]:
+        """Get full profile, summary stats, and current-quarter holdings for an institutional filer.
+
+        Auto-unwrapped. Check ``result.is_preview`` for tier status. PRO users
+        receive the full holdings array; free users receive the top 10 holdings.
+
+        Args:
+            slug_or_cik: URL slug (e.g. ``"Berkshire-Hathaway"``) or numeric SEC CIK.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/institutional/institution/{slug_or_cik}").json(),
+        )
+
     # ── Insider trading endpoints ───────────────────────────────
 
     def get_insider_activity(self, lookback_days: int = 90) -> PreviewResult[InsiderActivity]:
@@ -414,6 +427,179 @@ class SentiSenseClient:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
         return self._get(f"/api/v1/insights/stock/{ticker.upper()}/types").json()
+
+    def get_stock_insights_range(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        urgency: Optional[str] = None,
+        insight_type: Optional[str] = None,
+    ) -> PreviewResult[List[Insight]]:
+        """Get AI insights for a stock within a date range.
+
+        Auto-unwrapped. Check ``result.is_preview`` for tier status.
+
+        Args:
+            ticker: Stock ticker symbol.
+            start_date: ISO date string ``"YYYY-MM-DD"`` (inclusive).
+            end_date: ISO date string ``"YYYY-MM-DD"`` (inclusive, on or after ``start_date``).
+            urgency: Optional urgency filter (``"low"``, ``"medium"``, ``"high"``).
+            insight_type: Optional insight type filter.
+        """
+        params: Dict[str, Any] = {"startDate": start_date, "endDate": end_date}
+        if urgency:
+            params["urgency"] = urgency
+        if insight_type:
+            params["insightType"] = insight_type
+        return self._unwrap(
+            self._get(f"/api/v1/insights/stock/{ticker.upper()}/range", params=params).json(),
+            list_cls=Insight,
+        )
+
+    def get_latest_insights(
+        self,
+        limit: int = 50,
+        urgency: Optional[str] = None,
+    ) -> PreviewResult[List[Insight]]:
+        """Get the latest AI insights across all tracked stocks, newest first.
+
+        Auto-unwrapped. Free users receive the top 5; PRO users receive up to ``limit``.
+
+        Args:
+            limit: Max insights to return. Server clamps to the range 1-200.
+            urgency: Optional urgency filter.
+        """
+        params: Dict[str, Any] = {"limit": limit}
+        if urgency:
+            params["urgency"] = urgency
+        return self._unwrap(
+            self._get("/api/v1/insights/latest", params=params).json(),
+            list_cls=Insight,
+        )
+
+    def get_user_insights(
+        self,
+        limit: int = 20,
+        category: Optional[str] = None,
+    ) -> PreviewResult[List[Insight]]:
+        """Get personalized insights for the authenticated user.
+
+        Biased toward the user's watchlist and portfolio when available; falls
+        back to market-level insights otherwise. API key authentication required.
+
+        Args:
+            limit: Max insights to return. Server clamps to the range 1-100.
+            category: Optional category filter (``"SENTIMENT"``, ``"INSIDER"``, ``"INSTITUTIONAL"``, etc.).
+        """
+        params: Dict[str, Any] = {"limit": limit}
+        if category:
+            params["category"] = category
+        return self._unwrap(
+            self._get("/api/v1/insights/user", params=params).json(),
+            list_cls=Insight,
+        )
+
+    # ── Analyst Ratings endpoints ───────────────────────────────
+
+    def get_analyst_consensus(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+        """Get the aggregate Wall Street consensus for a ticker.
+
+        PRO users receive the full buy/hold/sell distribution; free users receive
+        the price target band (``targetLow``, ``targetMean``, ``targetHigh``,
+        ``numberOfAnalysts``, ``consensusLabel``) but the distribution counts
+        are zeroed out.
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"AAPL"``).
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/analyst/{ticker.upper()}/consensus").json(),
+        )
+
+    def get_analyst_actions(
+        self,
+        ticker: str,
+        lookback_days: int = 90,
+    ) -> PreviewResult[List[Dict[str, Any]]]:
+        """Get recent analyst upgrade/downgrade actions for a ticker, newest first.
+
+        Free users receive the 3 most recent actions; PRO users receive the full list.
+
+        Args:
+            ticker: Stock ticker symbol.
+            lookback_days: Days of history to return (default 90).
+        """
+        return self._unwrap(
+            self._get(
+                f"/api/v1/analyst/{ticker.upper()}/actions",
+                params={"lookbackDays": lookback_days},
+            ).json(),
+        )
+
+    def get_analyst_estimates(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+        """Get forward EPS estimates and earnings surprise history for a ticker.
+
+        Free users receive 1 estimate (current quarter) plus the 2 most recent
+        surprises; PRO users receive the full history.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/analyst/{ticker.upper()}/estimates").json(),
+        )
+
+    def get_analyst_market_activity(
+        self,
+        lookback_days: int = 30,
+    ) -> PreviewResult[List[Dict[str, Any]]]:
+        """Get market-wide recent analyst actions across all covered tickers.
+
+        Free users receive the 5 most recent actions; PRO users receive the full list.
+
+        Args:
+            lookback_days: Days of history to return (default 30).
+        """
+        return self._unwrap(
+            self._get(
+                "/api/v1/analyst/activity",
+                params={"lookbackDays": lookback_days},
+            ).json(),
+        )
+
+    # ── Company KPIs endpoint ───────────────────────────────────
+
+    def get_company_kpis(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+        """Get company-specific KPI time-series for a ticker.
+
+        Curated GAAP and non-GAAP metrics from earnings filings (e.g. iPhone unit
+        sales, Tesla deliveries, AWS revenue). Free users receive metadata only
+        with an empty ``kpis`` list; PRO users receive the full series. Most
+        tickers do not yet have curated KPI data and will return 404.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/stocks/{ticker.upper()}/kpis").json(),
+        )
+
+    # ── Market Mood endpoint ────────────────────────────────────
+
+    def get_market_mood(self, days: int = 180) -> Dict[str, Any]:
+        """Get the SentiSense Market Mood composite (fear/greed index).
+
+        Returns the latest score, daily history, per-signal breakdown, and
+        per-sector summaries. Free for all users; no API key required (though
+        an API key counts the call against your monthly quota if supplied).
+
+        Note: lives at ``/api/v2/market-mood`` (v2 path, not v1).
+
+        Args:
+            days: Days of history to return (default 180).
+        """
+        return self._get("/api/v2/market-mood", params={"days": days}).json()
 
     # ── Document & news endpoints ───────────────────────────────
 
