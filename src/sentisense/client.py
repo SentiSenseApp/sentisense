@@ -11,6 +11,7 @@ from sentisense.exceptions import SentiSenseError, _raise_for_status
 from sentisense.types import (
     APIModel,
     ClusterBuy,
+    CompanyKpis,
     CongressTrade,
     Document,
     DocumentSearchResponse,
@@ -19,6 +20,10 @@ from sentisense.types import (
     InsiderTrade,
     InstitutionalFlow,
     InstitutionalFlows,
+    KpiCoverage,
+    KpiCoverageEntry,
+    KpiSeries,
+    KpiTypeEntry,
     MarketStatus,
     MarketSummary,
     PoliticianDetail,
@@ -570,20 +575,55 @@ class SentiSenseClient:
 
     # ── Company KPIs endpoint ───────────────────────────────────
 
-    def get_company_kpis(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+    def get_company_kpis(self, ticker: str) -> PreviewResult[CompanyKpis]:
         """Get company-specific KPI time-series for a ticker.
 
         Curated GAAP and non-GAAP metrics from earnings filings (e.g. iPhone unit
         sales, Tesla deliveries, AWS revenue). Free users receive metadata only
-        with an empty ``kpis`` list; PRO users receive the full series. Most
-        tickers do not yet have curated KPI data and will return 404.
+        with an empty ``kpis`` list; PRO users receive the full series. Returns
+        404 for tickers that do not yet have curated coverage.
+
+        Coverage today: near-complete for the S&P 500 plus extended universe
+        (~500 tickers). Use :meth:`list_kpi_coverage` to enumerate.
 
         Args:
             ticker: Stock ticker symbol.
         """
         return self._unwrap(
             self._get(f"/api/v1/stocks/{ticker.upper()}/kpis").json(),
+            item_cls=CompanyKpis,
         )
+
+    def list_kpi_coverage(self) -> KpiCoverage:
+        """List every ticker with curated KPI coverage.
+
+        Returns a typed :class:`KpiCoverage` envelope: ``count`` plus the list
+        of :class:`KpiCoverageEntry` (ticker, companyName, lastUpdated, kpiCount).
+        Sorted alphabetically by ticker. Use this to discover what's available
+        before calling :meth:`get_company_kpis` per ticker.
+
+        Auth: API key required, but the call does NOT consume your monthly
+        quota (rate-limit-per-minute still applies).
+        """
+        data = self._get("/api/v1/stocks/with-kpis").json()
+        return KpiCoverage.from_dict(data)
+
+    def get_kpi_types(self, ticker: str) -> List[KpiTypeEntry]:
+        """List the KPI metadata tuples available for a ticker.
+
+        Returns a list of :class:`KpiTypeEntry` (id, name, category, chartType)
+        without paying the cost of the full series payload. Mirrors the
+        ``/api/v1/insights/stock/{ticker}/types`` precedent. Useful for letting
+        an agent or UI decide which KPIs to render before fetching the data.
+
+        Auth: API key required, no quota cost. 404 if the ticker has no
+        curated KPIs.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        data = self._get(f"/api/v1/stocks/{ticker.upper()}/kpis/types").json()
+        return [KpiTypeEntry.from_dict(t) for t in (data or [])]
 
     # ── Market Mood endpoint ────────────────────────────────────
 

@@ -105,6 +105,71 @@ class TestStockEndpoints:
         )
 
 
+class TestKpiEndpoints:
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_company_kpis_returns_typed(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={
+            "isPreview": False,
+            "previewReason": None,
+            "data": {
+                "ticker": "AAPL",
+                "companyName": "Apple Inc.",
+                "cik": "0000320193",
+                "lastUpdated": "2026-04-30",
+                "kpis": [
+                    {
+                        "id": "iphone_revenue",
+                        "name": "iPhone Revenue",
+                        "category": "product_revenue",
+                        "unit": "USD",
+                        "displayFormat": "currency_abbreviated",
+                        "chartType": "bar",
+                        "values": [
+                            {"period": "Q2 FY2026", "date": "2025-12-27", "value": 85269000000.0, "isEstimate": None}
+                        ],
+                        "sourceRef": "Apple 8-K Q2 FY2026",
+                        "discontinued": False,
+                        "discontinuedNote": None,
+                    }
+                ],
+            },
+        })
+        result = client.get_company_kpis("AAPL")
+        mock_get.assert_called_once_with("/api/v1/stocks/AAPL/kpis")
+        # PreviewResult proxies attribute access to the typed CompanyKpis
+        assert result.is_preview is False
+        assert result.ticker == "AAPL"
+        assert result.kpis[0].id == "iphone_revenue"
+        assert result.kpis[0].values[0].value == 85269000000.0
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_list_kpi_coverage_returns_typed(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={
+            "count": 2,
+            "tickers": [
+                {"ticker": "AAPL", "companyName": "Apple Inc.", "lastUpdated": "2026-04-30", "kpiCount": 8},
+                {"ticker": "TSLA", "companyName": "Tesla, Inc.", "lastUpdated": "2026-04-15", "kpiCount": 6},
+            ],
+        })
+        coverage = client.list_kpi_coverage()
+        mock_get.assert_called_once_with("/api/v1/stocks/with-kpis")
+        assert coverage.count == 2
+        assert coverage.tickers[0].ticker == "AAPL"
+        assert coverage.tickers[0].kpiCount == 8
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_kpi_types_returns_typed_list(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[
+            {"id": "iphone_revenue", "name": "iPhone Revenue", "category": "product_revenue", "chartType": "bar"},
+            {"id": "services_revenue", "name": "Services Revenue", "category": "segment_revenue", "chartType": "line"},
+        ])
+        types = client.get_kpi_types("aapl")
+        mock_get.assert_called_once_with("/api/v1/stocks/AAPL/kpis/types")
+        assert len(types) == 2
+        assert types[0].id == "iphone_revenue"
+        assert types[1].chartType == "line"
+
+
 class TestInstitutionalEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_quarters(self, mock_get, client):

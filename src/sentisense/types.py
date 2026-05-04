@@ -471,3 +471,92 @@ class InstitutionalFlows(APIModel):
             inflows=[InstitutionalFlow.from_dict(f) for f in data.get("inflows", [])],
             outflows=[InstitutionalFlow.from_dict(f) for f in data.get("outflows", [])],
         )
+
+
+# ── KPI types ( / ) ─────────────────────────
+
+
+@dataclass
+class KpiDataPoint(APIModel):
+    """One period value in a KPI time series."""
+
+    period: str = ""           # e.g. "Q2 FY2026"
+    date: str = ""             # ISO date, e.g. "2025-12-27"
+    value: float = 0.0
+    isEstimate: Optional[bool] = None  # preliminary flag, often null
+
+
+@dataclass
+class KpiSeries(APIModel):
+    """A single KPI time series for a company."""
+
+    id: str = ""               # e.g. "iphone_revenue"
+    name: str = ""             # e.g. "iPhone Revenue"
+    category: str = ""         # e.g. "product_revenue", "segment_revenue"
+    unit: str = ""             # e.g. "USD"
+    displayFormat: str = ""    # e.g. "currency_abbreviated"
+    chartType: str = ""        # e.g. "bar", "line"
+    values: List[KpiDataPoint] = field(default_factory=list)
+    sourceRef: Optional[str] = None
+    discontinued: Optional[bool] = None
+    discontinuedNote: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "KpiSeries":
+        values = [KpiDataPoint.from_dict(v) for v in data.get("values", [])]
+        known = {f.name for f in dataclasses.fields(cls)}
+        base = {k: v for k, v in data.items() if k in known and k != "values"}
+        return cls(**base, values=values)
+
+
+@dataclass
+class CompanyKpis(APIModel):
+    """Full KPI payload for a company. Returned by ``client.get_company_kpis``."""
+
+    ticker: str = ""
+    companyName: str = ""
+    cik: Optional[str] = None
+    lastUpdated: str = ""
+    kpis: List[KpiSeries] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CompanyKpis":
+        kpis = [KpiSeries.from_dict(k) for k in data.get("kpis", [])]
+        known = {f.name for f in dataclasses.fields(cls)}
+        base = {k: v for k, v in data.items() if k in known and k != "kpis"}
+        return cls(**base, kpis=kpis)
+
+
+@dataclass
+class KpiCoverageEntry(APIModel):
+    """One ticker with curated KPI coverage. Returned by ``client.list_kpi_coverage``."""
+
+    ticker: str = ""
+    companyName: str = ""
+    lastUpdated: str = ""
+    kpiCount: int = 0
+
+
+@dataclass
+class KpiCoverage(APIModel):
+    """Coverage listing envelope: count + list of covered tickers."""
+
+    count: int = 0
+    tickers: List[KpiCoverageEntry] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "KpiCoverage":
+        return cls(
+            count=data.get("count", 0),
+            tickers=[KpiCoverageEntry.from_dict(t) for t in data.get("tickers", [])],
+        )
+
+
+@dataclass
+class KpiTypeEntry(APIModel):
+    """Lightweight KPI metadata tuple. Returned by ``client.get_kpi_types``."""
+
+    id: str = ""
+    name: str = ""
+    category: str = ""
+    chartType: str = ""
