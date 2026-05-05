@@ -115,6 +115,22 @@ The following methods hit the v1 entity-metrics endpoints which return empty dat
 | `get_stock_holders(ticker, report_date)` | Institutional holders for a stock |
 | `get_activist_positions(report_date)` | Activist investor positions |
 
+### Analyst Ratings (PRO, preview on free)
+
+| Method | Description |
+|--------|-------------|
+| `get_analyst_consensus(ticker)` | Price target band, analyst count, upside %, buy/hold/sell distribution |
+| `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrade/downgrade actions for a ticker |
+| `get_analyst_estimates(ticker)` | Forward EPS estimates and earnings surprise history |
+| `get_analyst_market_activity(lookback_days=30)` | Market-wide recent analyst actions across all tickers |
+
+### Company KPIs (PRO, preview on free)
+
+| Method | Description |
+|--------|-------------|
+| `get_company_kpis(ticker)` | Company-specific KPI time-series (product metrics, segment revenue) |
+| `list_kpi_coverage()` | List all tickers with curated KPI coverage |
+
 ## Error Handling
 
 The SDK raises typed exceptions for API errors:
