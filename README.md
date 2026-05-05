@@ -115,21 +115,23 @@ The following methods hit the v1 entity-metrics endpoints which return empty dat
 | `get_stock_holders(ticker, report_date)` | Institutional holders for a stock |
 | `get_activist_positions(report_date)` | Activist investor positions |
 
-### Analyst Ratings (PRO, preview on free)
+### Analyst Ratings
+
+The **price target cone** (mean, high, low, upside %) and consensus are **free for everyone, full data via API** — we give it away. Upgrade/downgrade feeds and forward EPS estimates are limited on free, unlimited on PRO.
 
 | Method | Description |
 |--------|-------------|
-| `get_analyst_consensus(ticker)` | Price target band, analyst count, upside %, buy/hold/sell distribution |
-| `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrade/downgrade actions for a ticker |
-| `get_analyst_estimates(ticker)` | Forward EPS estimates and earnings surprise history |
-| `get_analyst_market_activity(lookback_days=30)` | Market-wide recent analyst actions across all tickers |
+| `get_analyst_consensus(ticker)` | Price target band (mean, high, low), analyst count, upside %. Free for everyone, full data. |
+| `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrade/downgrade actions. Free: 3 most recent. PRO: unlimited. |
+| `get_analyst_estimates(ticker)` | Forward EPS estimates and earnings surprise history. Free: 1 quarter. PRO: full history. |
+| `get_analyst_market_activity(lookback_days=30)` | Market-wide recent analyst actions across all tickers (PRO). |
 
-### Company KPIs (PRO, preview on free)
+### Company KPIs (PRO)
 
 | Method | Description |
 |--------|-------------|
-| `get_company_kpis(ticker)` | Company-specific KPI time-series (product metrics, segment revenue) |
-| `list_kpi_coverage()` | List all tickers with curated KPI coverage |
+| `get_company_kpis(ticker)` | Company-specific KPI time-series (product metrics, segment revenue). Free tier returns metadata only (empty `kpis` array); PRO returns full series. |
+| `list_kpi_coverage()` | List all tickers with curated KPI coverage (free, no quota cost) |
 
 ## Error Handling
 
