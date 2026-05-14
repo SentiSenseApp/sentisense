@@ -185,7 +185,11 @@ class SentiSenseClient:
 
         Args:
             ticker: Stock ticker symbol.
-            timeframe: Chart timeframe (e.g. "1D", "1W", "1M", "3M", "1Y").
+            timeframe: Chart timeframe. One of "1D", "5D", "1W", "1M", "3M", "6M", "1Y", "ALL".
+
+        Each bar carries: ``timestamp`` (Unix ms), ``date`` (display string), ``open``,
+        ``high``, ``low``, ``close``, ``volume``, and ``session`` ("pre" / "regular" /
+        "post" for intraday timeframes; ``None`` for daily and weekly bars).
         """
         return self._get("/api/v1/stocks/chart", params={"ticker": ticker, "timeframe": timeframe}).json()
 
