@@ -595,6 +595,84 @@ class SentiSenseClient:
             ).json(),
         )
 
+    # ── ETF endpoints ───────────────────────────────────────────
+
+    def list_etfs(self) -> List[Dict[str, Any]]:
+        """List every ETF tracked by SentiSense.
+
+        Sorted by ticker. Each entry includes ticker, fund name, KB entity ID,
+        URL slug, issuer, tracked index, and asset class.
+
+        Auth: API key required (no quota cost).
+        """
+        return self._get("/api/v1/etfs").json()
+
+    def get_etf_holdings(self, ticker: str) -> Dict[str, Any]:
+        """Return the full holdings composition for an ETF.
+
+        Includes per-holding weights and freshness metadata (``as_of_date``,
+        ``fetched_at``, ``next_refresh_due``). When the composition is a
+        top-N view (e.g. via a third-party aggregator), ``partial`` is true
+        and ``total_known_holdings`` reflects the issuer's true count.
+
+        Args:
+            ticker: ETF ticker (e.g. ``"QQQ"``).
+        """
+        return self._get(f"/api/v1/etfs/{ticker.upper()}/holdings").json()
+
+    def get_etf_analyst_aggregate(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+        """Get the holdings-weighted analyst consensus for an ETF.
+
+        Synthesized from each constituent's per-stock analyst coverage,
+        weighted by allocation and renormalized to the covered subset.
+        Free users receive the headline and coverage block; PRO unlocks
+        the per-holding ``topContributors`` array.
+
+        Args:
+            ticker: ETF ticker.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/etfs/{ticker.upper()}/aggregates/analyst").json(),
+        )
+
+    def get_etf_insider_aggregate(
+        self,
+        ticker: str,
+        lookback_days: int = 30,
+    ) -> PreviewResult[Dict[str, Any]]:
+        """Get the holdings-weighted SEC Form 4 insider aggregate for an ETF.
+
+        Returns net dollar flow, gross buy/sell amounts, and trade counts
+        across the fund's constituents over the trailing window. Free users
+        receive the headline + buy/sell split; PRO unlocks per-holding
+        ``topContributors`` with signed contribution.
+
+        Args:
+            ticker: ETF ticker.
+            lookback_days: Trailing window for the trade aggregation (default 30).
+        """
+        return self._unwrap(
+            self._get(
+                f"/api/v1/etfs/{ticker.upper()}/aggregates/insider",
+                params={"lookbackDays": lookback_days},
+            ).json(),
+        )
+
+    def get_etf_sentiment_aggregate(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+        """Get two SentiSense Score readings for an ETF side-by-side.
+
+        Returns ``constituentsWeighted`` (precomputed weighted score across
+        the fund's holdings) and ``direct`` (score from mentions of the
+        fund's own ticker). These can diverge meaningfully — the gap is
+        itself information. ``direct`` may be null for low-mention funds.
+
+        Args:
+            ticker: ETF ticker.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/etfs/{ticker.upper()}/aggregates/sentiment").json(),
+        )
+
     # ── Company KPIs endpoint ───────────────────────────────────
 
     def get_company_kpis(self, ticker: str) -> PreviewResult[CompanyKpis]:

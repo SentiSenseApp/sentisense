@@ -133,6 +133,18 @@ The **price target cone** (mean, high, low, upside %) and consensus are **free f
 | `get_company_kpis(ticker)` | Company-specific KPI time-series (product metrics, segment revenue). Free tier returns metadata only (empty `kpis` array); PRO returns full series. |
 | `list_kpi_coverage()` | List all tickers with curated KPI coverage (free, no quota cost) |
 
+### ETFs (beta)
+
+Composition data is public; the holdings-weighted aggregate views follow the same PRO-with-preview pattern as Analyst/Insider. Aggregates synthesize fund-level views from each constituent's per-stock data (analyst coverage, insider trades, sentiment), weighted by allocation. Every aggregate response carries a `coverage` block so you see exactly how much of the fund's AUM the underlying data covered.
+
+| Method | Description |
+|--------|-------------|
+| `list_etfs()` | Every ETF tracked by SentiSense. Returns ticker, fund name, issuer, tracked index, asset class. |
+| `get_etf_holdings(ticker)` | Full composition: per-holding weights and freshness metadata. |
+| `get_etf_analyst_aggregate(ticker)` | Holdings-weighted analyst consensus (weighted upside, distribution). Free: headline + coverage. PRO: + `topContributors`. |
+| `get_etf_insider_aggregate(ticker, lookback_days=30)` | Holdings-weighted Form 4 net flow over a configurable window. Free: headline + buy/sell split. PRO: + `topContributors`. |
+| `get_etf_sentiment_aggregate(ticker)` | Two SentiSense readings side-by-side: constituent-weighted and direct (mentions of the fund itself). |
+
 ## Error Handling
 
 The SDK raises typed exceptions for API errors:
