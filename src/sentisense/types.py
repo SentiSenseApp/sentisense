@@ -73,8 +73,28 @@ class PreviewResult(Generic[T]):
 
 
 @dataclass
+class ExtendedHoursInfo(APIModel):
+    """Pre-market or after-hours session view embedded in price / quote responses.
+
+    Present only when the snapshot sees pre-market (04:00-09:30 ET) or after-hours
+    (16:00-20:00 ET) activity. ``change`` and ``changePercent`` are server-computed
+    versus the regular-session ``currentPrice``.
+    """
+
+    session: str = ""  # "pre" or "post"
+    price: float = 0.0
+    change: float = 0.0
+    changePercent: float = 0.0
+
+
+@dataclass
 class StockPrice(APIModel):
-    """Real-time stock price data."""
+    """Real-time stock price data.
+
+    ``currentPrice`` is always the regular-session price (live last trade during RTH,
+    most recent regular-session close otherwise). ``extendedHours`` is populated only
+    during pre-market or after-hours sessions.
+    """
 
     ticker: str = ""
     currentPrice: float = 0.0
@@ -83,6 +103,7 @@ class StockPrice(APIModel):
     previousClose: float = 0.0
     volume: int = 0
     timestamp: int = 0
+    extendedHours: Optional[ExtendedHoursInfo] = None
 
 
 @dataclass
@@ -92,6 +113,10 @@ class StockQuote(APIModel):
     Combines live price, today OHLC, 52-week range, market cap, and key
     fundamentals into a single payload. All fields except ``ticker`` may be
     ``None`` when the upstream data source is unavailable.
+
+    ``currentPrice`` is always the regular-session price. ``extendedHours`` is
+    populated only during pre-market or after-hours sessions; see
+    :class:`ExtendedHoursInfo` for the nested shape.
     """
 
     ticker: str = ""
@@ -110,7 +135,7 @@ class StockQuote(APIModel):
     epsTTM: Optional[float] = None
     dividendYield: Optional[float] = None
     timestamp: Optional[int] = None
-    extendedHours: Optional[bool] = None
+    extendedHours: Optional[ExtendedHoursInfo] = None
 
 
 @dataclass

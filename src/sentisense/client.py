@@ -148,7 +148,17 @@ class SentiSenseClient:
     # ── Stock endpoints ─────────────────────────────────────────
 
     def get_stock_price(self, ticker: str) -> StockPrice:
-        """Get real-time stock price for a single ticker."""
+        """Get real-time stock price for a single ticker.
+
+        ``currentPrice`` is always the regular-session price (live last trade during RTH,
+        most recent regular-session close otherwise). During pre-market and after-hours
+        the response includes a nested ``extendedHours`` object with the live extended-hours
+        price plus its change vs ``currentPrice``::
+
+            {"session": "pre" | "post", "price": float, "change": float, "changePercent": float}
+
+        The ``extendedHours`` field is absent (``None``) during RTH, overnight, and weekends.
+        """
         return self._parse(self._get("/api/v1/stocks/price", params={"ticker": ticker}).json(), StockPrice)
 
     def get_stock_quote(self, ticker: str) -> StockQuote:
@@ -158,13 +168,21 @@ class SentiSenseClient:
         EPS TTM, and dividend yield in a single call. All fields except
         ``ticker`` may be ``None`` when upstream data is unavailable.
 
+        ``currentPrice`` is always the regular-session price. During pre-market and
+        after-hours, the response includes a nested ``extendedHours`` object — see
+        :meth:`get_stock_price` for the shape.
+
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
         return self._parse(self._get(f"/api/v1/stocks/{ticker}/quote").json(), StockQuote)
 
     def get_stock_prices(self, tickers: List[str]) -> List[StockPrice]:
-        """Get real-time stock prices for multiple tickers."""
+        """Get real-time stock prices for multiple tickers.
+
+        See :meth:`get_stock_price` for the per-ticker payload shape including the
+        nested ``extendedHours`` object during pre/post sessions.
+        """
         return self._parse_list(self._get("/api/v1/stocks/prices", params={"tickers": ",".join(tickers)}).json(), StockPrice)
 
     def get_stock_profile(self, ticker: str) -> Dict[str, Any]:
