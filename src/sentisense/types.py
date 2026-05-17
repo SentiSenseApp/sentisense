@@ -614,13 +614,12 @@ class EtfInfo(APIModel):
 
 @dataclass
 class EtfHolding(APIModel):
-    """One per-stock holding inside an ETF composition. Field names follow the wire
-    (snake_case) because the backend serializes holdings rows with snake_case keys."""
+    """One per-stock holding inside an ETF composition."""
 
     ticker: str = ""
     name: Optional[str] = None
-    weight_pct: float = 0.0
-    first_seen: Optional[str] = None
+    weightPct: float = 0.0  # holding weight in the fund as a percentage (0-100)
+    firstSeen: Optional[str] = None  # ISO date 'YYYY-MM-DD' when this holding first appeared
 
 
 @dataclass
@@ -629,14 +628,14 @@ class EtfHoldings(APIModel):
 
     ticker: str = ""
     issuer: str = ""
-    issuer_endpoint: Optional[str] = None
-    as_of_date: str = ""
-    fetched_at: str = ""
-    next_refresh_due: str = ""
-    total_holdings: int = 0
+    issuerEndpoint: Optional[str] = None
+    asOfDate: str = ""  # ISO date 'YYYY-MM-DD' from the issuer
+    fetchedAt: Optional[int] = None  # epoch seconds when SentiSense refreshed the composition
+    nextRefreshDue: str = ""  # ISO date 'YYYY-MM-DD' when the next refresh is scheduled
+    totalHoldings: int = 0
     holdings: List[EtfHolding] = field(default_factory=list)
     partial: Optional[bool] = None
-    total_known_holdings: Optional[int] = None
+    totalKnownHoldings: Optional[int] = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "EtfHoldings":
@@ -645,14 +644,14 @@ class EtfHoldings(APIModel):
         return cls(
             ticker=data.get("ticker", ""),
             issuer=data.get("issuer", ""),
-            issuer_endpoint=data.get("issuer_endpoint"),
-            as_of_date=data.get("as_of_date", ""),
-            fetched_at=data.get("fetched_at", ""),
-            next_refresh_due=data.get("next_refresh_due", ""),
-            total_holdings=data.get("total_holdings", 0),
+            issuerEndpoint=data.get("issuerEndpoint"),
+            asOfDate=data.get("asOfDate", ""),
+            fetchedAt=data.get("fetchedAt"),
+            nextRefreshDue=data.get("nextRefreshDue", ""),
+            totalHoldings=data.get("totalHoldings", 0),
             holdings=[EtfHolding.from_dict(h) for h in data.get("holdings", [])],
             partial=data.get("partial"),
-            total_known_holdings=data.get("total_known_holdings"),
+            totalKnownHoldings=data.get("totalKnownHoldings"),
         )
 
 
@@ -680,8 +679,7 @@ class WeightedConsensus(APIModel):
 
 @dataclass
 class EtfAnalystContributor(APIModel):
-    """One per-holding contribution to the weighted analyst consensus. PRO-only;
-    omitted (parent ``topContributors`` is ``None``) on FREE responses."""
+    """One per-holding contribution to the weighted analyst consensus."""
 
     ticker: str = ""
     weightPct: float = 0.0
@@ -695,24 +693,24 @@ class EtfAnalystAggregate(APIModel):
     """Top-level shape returned by ``client.get_etf_analyst_aggregate``."""
 
     ticker: str = ""
-    asOfDate: str = ""
-    computedAt: str = ""
+    asOfDate: str = ""  # ISO date 'YYYY-MM-DD'
+    computedAt: Optional[int] = None  # epoch seconds
     coverage: Optional[EtfAggregateCoverage] = None
     weightedConsensus: Optional[WeightedConsensus] = None
-    topContributors: Optional[List[EtfAnalystContributor]] = None
+    topContributors: List[EtfAnalystContributor] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "EtfAnalystAggregate":
         if data is None:
             return None  # type: ignore[return-value]
-        tc = data.get("topContributors")
+        tc = data.get("topContributors") or []
         return cls(
             ticker=data.get("ticker", ""),
             asOfDate=data.get("asOfDate", ""),
-            computedAt=data.get("computedAt", ""),
+            computedAt=data.get("computedAt"),
             coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
             weightedConsensus=WeightedConsensus.from_dict(data.get("weightedConsensus")) if data.get("weightedConsensus") else None,
-            topContributors=[EtfAnalystContributor.from_dict(c) for c in tc] if tc else None,
+            topContributors=[EtfAnalystContributor.from_dict(c) for c in tc],
         )
 
 
@@ -731,7 +729,7 @@ class WeightedNetFlow(APIModel):
 
 @dataclass
 class EtfInsiderContributor(APIModel):
-    """One per-holding contribution to the weighted insider net flow. PRO-only."""
+    """One per-holding contribution to the weighted insider net flow."""
 
     ticker: str = ""
     weightPct: float = 0.0
@@ -745,26 +743,26 @@ class EtfInsiderAggregate(APIModel):
     """Top-level shape returned by ``client.get_etf_insider_aggregate``."""
 
     ticker: str = ""
-    asOfDate: str = ""
-    computedAt: str = ""
+    asOfDate: str = ""  # ISO date 'YYYY-MM-DD'
+    computedAt: Optional[int] = None  # epoch seconds
     lookbackDays: int = 30
     coverage: Optional[EtfAggregateCoverage] = None
     weightedNetFlow: Optional[WeightedNetFlow] = None
-    topContributors: Optional[List[EtfInsiderContributor]] = None
+    topContributors: List[EtfInsiderContributor] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "EtfInsiderAggregate":
         if data is None:
             return None  # type: ignore[return-value]
-        tc = data.get("topContributors")
+        tc = data.get("topContributors") or []
         return cls(
             ticker=data.get("ticker", ""),
             asOfDate=data.get("asOfDate", ""),
-            computedAt=data.get("computedAt", ""),
+            computedAt=data.get("computedAt"),
             lookbackDays=data.get("lookbackDays", 30),
             coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
             weightedNetFlow=WeightedNetFlow.from_dict(data.get("weightedNetFlow")) if data.get("weightedNetFlow") else None,
-            topContributors=[EtfInsiderContributor.from_dict(c) for c in tc] if tc else None,
+            topContributors=[EtfInsiderContributor.from_dict(c) for c in tc],
         )
 
 
@@ -775,7 +773,7 @@ class EtfSentimentReading(APIModel):
 
     sentiSenseScore: float = 0.0
     scoreLabel: str = ""
-    asOfTimestamp: Optional[int] = None
+    asOfTimestamp: Optional[int] = None  # epoch seconds when the underlying metric was produced
 
 
 @dataclass
@@ -785,8 +783,8 @@ class EtfSentimentAggregate(APIModel):
     current coverage window."""
 
     ticker: str = ""
-    asOfDate: str = ""
-    computedAt: str = ""
+    asOfDate: str = ""  # ISO date 'YYYY-MM-DD'
+    computedAt: Optional[int] = None  # epoch seconds
     coverage: Optional[EtfAggregateCoverage] = None
     constituentsWeighted: Optional[EtfSentimentReading] = None
     direct: Optional[EtfSentimentReading] = None
@@ -798,7 +796,7 @@ class EtfSentimentAggregate(APIModel):
         return cls(
             ticker=data.get("ticker", ""),
             asOfDate=data.get("asOfDate", ""),
-            computedAt=data.get("computedAt", ""),
+            computedAt=data.get("computedAt"),
             coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
             constituentsWeighted=EtfSentimentReading.from_dict(data.get("constituentsWeighted")) if data.get("constituentsWeighted") else None,
             direct=EtfSentimentReading.from_dict(data.get("direct")) if data.get("direct") else None,
