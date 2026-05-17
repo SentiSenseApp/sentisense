@@ -662,6 +662,8 @@ class EtfAggregateCoverage(APIModel):
 
     holdingsCount: int = 0
     holdingsCovered: int = 0
+    # Sum of weights (0-100) for the covered holdings, i.e. already in percent
+    # units. A fund where 95% of AUM has per-stock coverage reports 95.0, not 0.95.
     weightCovered: float = 0.0
     partial: Optional[bool] = None
     totalKnownHoldings: Optional[int] = None
