@@ -418,7 +418,7 @@ class StoryCluster(APIModel):
     title: str = ""
     clusterSize: int = 0
     averageSentiment: float = 0.0
-    createdAt: int = 0
+    clusteredAt: int = 0  # epoch seconds when our pipeline assembled the cluster
 
 
 @dataclass
