@@ -896,8 +896,8 @@ class SentiSenseClient:
         """Get AI-curated news story clusters.
 
         Returns story objects with title, sentiment, impact score, and tickers.
-        Each story includes a ``brokeAt`` field (epoch seconds) indicating when
-        the story broke.
+        Each story includes a ``brokeAt`` field (epoch seconds, nullable when
+        no representative document timestamp is available).
 
         Args:
             limit: Maximum number of stories.

@@ -429,7 +429,7 @@ class Story(APIModel):
     displayTickers: List[str] = field(default_factory=list)
     tickers: List[str] = field(default_factory=list)
     impactScore: float = 0.0
-    brokeAt: int = 0
+    brokeAt: Optional[int] = None
     primaryEntityNames: List[str] = field(default_factory=list)
 
     @classmethod
