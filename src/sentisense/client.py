@@ -15,6 +15,11 @@ from sentisense.types import (
     CongressTrade,
     Document,
     DocumentSearchResponse,
+    EtfAnalystAggregate,
+    EtfHoldings,
+    EtfInfo,
+    EtfInsiderAggregate,
+    EtfSentimentAggregate,
     Insight,
     InsiderActivity,
     InsiderTrade,
@@ -597,7 +602,7 @@ class SentiSenseClient:
 
     # ── ETF endpoints ───────────────────────────────────────────
 
-    def list_etfs(self) -> List[Dict[str, Any]]:
+    def list_etfs(self) -> List[EtfInfo]:
         """List every ETF tracked by SentiSense.
 
         Sorted by ticker. Each entry includes ticker, fund name, KB entity ID,
@@ -605,9 +610,9 @@ class SentiSenseClient:
 
         Auth: API key required (no quota cost).
         """
-        return self._get("/api/v1/etfs").json()
+        return self._parse_list(self._get("/api/v1/etfs").json(), EtfInfo)
 
-    def get_etf_holdings(self, ticker: str) -> Dict[str, Any]:
+    def get_etf_holdings(self, ticker: str) -> EtfHoldings:
         """Return the full holdings composition for an ETF.
 
         Includes per-holding weights and freshness metadata (``as_of_date``,
@@ -618,9 +623,11 @@ class SentiSenseClient:
         Args:
             ticker: ETF ticker (e.g. ``"QQQ"``).
         """
-        return self._get(f"/api/v1/etfs/{ticker.upper()}/holdings").json()
+        return EtfHoldings.from_dict(
+            self._get(f"/api/v1/etfs/{ticker.upper()}/holdings").json()
+        )
 
-    def get_etf_analyst_aggregate(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+    def get_etf_analyst_aggregate(self, ticker: str) -> PreviewResult[EtfAnalystAggregate]:
         """Get the holdings-weighted analyst consensus for an ETF.
 
         Synthesized from each constituent's per-stock analyst coverage,
@@ -633,13 +640,14 @@ class SentiSenseClient:
         """
         return self._unwrap(
             self._get(f"/api/v1/etfs/{ticker.upper()}/aggregates/analyst").json(),
+            item_cls=EtfAnalystAggregate,
         )
 
     def get_etf_insider_aggregate(
         self,
         ticker: str,
         lookback_days: int = 30,
-    ) -> PreviewResult[Dict[str, Any]]:
+    ) -> PreviewResult[EtfInsiderAggregate]:
         """Get the holdings-weighted SEC Form 4 insider aggregate for an ETF.
 
         Returns net dollar flow, gross buy/sell amounts, and trade counts
@@ -649,28 +657,35 @@ class SentiSenseClient:
 
         Args:
             ticker: ETF ticker.
-            lookback_days: Trailing window for the trade aggregation (default 30).
+            lookback_days: Trailing window for the trade aggregation (default 30,
+                upper-bound clamp at 90).
         """
         return self._unwrap(
             self._get(
                 f"/api/v1/etfs/{ticker.upper()}/aggregates/insider",
                 params={"lookbackDays": lookback_days},
             ).json(),
+            item_cls=EtfInsiderAggregate,
         )
 
-    def get_etf_sentiment_aggregate(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+    def get_etf_sentiment_aggregate(self, ticker: str) -> PreviewResult[EtfSentimentAggregate]:
         """Get two SentiSense Score readings for an ETF side-by-side.
+
+        **Beta** as of 2026-05-15: the constituent-weighted score is being
+        produced for a limited starter set of funds. Expect 404 for funds
+        outside the current coverage window; re-check daily.
 
         Returns ``constituentsWeighted`` (precomputed weighted score across
         the fund's holdings) and ``direct`` (score from mentions of the
-        fund's own ticker). These can diverge meaningfully — the gap is
-        itself information. ``direct`` may be null for low-mention funds.
+        fund's own ticker). These can diverge meaningfully and the gap is
+        itself information. ``direct`` may be ``None`` for low-mention funds.
 
         Args:
             ticker: ETF ticker.
         """
         return self._unwrap(
             self._get(f"/api/v1/etfs/{ticker.upper()}/aggregates/sentiment").json(),
+            item_cls=EtfSentimentAggregate,
         )
 
     # ── Company KPIs endpoint ───────────────────────────────────

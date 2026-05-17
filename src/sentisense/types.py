@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Generic, Iterator, List, Optional, TypeVar
+from typing import Any, Dict, Generic, Iterator, List, Optional, TypeVar
 
 T = TypeVar("T")
 
@@ -54,7 +54,16 @@ class PreviewResult(Generic[T]):
         object.__setattr__(self, "preview_reason", preview_reason)
 
     def __getattr__(self, name: str) -> Any:
-        return getattr(self._data, name)
+        data = object.__getattribute__(self, "_data")
+        try:
+            return getattr(data, name)
+        except AttributeError:
+            # Fall back to dict-style access when the wrapped data is a plain dict
+            # (e.g. endpoints not yet migrated to a typed dataclass). Keeps the proxy's
+            # "transparent" promise honest regardless of response shape.
+            if isinstance(data, dict) and name in data:
+                return data[name]
+            raise
 
     def __getitem__(self, key: Any) -> Any:
         return self._data[key]  # type: ignore[index]
@@ -585,3 +594,212 @@ class KpiTypeEntry(APIModel):
     name: str = ""
     category: str = ""
     chartType: str = ""
+
+
+# ── ETF types ────────────────────────────────────────────────
+
+
+@dataclass
+class EtfInfo(APIModel):
+    """One row from ``client.list_etfs()``."""
+
+    ticker: str = ""
+    name: str = ""
+    kbEntityId: Optional[str] = None
+    urlSlug: Optional[str] = None
+    issuer: Optional[str] = None
+    trackedIndex: Optional[str] = None
+    assetClass: Optional[str] = None
+
+
+@dataclass
+class EtfHolding(APIModel):
+    """One per-stock holding inside an ETF composition. Field names follow the wire
+    (snake_case) because the backend serializes holdings rows with snake_case keys."""
+
+    ticker: str = ""
+    name: Optional[str] = None
+    weight_pct: float = 0.0
+    first_seen: Optional[str] = None
+
+
+@dataclass
+class EtfHoldings(APIModel):
+    """Full composition for an ETF. Returned by ``client.get_etf_holdings``."""
+
+    ticker: str = ""
+    issuer: str = ""
+    issuer_endpoint: Optional[str] = None
+    as_of_date: str = ""
+    fetched_at: str = ""
+    next_refresh_due: str = ""
+    total_holdings: int = 0
+    holdings: List[EtfHolding] = field(default_factory=list)
+    partial: Optional[bool] = None
+    total_known_holdings: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EtfHoldings":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            ticker=data.get("ticker", ""),
+            issuer=data.get("issuer", ""),
+            issuer_endpoint=data.get("issuer_endpoint"),
+            as_of_date=data.get("as_of_date", ""),
+            fetched_at=data.get("fetched_at", ""),
+            next_refresh_due=data.get("next_refresh_due", ""),
+            total_holdings=data.get("total_holdings", 0),
+            holdings=[EtfHolding.from_dict(h) for h in data.get("holdings", [])],
+            partial=data.get("partial"),
+            total_known_holdings=data.get("total_known_holdings"),
+        )
+
+
+@dataclass
+class EtfAggregateCoverage(APIModel):
+    """Coverage block embedded in every ETF aggregate response. Tells the consumer how
+    much of fund AUM the underlying per-stock data covered."""
+
+    holdingsCount: int = 0
+    holdingsCovered: int = 0
+    weightCovered: float = 0.0
+    partial: Optional[bool] = None
+    totalKnownHoldings: Optional[int] = None
+
+
+@dataclass
+class WeightedConsensus(APIModel):
+    """Holdings-weighted analyst consensus headline."""
+
+    upsidePercent: float = 0.0
+    consensusLabel: str = ""
+    distribution: Dict[str, float] = field(default_factory=dict)
+    totalAnalysts: int = 0
+
+
+@dataclass
+class EtfAnalystContributor(APIModel):
+    """One per-holding contribution to the weighted analyst consensus. PRO-only;
+    omitted (parent ``topContributors`` is ``None``) on FREE responses."""
+
+    ticker: str = ""
+    weightPct: float = 0.0
+    upsidePercent: float = 0.0
+    consensusLabel: str = ""
+    contributionPp: float = 0.0
+
+
+@dataclass
+class EtfAnalystAggregate(APIModel):
+    """Top-level shape returned by ``client.get_etf_analyst_aggregate``."""
+
+    ticker: str = ""
+    asOfDate: str = ""
+    computedAt: str = ""
+    coverage: Optional[EtfAggregateCoverage] = None
+    weightedConsensus: Optional[WeightedConsensus] = None
+    topContributors: Optional[List[EtfAnalystContributor]] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EtfAnalystAggregate":
+        if data is None:
+            return None  # type: ignore[return-value]
+        tc = data.get("topContributors")
+        return cls(
+            ticker=data.get("ticker", ""),
+            asOfDate=data.get("asOfDate", ""),
+            computedAt=data.get("computedAt", ""),
+            coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
+            weightedConsensus=WeightedConsensus.from_dict(data.get("weightedConsensus")) if data.get("weightedConsensus") else None,
+            topContributors=[EtfAnalystContributor.from_dict(c) for c in tc] if tc else None,
+        )
+
+
+@dataclass
+class WeightedNetFlow(APIModel):
+    """Holdings-weighted SEC Form 4 net flow headline. ``netDollars`` is signed
+    (negative = net selling across the fund's constituents)."""
+
+    netDollars: int = 0
+    buyDollars: int = 0
+    sellDollars: int = 0
+    buyTradeCount: int = 0
+    sellTradeCount: int = 0
+    distinctInsiderCount: int = 0
+
+
+@dataclass
+class EtfInsiderContributor(APIModel):
+    """One per-holding contribution to the weighted insider net flow. PRO-only."""
+
+    ticker: str = ""
+    weightPct: float = 0.0
+    netDollars: int = 0
+    weightedNetDollars: int = 0
+    tradeCount: int = 0
+
+
+@dataclass
+class EtfInsiderAggregate(APIModel):
+    """Top-level shape returned by ``client.get_etf_insider_aggregate``."""
+
+    ticker: str = ""
+    asOfDate: str = ""
+    computedAt: str = ""
+    lookbackDays: int = 30
+    coverage: Optional[EtfAggregateCoverage] = None
+    weightedNetFlow: Optional[WeightedNetFlow] = None
+    topContributors: Optional[List[EtfInsiderContributor]] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EtfInsiderAggregate":
+        if data is None:
+            return None  # type: ignore[return-value]
+        tc = data.get("topContributors")
+        return cls(
+            ticker=data.get("ticker", ""),
+            asOfDate=data.get("asOfDate", ""),
+            computedAt=data.get("computedAt", ""),
+            lookbackDays=data.get("lookbackDays", 30),
+            coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
+            weightedNetFlow=WeightedNetFlow.from_dict(data.get("weightedNetFlow")) if data.get("weightedNetFlow") else None,
+            topContributors=[EtfInsiderContributor.from_dict(c) for c in tc] if tc else None,
+        )
+
+
+@dataclass
+class EtfSentimentReading(APIModel):
+    """One SentiSense Score reading. Used twice in the sentiment aggregate response
+    (constituent-weighted and direct)."""
+
+    sentiSenseScore: float = 0.0
+    scoreLabel: str = ""
+    asOfTimestamp: Optional[int] = None
+
+
+@dataclass
+class EtfSentimentAggregate(APIModel):
+    """Top-level shape returned by ``client.get_etf_sentiment_aggregate``. **Beta**
+    as of 2026-05-15 — limited fund coverage; expect 404 for funds outside the
+    current coverage window."""
+
+    ticker: str = ""
+    asOfDate: str = ""
+    computedAt: str = ""
+    coverage: Optional[EtfAggregateCoverage] = None
+    constituentsWeighted: Optional[EtfSentimentReading] = None
+    direct: Optional[EtfSentimentReading] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EtfSentimentAggregate":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            ticker=data.get("ticker", ""),
+            asOfDate=data.get("asOfDate", ""),
+            computedAt=data.get("computedAt", ""),
+            coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
+            constituentsWeighted=EtfSentimentReading.from_dict(data.get("constituentsWeighted")) if data.get("constituentsWeighted") else None,
+            direct=EtfSentimentReading.from_dict(data.get("direct")) if data.get("direct") else None,
+        )
