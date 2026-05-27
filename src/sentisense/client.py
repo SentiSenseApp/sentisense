@@ -15,6 +15,7 @@ from sentisense.types import (
     CongressTrade,
     Document,
     DocumentSearchResponse,
+    FundamentalsPeriod,
     EtfAnalystAggregate,
     EtfHoldings,
     EtfInfo,
@@ -739,6 +740,37 @@ class SentiSenseClient:
         """
         data = self._get(f"/api/v1/stocks/{ticker.upper()}/kpis/types").json()
         return [KpiTypeEntry.from_dict(t) for t in (data or [])]
+
+    # ── Fundamentals endpoint ───────────────────────────────────
+
+    def get_fundamentals_periods(
+        self, ticker: str, timeframe: Optional[str] = None
+    ) -> List[FundamentalsPeriod]:
+        """List available SEC reporting periods for a ticker, with fiscal labels.
+
+        Returns the catalog of recent reporting periods, each carrying the
+        authoritative ``fiscalPeriod`` (Q1..Q4 / FY), ``fiscalYear``, and
+        ``periodEndDate`` as filed with the SEC. Useful for driving a period
+        picker, or for mapping a period-end date to its fiscal quarter/year.
+
+        By default returns every period (quarterly and annual), matching the Node
+        SDK's ``getFundamentalsPeriods``. Pass ``timeframe="quarterly"`` or
+        ``"annual"`` to filter client-side. Returns an empty list for tickers with
+        no SEC filings (recent listings, ETFs/funds).
+
+        Args:
+            ticker: Stock ticker symbol.
+            timeframe: ``None`` (default, all periods), ``"quarterly"``, or ``"annual"``.
+        """
+        data = self._get(
+            "/api/v1/stocks/fundamentals/periods", params={"ticker": ticker.upper()}
+        ).json()
+        periods = [FundamentalsPeriod.from_dict(p) for p in (data.get("periods") or [])]
+        if timeframe:
+            periods = [
+                p for p in periods if (p.timeframe or "").lower() == timeframe.lower()
+            ]
+        return periods
 
     # ── Market Mood endpoint ────────────────────────────────────
 

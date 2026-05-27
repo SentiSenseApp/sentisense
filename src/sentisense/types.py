@@ -517,7 +517,7 @@ class InstitutionalFlows(APIModel):
         )
 
 
-# ── KPI types ( / ) ─────────────────────────
+# ── KPI types ───────────────────────────────────────────────
 
 
 @dataclass
@@ -604,6 +604,28 @@ class KpiTypeEntry(APIModel):
     name: str = ""
     category: str = ""
     chartType: str = ""
+
+
+# ── Fundamentals types ───────────────────────────────────────
+
+
+@dataclass
+class FundamentalsPeriod(APIModel):
+    """One reporting period from the fundamentals catalog.
+
+    Returned by ``client.get_fundamentals_periods``. Carries the authoritative
+    fiscal labeling as filed with the SEC, useful for mapping a period-end
+    ``date`` to its fiscal quarter/year (or driving a period picker).
+
+    Mirrors the Node SDK's ``FundamentalsPeriod``, and additionally exposes
+    ``periodEndDate``/``filingDate``/``timeframe`` from the wire response.
+    """
+
+    fiscalPeriod: str = ""           # "Q1".."Q4", "FY", or "TTM"
+    fiscalYear: str = ""             # e.g. "2026" (string on the wire)
+    periodEndDate: str = ""          # ISO date, e.g. "2025-10-26"
+    filingDate: Optional[str] = None  # ISO date the report was filed
+    timeframe: Optional[str] = None  # "quarterly" or "annual"
 
 
 # ── ETF types ────────────────────────────────────────────────

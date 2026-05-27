@@ -104,6 +104,47 @@ class TestStockEndpoints:
             params={"ticker": "AAPL", "timeframe": "annual", "fiscalPeriod": "Q1", "fiscalYear": 2025},
         )
 
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_fundamentals_periods_typed_default_all(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={
+            "ticker": "NVDA",
+            "periods": [
+                {"fiscalPeriod": "Q3", "fiscalYear": "2026", "periodEndDate": "2025-10-26",
+                 "filingDate": "2025-11-19", "timeframe": "quarterly"},
+                {"fiscalPeriod": "Q2", "fiscalYear": "2026", "periodEndDate": "2025-07-27",
+                 "filingDate": "2025-08-27", "timeframe": "quarterly"},
+                {"fiscalPeriod": "FY", "fiscalYear": "2025", "periodEndDate": "2025-01-26",
+                 "filingDate": "2025-02-26", "timeframe": "annual"},
+            ],
+        })
+        periods = client.get_fundamentals_periods("nvda")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/fundamentals/periods", params={"ticker": "NVDA"}
+        )
+        # default returns ALL periods (parity with Node getFundamentalsPeriods)
+        assert len(periods) == 3
+        assert periods[0].fiscalPeriod == "Q3"
+        assert periods[0].fiscalYear == "2026"
+        assert periods[0].periodEndDate == "2025-10-26"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_fundamentals_periods_quarterly_filter(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={
+            "ticker": "NVDA",
+            "periods": [
+                {"fiscalPeriod": "Q3", "fiscalYear": "2026", "periodEndDate": "2025-10-26", "timeframe": "quarterly"},
+                {"fiscalPeriod": "FY", "fiscalYear": "2025", "periodEndDate": "2025-01-26", "timeframe": "annual"},
+            ],
+        })
+        periods = client.get_fundamentals_periods("NVDA", timeframe="quarterly")
+        assert len(periods) == 1
+        assert periods[0].fiscalPeriod == "Q3"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_fundamentals_periods_empty(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"ticker": "XYZ", "periods": []})
+        assert client.get_fundamentals_periods("XYZ") == []
+
 
 class TestKpiEndpoints:
     @patch.object(SentiSenseClient, "_get")
