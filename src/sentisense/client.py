@@ -251,6 +251,54 @@ class SentiSenseClient:
             params["fiscalYear"] = fiscal_year
         return self._get("/api/v1/stocks/fundamentals", params=params).json()
 
+    def get_current_fundamentals(self, ticker: str) -> Dict[str, Any]:
+        """Get the most recent fundamentals snapshot for a ticker.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._get(
+            "/api/v1/stocks/fundamentals/current", params={"ticker": ticker}
+        ).json()
+
+    def get_historical_revenue(self, ticker: str) -> Dict[str, Any]:
+        """Get historical revenue data for a ticker.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._get(
+            "/api/v1/stocks/fundamentals/historical/revenue", params={"ticker": ticker}
+        ).json()
+
+    def get_short_interest(self, ticker: str) -> Dict[str, Any]:
+        """Get short interest metrics (FINRA bi-monthly settlement data).
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"GME"``).
+        """
+        return self._get(
+            "/api/v1/stocks/short-interest", params={"ticker": ticker}
+        ).json()
+
+    def get_float(self, ticker: str) -> Dict[str, Any]:
+        """Get float information (shares available for public trading).
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._get("/api/v1/stocks/float", params={"ticker": ticker}).json()
+
+    def get_short_volume(self, ticker: str) -> Dict[str, Any]:
+        """Get daily short-sale volume (FINRA), distinct from short interest.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._get(
+            "/api/v1/stocks/short-volume", params={"ticker": ticker}
+        ).json()
+
     # ── Institutional flow endpoints ────────────────────────────
 
     def get_institutional_quarters(self) -> List[Quarter]:
@@ -600,6 +648,24 @@ class SentiSenseClient:
                 params={"lookbackDays": lookback_days},
             ).json(),
         )
+
+    # ── Knowledge Base (KB) endpoints ───────────────────────────
+
+    def get_popular_kb_entities(self) -> List[Dict[str, Any]]:
+        """Get popular KB entities (useful for search suggestions)."""
+        return self._get("/api/v1/kb/entities/popular").json()
+
+    def get_kb_entity(self, entity_id: str) -> Dict[str, Any]:
+        """Get a KB entity's detail, including metrics and relationships.
+
+        Args:
+            entity_id: KB entity ID (e.g. ``"kb/company/1"``).
+        """
+        return self._get(f"/api/v1/kb/entities/{entity_id}").json()
+
+    def get_all_kb_entities(self) -> List[Dict[str, Any]]:
+        """Get all tracked KB entities."""
+        return self._get("/api/v1/kb/entities/all").json()
 
     # ── ETF endpoints ───────────────────────────────────────────
 

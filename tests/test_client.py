@@ -145,6 +145,84 @@ class TestStockEndpoints:
         mock_get.return_value = _mock_response(json_data={"ticker": "XYZ", "periods": []})
         assert client.get_fundamentals_periods("XYZ") == []
 
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_current_fundamentals(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"ticker": "AAPL", "revenue": 1234})
+        result = client.get_current_fundamentals("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/fundamentals/current", params={"ticker": "AAPL"}
+        )
+        assert result["revenue"] == 1234
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_historical_revenue(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={"ticker": "AAPL", "revenue": [{"fiscalYear": 2024, "value": 1000}]}
+        )
+        result = client.get_historical_revenue("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/fundamentals/historical/revenue", params={"ticker": "AAPL"}
+        )
+        assert result["revenue"][0]["fiscalYear"] == 2024
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_short_interest(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"ticker": "GME", "shortInterest": 12345})
+        result = client.get_short_interest("GME")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/short-interest", params={"ticker": "GME"}
+        )
+        assert result["shortInterest"] == 12345
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_float(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"ticker": "AAPL", "float": 15000000000})
+        result = client.get_float("AAPL")
+        mock_get.assert_called_once_with("/api/v1/stocks/float", params={"ticker": "AAPL"})
+        assert result["float"] == 15000000000
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_short_volume(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"ticker": "AAPL", "shortVolume": 500000})
+        result = client.get_short_volume("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/short-volume", params={"ticker": "AAPL"}
+        )
+        assert result["shortVolume"] == 500000
+
+
+class TestKbEndpoints:
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_popular_kb_entities(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data=[{"entityId": "kb/company/1", "name": "Apple Inc."}]
+        )
+        result = client.get_popular_kb_entities()
+        mock_get.assert_called_once_with("/api/v1/kb/entities/popular")
+        assert result[0]["entityId"] == "kb/company/1"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_kb_entity(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={"entityId": "kb/company/1", "name": "Apple Inc.", "type": "company"}
+        )
+        result = client.get_kb_entity("kb/company/1")
+        mock_get.assert_called_once_with("/api/v1/kb/entities/kb/company/1")
+        assert result["type"] == "company"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_all_kb_entities(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data=[
+                {"entityId": "kb/company/1", "name": "Apple Inc."},
+                {"entityId": "kb/person/2", "name": "Tim Cook"},
+            ]
+        )
+        result = client.get_all_kb_entities()
+        mock_get.assert_called_once_with("/api/v1/kb/entities/all")
+        assert len(result) == 2
+        assert result[1]["name"] == "Tim Cook"
+
 
 class TestKpiEndpoints:
     @patch.object(SentiSenseClient, "_get")

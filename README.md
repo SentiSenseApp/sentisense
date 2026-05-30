@@ -70,6 +70,19 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `get_all_stocks_detailed()` | Tickers with company names and entity IDs |
 | `get_market_status()` | Market open/closed status |
 | `get_fundamentals(ticker, timeframe="quarterly")` | Financial fundamentals |
+| `get_current_fundamentals(ticker)` | Most recent fundamentals snapshot |
+| `get_historical_revenue(ticker)` | Historical revenue series |
+| `get_short_interest(ticker)` | Short interest (FINRA bi-monthly) |
+| `get_float(ticker)` | Shares float |
+| `get_short_volume(ticker)` | Daily short-sale volume (FINRA) |
+
+### Knowledge Base
+
+| Method | Description |
+|--------|-------------|
+| `get_popular_kb_entities()` | Popular KB entities (search suggestions) |
+| `get_kb_entity(entity_id)` | Entity detail with metrics and relationships |
+| `get_all_kb_entities()` | All tracked KB entities |
 
 ### News & Documents
 
@@ -170,6 +183,14 @@ except RateLimitError:
 | `APIError` | Other 4xx/5xx | General API error |
 
 All exceptions inherit from `SentiSenseError` and include `.status_code`, `.message`, and `.response` attributes.
+
+## Not yet in the Python SDK
+
+A few endpoints available in the Node SDK are intentionally not yet exposed here
+(low-traffic / discovery-convenience surfaces). Call them directly over HTTP if you
+need them: `/api/v1/stocks/images`, `/api/v1/stocks/descriptions`,
+`/api/v1/stocks/popular`, `/api/v1/stocks/{ticker}/entities`,
+`/api/v1/stocks/{ticker}/ai-summary`, and the metrics breakdown endpoint.
 
 ## License
 
