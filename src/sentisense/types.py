@@ -163,6 +163,8 @@ class SimilarStock(APIModel):
 
     symbol: str = ""
     name: str = ""
+    # Deprecated: no longer returned by the API; use `symbol` to identify the peer.
+    # Will be removed in a future release.
     kbEntityId: Optional[str] = None
     price: Optional[float] = None
     changePercent: Optional[float] = None
