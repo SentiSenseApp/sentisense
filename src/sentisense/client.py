@@ -133,13 +133,15 @@ class SentiSenseClient:
     ) -> PreviewResult:
         """Auto-unwrap the preview envelope and parse into typed models.
 
-        PRO-gated endpoints return ``{isPreview, previewReason, data}``.
-        This strips the envelope, parses ``data``, and returns a
-        :class:`~sentisense.types.PreviewResult` with ``.is_preview``
-        and ``.preview_reason`` metadata.
+        PRO-gated endpoints return ``{isPreview, previewReason, data}``,
+        plus ``totalCount`` on preview list responses. This strips the
+        envelope, parses ``data``, and returns a
+        :class:`~sentisense.types.PreviewResult` with ``.is_preview``,
+        ``.preview_reason`` and ``.total_count`` metadata.
         """
         is_preview = json_data.get("isPreview", False)
         preview_reason = json_data.get("previewReason")
+        total_count = json_data.get("totalCount")
         data = json_data.get("data", json_data)
 
         if list_cls is not None and isinstance(data, list):
@@ -149,7 +151,7 @@ class SentiSenseClient:
         else:
             parsed = data
 
-        return PreviewResult(parsed, is_preview, preview_reason)
+        return PreviewResult(parsed, is_preview, preview_reason, total_count)
 
     # ── Stock endpoints ─────────────────────────────────────────
 

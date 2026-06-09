@@ -46,17 +46,26 @@ class PreviewResult(Generic[T]):
 
     Access the underlying data via ``.data``, or directly via attribute or item
     access for object-wrapped results. Check ``.is_preview`` and
-    ``.preview_reason`` for tier information.
+    ``.preview_reason`` for tier information. On preview list responses
+    ``.total_count`` is the number of items in the full PRO dataset, so you can
+    show "showing N of total_count" (``None`` on full PRO responses).
 
     For list-wrapped endpoints (e.g. ``get_politician_members()``), prefer
     ``result.data``, ``list(result)``, or ``for item in result`` over
     attribute access, since a list has no named fields to delegate to.
     """
 
-    def __init__(self, data: T, is_preview: bool, preview_reason: Optional[str]):
+    def __init__(
+        self,
+        data: T,
+        is_preview: bool,
+        preview_reason: Optional[str],
+        total_count: Optional[int] = None,
+    ):
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "is_preview", is_preview)
         object.__setattr__(self, "preview_reason", preview_reason)
+        object.__setattr__(self, "total_count", total_count)
 
     @property
     def data(self) -> T:
