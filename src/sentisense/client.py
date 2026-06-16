@@ -360,6 +360,50 @@ class SentiSenseClient:
             self._get(f"/api/v1/institutional/institution/{slug_or_cik}").json(),
         )
 
+    def list_institutions(
+        self,
+        *,
+        category: Optional[str] = None,
+        min_aum_usd: Optional[int] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort: str = "aumDesc",
+        quarter: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Discover institutions: a paginated, AUM-ranked list of filers.
+
+        Lets you find what to query without knowing slugs upfront. Each institution
+        is rolled up by parent filer, so a multi-filer manager (e.g. Vanguard) appears
+        once with combined AUM. Summary only; use :meth:`get_institution_detail` for
+        a filer's full holdings.
+
+        Returns the ``data`` object::
+
+            {"quarter", "totalCount", "offset", "limit", "institutions": [
+                {"cik", "urlSlug", "displayName", "filerCategory", "totalValueUsd",
+                 "holdingsCount", "multiCikRollup", "childCikCount"}, ...]}
+
+        Args:
+            category: Filer category to filter by (e.g. ``"HEDGE_FUND"``). One of
+                ``INDEX_FUND, HEDGE_FUND, ACTIVIST, PENSION, BANK, INSURANCE,
+                MUTUAL_FUND, SOVEREIGN_WEALTH, ENDOWMENT, OTHER``.
+            min_aum_usd: Minimum total AUM in USD (e.g. ``10_000_000_000``).
+            limit: Page size (default 50, max 200).
+            offset: Pagination offset.
+            sort: ``"aumDesc"`` (default), ``"aumAsc"``, or ``"nameAsc"``.
+            quarter: AUM snapshot quarter as ``YYYYQN`` (e.g. ``"2026Q1"``);
+                defaults to the latest available quarter.
+        """
+        params: Dict[str, Any] = {"limit": limit, "offset": offset, "sort": sort}
+        if category is not None:
+            params["category"] = category
+        if min_aum_usd is not None:
+            params["minAumUsd"] = min_aum_usd
+        if quarter is not None:
+            params["quarter"] = quarter
+        resp = self._get("/api/v1/institutional/institutions", params=params).json()
+        return resp.get("data", resp)
+
     # ── Insider trading endpoints ───────────────────────────────
 
     def get_insider_activity(self, lookback_days: int = 90) -> PreviewResult[InsiderActivity]:
