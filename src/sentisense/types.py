@@ -894,6 +894,14 @@ class TrackerMetricValue(APIModel):
     value: Any = None
     unit: Optional[str] = None
     trend: Optional[str] = None
+    #: Primary-source URL for this cell's value, when the tracker is citation-backed
+    #: (e.g. hedge-fund reported returns). ``None`` for computed/uncited cells.
+    sourceUrl: Optional[str] = None
+    #: Short quote from the primary source supporting this cell's value.
+    sourceQuote: Optional[str] = None
+    #: The period this cell refers to (e.g. "2025", "2026-YTD"). Present when a
+    #: cell's period varies per row, so the column header can stay year-agnostic.
+    periodLabel: Optional[str] = None
 
 
 @dataclass

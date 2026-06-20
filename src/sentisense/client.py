@@ -1301,7 +1301,7 @@ class SentiSenseClient:
                 keys are ignored.
         """
         body = self._get(f"/api/v1/trackers/{tracker_id}", params=params).json()
-        return PreviewResult(body, TrackerSnapshot.from_dict)
+        return self._unwrap(body, item_cls=TrackerSnapshot)
 
     def get_average_sentiment(
         self,
