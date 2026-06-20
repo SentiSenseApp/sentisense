@@ -41,6 +41,8 @@ from sentisense.types import (
     StockPrice,
     StockQuote,
     Story,
+    TrackerListResponse,
+    TrackerSnapshot,
 )
 
 _M = TypeVar("_M", bound=APIModel)
@@ -1261,6 +1263,45 @@ class SentiSenseClient:
         if date:
             params["date"] = date
         return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment/by-source", params=params).json()
+
+    # ── Trackers ────────────────────────────────────────────────
+
+    def list_trackers(self) -> TrackerListResponse:
+        """List every publicly-visible tracker.
+
+        Returns a discovery envelope with one ``TrackerListing`` per tracker:
+        id, display name, category, one-line description, viewType (the
+        renderer hint), and the methodology anchor to link out to.
+        """
+        return TrackerListResponse.from_dict(self._get("/api/v1/trackers").json())
+
+    def get_tracker(
+        self,
+        tracker_id: str,
+        **params: Any,
+    ) -> PreviewResult:
+        """Return the standardized snapshot envelope for one tracker.
+
+        The wire response is the unified preview envelope
+        ``{isPreview, previewReason, totalCount?, data: TrackerSnapshot}``;
+        the SDK wraps it as a :class:`PreviewResult` so you can:
+        ``snapshot = client.get_tracker("institution-alpha-5y")``,
+        then read ``snapshot.is_preview``, ``snapshot.total_count``, and
+        ``snapshot.data`` (a :class:`TrackerSnapshot`).
+
+        Dispatch on ``snapshot.data.viewType`` to pick a renderer.
+        ``"table"`` rows live at ``snapshot.data.rows``; ``"choropleth"``
+        regions live at ``snapshot.data.geo``; etc.
+
+        Args:
+            tracker_id: Slug from :meth:`list_trackers`, e.g.
+                ``"institution-alpha-5y"``.
+            **params: Provider-specific query parameters (e.g. ``scope="us"``
+                for geographically-scoped trackers like hantavirus). Unknown
+                keys are ignored.
+        """
+        body = self._get(f"/api/v1/trackers/{tracker_id}", params=params).json()
+        return PreviewResult(body, TrackerSnapshot.from_dict)
 
     def get_average_sentiment(
         self,

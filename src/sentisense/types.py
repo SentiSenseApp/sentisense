@@ -846,3 +846,157 @@ class EtfSentimentAggregate(APIModel):
             constituentsWeighted=EtfSentimentReading.from_dict(data.get("constituentsWeighted")) if data.get("constituentsWeighted") else None,
             direct=EtfSentimentReading.from_dict(data.get("direct")) if data.get("direct") else None,
         )
+
+
+# ── Trackers ────────────────────────────────────────────────
+#
+# Trackers are observational data products. Every tracker — institution-alpha
+# leaderboards, hedge-fund reported returns, social trackers, surveillance
+# dashboards — returns the same standardized `TrackerSnapshot` envelope.
+# Dispatch on ``viewType`` to pick a renderer; consumers write one renderer per
+# viewType and get every tracker for free.
+
+
+@dataclass
+class TrackerListing(APIModel):
+    """Per-tracker discovery row returned by ``client.list_trackers()``."""
+
+    trackerId: str = ""
+    displayName: str = ""
+    category: str = ""
+    description: str = ""
+    viewType: str = ""
+    methodologyAnchor: str = ""
+    refreshIntervalSeconds: int = 0
+    canonicalUrl: str = ""
+
+
+@dataclass
+class TrackerListResponse(APIModel):
+    """Discovery envelope returned by ``client.list_trackers()``."""
+
+    trackers: List[TrackerListing] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TrackerListResponse":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(trackers=[TrackerListing.from_dict(t) for t in data.get("trackers", [])])
+
+
+@dataclass
+class TrackerMetricValue(APIModel):
+    """A labeled quantitative reading attached to a row, geo region, or
+    time-series point. ``value`` is ``Any`` because it can be a number or a
+    status string ("Severe", "Resolved") without forcing a separate type."""
+
+    label: str = ""
+    value: Any = None
+    unit: Optional[str] = None
+    trend: Optional[str] = None
+
+
+@dataclass
+class TrackerHeadlineMetric(APIModel):
+    """Top-of-page stat tile. A tracker may have 0–N headline metrics."""
+
+    label: str = ""
+    value: Any = None
+    unit: Optional[str] = None
+    asOf: Optional[str] = None
+    methodologyNote: Optional[str] = None
+    trend: Optional[str] = None
+
+
+@dataclass
+class TrackerTableRow(APIModel):
+    """One row of a ``viewType: "table"`` tracker (e.g. a leaderboard cell)."""
+
+    rank: Optional[int] = None
+    rowId: str = ""
+    name: str = ""
+    category: Optional[str] = None
+    url: Optional[str] = None
+    metrics: List[TrackerMetricValue] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TrackerTableRow":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            rank=data.get("rank"),
+            rowId=data.get("rowId", ""),
+            name=data.get("name", ""),
+            category=data.get("category"),
+            url=data.get("url"),
+            metrics=[TrackerMetricValue.from_dict(m) for m in data.get("metrics", []) if m is not None],
+        )
+
+
+@dataclass
+class TrackerGeoEntry(APIModel):
+    """One geographic row for a ``viewType: "choropleth"`` tracker."""
+
+    geoId: Optional[str] = None
+    isoCode: Optional[str] = None
+    fips: Optional[str] = None
+    name: str = ""
+    metrics: List[TrackerMetricValue] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TrackerGeoEntry":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            geoId=data.get("geoId"),
+            isoCode=data.get("isoCode"),
+            fips=data.get("fips"),
+            name=data.get("name", ""),
+            metrics=[TrackerMetricValue.from_dict(m) for m in data.get("metrics", []) if m is not None],
+        )
+
+
+@dataclass
+class TrackerSnapshot(APIModel):
+    """Standardized envelope every tracker returns. Exactly one of the payload
+    fields (``rows``, ``geo``, ``timeSeries``) is populated based on ``viewType``;
+    ``headline``, ``narrative`` are companion fields that may appear on any
+    tracker. ``asOf`` is a free-form 'data as of' label (quarter, date, week)."""
+
+    trackerId: str = ""
+    scope: Optional[str] = None
+    schemaVersion: str = ""
+    displayName: str = ""
+    description: Optional[str] = None
+    viewType: str = ""
+    asOf: Optional[str] = None
+    generatedAt: Optional[str] = None
+    generatedBy: Optional[str] = None
+    narrative: Optional[str] = None
+    headline: List[TrackerHeadlineMetric] = field(default_factory=list)
+    geo: List[TrackerGeoEntry] = field(default_factory=list)
+    rows: List[TrackerTableRow] = field(default_factory=list)
+    # `timeSeries`, `events`, `signals`, `sources` aren't typed yet — they're
+    # forward-compatible (Phase 3 trackers add them); access via .raw if needed.
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TrackerSnapshot":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            trackerId=data.get("trackerId", ""),
+            scope=data.get("scope"),
+            schemaVersion=data.get("schemaVersion", ""),
+            displayName=data.get("displayName", ""),
+            description=data.get("description"),
+            viewType=data.get("viewType", ""),
+            asOf=data.get("asOf"),
+            generatedAt=data.get("generatedAt"),
+            generatedBy=data.get("generatedBy"),
+            narrative=data.get("narrative"),
+            headline=[TrackerHeadlineMetric.from_dict(h) for h in (data.get("headline") or []) if h is not None],
+            geo=[TrackerGeoEntry.from_dict(g) for g in (data.get("geo") or []) if g is not None],
+            rows=[TrackerTableRow.from_dict(r) for r in (data.get("rows") or []) if r is not None],
+            raw=data,
+        )
