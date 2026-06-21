@@ -850,8 +850,8 @@ class EtfSentimentAggregate(APIModel):
 
 # ── Trackers ────────────────────────────────────────────────
 #
-# Trackers are observational data products. Every tracker — institution-alpha
-# leaderboards, hedge-fund reported returns, social trackers, surveillance
+# Trackers are observational data products. Every tracker — institution rankings,
+# hedge-fund reported returns, social trackers, surveillance
 # dashboards — returns the same standardized `TrackerSnapshot` envelope.
 # Dispatch on ``viewType`` to pick a renderer; consumers write one renderer per
 # viewType and get every tracker for free.
@@ -866,6 +866,7 @@ class TrackerListing(APIModel):
     category: str = ""
     description: str = ""
     viewType: str = ""
+    accessTier: str = ""  # "free" or "pro"; pro trackers truncate to a free preview for FREE callers
     methodologyAnchor: str = ""
     refreshIntervalSeconds: int = 0
     canonicalUrl: str = ""

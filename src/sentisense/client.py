@@ -1285,7 +1285,7 @@ class SentiSenseClient:
         The wire response is the unified preview envelope
         ``{isPreview, previewReason, totalCount?, data: TrackerSnapshot}``;
         the SDK wraps it as a :class:`PreviewResult` so you can:
-        ``snapshot = client.get_tracker("institution-alpha-5y")``,
+        ``snapshot = client.get_tracker("institution-concentration")``,
         then read ``snapshot.is_preview``, ``snapshot.total_count``, and
         ``snapshot.data`` (a :class:`TrackerSnapshot`).
 
@@ -1295,7 +1295,7 @@ class SentiSenseClient:
 
         Args:
             tracker_id: Slug from :meth:`list_trackers`, e.g.
-                ``"institution-alpha-5y"``.
+                ``"institution-concentration"``.
             **params: Provider-specific query parameters (e.g. ``scope="us"``
                 for geographically-scoped trackers like hantavirus). Unknown
                 keys are ignored.
