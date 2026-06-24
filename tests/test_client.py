@@ -540,3 +540,76 @@ class TestErrorHandling:
             with pytest.raises(APIError) as exc_info:
                 client.get_market_status()
             assert exc_info.value.status_code == 500
+
+
+class TestCalendarEndpoints:
+    """Calendar API () — earnings calendar, preview-gated by window."""
+
+    _SAMPLE = {
+        "isPreview": True,
+        "previewReason": "PRO_REQUIRED",
+        "totalCount": 42,
+        "data": {
+            "earnings": [
+                {
+                    "ticker": "AAPL",
+                    "companyName": "Apple Inc.",
+                    "earningsDate": "2026-04-30",
+                    "earningsTime": "after_close",
+                    "fiscalQuarter": "Q2 2026",
+                    "confirmed": True,
+                    "estimatedEps": 1.62,
+                    "source": "fmp+web",
+                }
+            ],
+            "metadata": {
+                "generatedAt": 1776528000,
+                "windowStart": "2026-04-20",
+                "windowEnd": "2026-05-20",
+                "count": 1,
+                "source": "sentisense",
+            },
+        },
+    }
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_earnings_calendar_unwraps_and_types(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=self._SAMPLE)
+
+        cal = client.get_earnings_calendar()
+
+        mock_get.assert_called_once_with("/api/v1/calendar/earnings", params={})
+        assert cal.is_preview is True
+        assert cal.preview_reason == "PRO_REQUIRED"
+        assert cal.total_count == 42
+        # attribute + dict access on the typed event
+        e = cal.earnings[0]
+        assert e.ticker == "AAPL"
+        assert e.earningsDate == "2026-04-30"
+        assert e["earningsTime"] == "after_close"
+        assert e.estimatedEps == 1.62
+        # internal provider attribution must not survive into the typed model
+        assert not hasattr(e, "source")
+        assert cal.metadata.windowStart == "2026-04-20"
+        assert cal.metadata.generatedAt == 1776528000
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_earnings_calendar_passes_filters(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=self._SAMPLE)
+
+        client.get_earnings_calendar(
+            ticker="aapl", week="next", date_from="2026-05-01",
+            date_to="2026-05-31", confirmed=True, time="before_open",
+        )
+
+        mock_get.assert_called_once_with(
+            "/api/v1/calendar/earnings",
+            params={
+                "ticker": "AAPL",
+                "week": "next",
+                "from": "2026-05-01",
+                "to": "2026-05-31",
+                "confirmed": True,
+                "time": "before_open",
+            },
+        )

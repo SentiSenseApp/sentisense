@@ -197,6 +197,51 @@ class MarketStatus(APIModel):
     timestamp: int = 0
 
 
+# ── Calendar types () ───────────────────────────────
+
+
+@dataclass
+class EarningsEvent(APIModel):
+    """A single upcoming-earnings entry."""
+
+    ticker: str = ""
+    companyName: str = ""
+    earningsDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    earningsTime: str = ""  # before_open | after_close | during_market | unknown
+    fiscalQuarter: Optional[str] = None
+    confirmed: bool = False
+    estimatedEps: Optional[float] = None
+
+
+@dataclass
+class CalendarMeta(APIModel):
+    """Provenance for a calendar response."""
+
+    generatedAt: Optional[int] = None  # epoch seconds
+    windowStart: Optional[str] = None  # ISO date
+    windowEnd: Optional[str] = None  # ISO date
+    count: int = 0
+    source: str = "sentisense"
+
+
+@dataclass
+class EarningsCalendar(APIModel):
+    """Upcoming earnings calendar: events plus window metadata.
+
+    Note: no ``data`` field by design (it would shadow ``PreviewResult.data``).
+    """
+
+    earnings: List[EarningsEvent] = field(default_factory=list)
+    metadata: Optional[CalendarMeta] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EarningsCalendar":
+        return cls(
+            earnings=[EarningsEvent.from_dict(e) for e in data.get("earnings", [])],
+            metadata=CalendarMeta.from_dict(data.get("metadata") or {}),
+        )
+
+
 # ── Insider types ───────────────────────────────────────────
 
 

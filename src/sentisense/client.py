@@ -14,6 +14,7 @@ from sentisense.types import (
     CompanyKpis,
     CongressTrade,
     Document,
+    EarningsCalendar,
     DocumentSearchResponse,
     FundamentalsPeriod,
     EtfAnalystAggregate,
@@ -405,6 +406,51 @@ class SentiSenseClient:
             params["quarter"] = quarter
         resp = self._get("/api/v1/institutional/institutions", params=params).json()
         return resp.get("data", resp)
+
+    # ── Calendar endpoints () ───────────────────────────
+
+    def get_earnings_calendar(
+        self,
+        ticker: Optional[str] = None,
+        week: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        confirmed: Optional[bool] = None,
+        time: Optional[str] = None,
+    ) -> PreviewResult[EarningsCalendar]:
+        """Get the upcoming earnings calendar.
+
+        Auto-unwrapped. Access via ``result.earnings`` (list of events) and
+        ``result.metadata``. Check ``result.is_preview``: a FREE key sees the
+        current week, a PRO key sees the full forward window (about 30 days).
+        Field richness is identical across tiers; the gate is the window.
+
+        Args:
+            ticker: Filter to a single ticker (e.g. ``"AAPL"``).
+            week: Shorthand window: ``"this"`` or ``"next"``.
+            date_from: Inclusive lower bound, ISO ``YYYY-MM-DD`` (overrides ``week``).
+            date_to: Inclusive upper bound, ISO ``YYYY-MM-DD``.
+            confirmed: When ``True``, only company-confirmed dates.
+            time: Session filter: ``before_open``, ``after_close``,
+                ``during_market``, or ``unknown``.
+        """
+        params: Dict[str, Any] = {}
+        if ticker:
+            params["ticker"] = ticker.upper()
+        if week:
+            params["week"] = week
+        if date_from:
+            params["from"] = date_from
+        if date_to:
+            params["to"] = date_to
+        if confirmed is not None:
+            params["confirmed"] = confirmed
+        if time:
+            params["time"] = time
+        return self._unwrap(
+            self._get("/api/v1/calendar/earnings", params=params).json(),
+            item_cls=EarningsCalendar,
+        )
 
     # ── Insider trading endpoints ───────────────────────────────
 
