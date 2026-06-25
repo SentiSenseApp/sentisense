@@ -1294,21 +1294,30 @@ class SentiSenseClient:
         return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment", params=params).json()
 
     def get_sentiment_by_source(self, symbol: str, date: Optional[str] = None) -> Dict[str, Any]:
-        """Get sentiment broken down by source (news, reddit, x, substack).
+        """Get mean sentiment polarity broken down by source (News, Reddit, X, Substack).
 
-        .. deprecated::
-            Use :meth:`get_metrics_distribution` with ``metric_type="sentiment"``
-            and ``dimension="source"`` instead.
-            This method hits the v1 entity-metrics endpoint which returns empty data.
+        Returns a JSON map of ``{source: meanPolarity}`` where each polarity is a
+        float in ``[-1, 1]``, e.g. ``{"Reddit": 0.15, "News": 0.38, "X": 0.19}``.
 
         Args:
             symbol: Stock ticker symbol.
-            date: Specific date (e.g. "2025-01-15").
+            date: Optional specific UTC day (``"YYYY-MM-DD"``). When provided, the
+                breakdown is computed over that day's ``[00:00:00, 23:59:59]`` UTC
+                window. When omitted, the endpoint defaults to the last 7 days.
         """
         params: Dict[str, Any] = {}
         if date:
-            params["date"] = date
-        return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment/by-source", params=params).json()
+            from datetime import datetime, timezone
+
+            day = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = day.replace(hour=23, minute=59, second=59, microsecond=0)
+            params["startTime"] = int(start.timestamp() * 1000)
+            params["endTime"] = int(end.timestamp() * 1000)
+        return self._get(
+            f"/api/v2/metrics/entity/{symbol}/metric/sentiment/mean-by/source",
+            params=params,
+        ).json()
 
     # ── Trackers ────────────────────────────────────────────────
 
