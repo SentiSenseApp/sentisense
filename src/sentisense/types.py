@@ -197,7 +197,7 @@ class MarketStatus(APIModel):
     timestamp: int = 0
 
 
-# ── Calendar types () ───────────────────────────────
+# ── Calendar types ──────────────────────────────────────────
 
 
 @dataclass

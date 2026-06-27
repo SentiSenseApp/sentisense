@@ -546,7 +546,7 @@ class TestErrorHandling:
 
 
 class TestCalendarEndpoints:
-    """Calendar API () — earnings calendar, preview-gated by window."""
+    """Calendar API: earnings calendar, preview-gated by window."""
 
     _SAMPLE = {
         "isPreview": True,

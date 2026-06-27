@@ -407,7 +407,7 @@ class SentiSenseClient:
         resp = self._get("/api/v1/institutional/institutions", params=params).json()
         return resp.get("data", resp)
 
-    # ── Calendar endpoints () ───────────────────────────
+    # ── Calendar endpoints ──────────────────────────────────────
 
     def get_earnings_calendar(
         self,
