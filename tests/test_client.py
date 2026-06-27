@@ -54,10 +54,11 @@ class TestClientConstruction:
 class TestStockEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_stock_price(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={"price": 150.0})
+        mock_get.return_value = _mock_response(json_data={"ticker": "AAPL", "currentPrice": 150.0})
         result = client.get_stock_price("AAPL")
         mock_get.assert_called_once_with("/api/v1/stocks/price", params={"ticker": "AAPL"})
-        assert result == {"price": 150.0}
+        assert result.currentPrice == 150.0
+        assert result["ticker"] == "AAPL"
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_stock_prices(self, mock_get, client):
@@ -292,21 +293,27 @@ class TestKpiEndpoints:
 class TestInstitutionalEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_quarters(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=["2025-12-31"])
+        mock_get.return_value = _mock_response(
+            json_data=[{"value": "2025Q4", "label": "Q4 2025", "reportDate": "2025-12-31", "pending": False}]
+        )
         result = client.get_institutional_quarters()
         mock_get.assert_called_once_with("/api/v1/institutional/quarters")
-        assert result == ["2025-12-31"]
+        assert result[0].reportDate == "2025-12-31"
+        assert result[0].value == "2025Q4"
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_flows(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={"inflows": [], "outflows": []})
+        mock_get.return_value = _mock_response(
+            json_data={"isPreview": False, "previewReason": None, "data": {"inflows": [], "outflows": []}}
+        )
         result = client.get_institutional_flows("2025-12-31", limit=10)
         mock_get.assert_called_once_with(
             "/api/v1/institutional/flows",
             params={"reportDate": "2025-12-31", "limit": 10},
         )
-        assert "inflows" in result
-        assert "outflows" in result
+        assert result.is_preview is False
+        assert result.inflows == []
+        assert result.outflows == []
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_stock_holders(self, mock_get, client):
@@ -330,13 +337,16 @@ class TestInstitutionalEndpoints:
 class TestDocumentEndpoints:
     @patch.object(SentiSenseClient, "_get")
     def test_get_documents_by_ticker(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=[{"id": "doc1"}])
+        mock_get.return_value = _mock_response(
+            json_data={"documents": [{"id": "doc1"}], "totalCount": 1, "searchTicker": "AAPL"}
+        )
         result = client.get_documents_by_ticker("AAPL", source="news", days=7, limit=10)
         mock_get.assert_called_once_with(
             "/api/v1/documents/ticker/AAPL",
             params={"source": "news", "days": 7, "limit": 10},
         )
-        assert result == [{"id": "doc1"}]
+        assert result.totalCount == 1
+        assert result.documents[0].id == "doc1"
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_documents_by_ticker_range(self, mock_get, client):
@@ -368,19 +378,12 @@ class TestDocumentEndpoints:
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_stories(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=[{"cluster": {}}])
-        client.get_stories(limit=5, expanded=True)
+        mock_get.return_value = _mock_response(json_data=[{"cluster": {"id": "c1"}}])
+        client.get_stories(limit=5)
         mock_get.assert_called_once_with(
             "/api/v1/documents/stories",
-            params={"limit": 5, "expanded": True},
+            params={"limit": 5},
         )
-
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_story(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={"cluster": {"id": "abc"}})
-        result = client.get_story("abc")
-        mock_get.assert_called_once_with("/api/v1/documents/stories/abc")
-        assert result["cluster"]["id"] == "abc"
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_stories_by_ticker(self, mock_get, client):
@@ -496,8 +499,8 @@ class TestEntityMetricsEndpoints:
         mock_get.return_value = _mock_response(json_data={})
         client.get_sentiment_by_source("AAPL", date="2025-01-15")
         mock_get.assert_called_once_with(
-            "/api/v1/entity-metrics/stocks/AAPL/sentiment/by-source",
-            params={"date": "2025-01-15"},
+            "/api/v2/metrics/entity/AAPL/metric/sentiment/mean-by/source",
+            params={"startTime": 1736899200000, "endTime": 1736985599000},
         )
 
     @patch.object(SentiSenseClient, "_get")

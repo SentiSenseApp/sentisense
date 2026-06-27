@@ -42,38 +42,38 @@ class TestEtfHoldings:
         h = EtfHoldings.from_dict({
             "ticker": "QQQ",
             "issuer": "Invesco",
-            "issuer_endpoint": "https://...",
-            "as_of_date": "2026-05-15",
-            "fetched_at": "2026-05-15T12:00:00Z",
-            "next_refresh_due": "2026-05-16T12:00:00Z",
-            "total_holdings": 25,
+            "issuerEndpoint": "https://...",
+            "asOfDate": "2026-05-15",
+            "fetchedAt": "2026-05-15T12:00:00Z",
+            "nextRefreshDue": "2026-05-16T12:00:00Z",
+            "totalHoldings": 25,
             "holdings": [
-                {"ticker": "AAPL", "name": "Apple Inc.", "weight_pct": 9.5, "first_seen": "2024-01-01"},
-                {"ticker": "MSFT", "name": "Microsoft", "weight_pct": 8.7, "first_seen": "2024-01-01"},
+                {"ticker": "AAPL", "name": "Apple Inc.", "weightPct": 9.5, "firstSeen": "2024-01-01"},
+                {"ticker": "MSFT", "name": "Microsoft", "weightPct": 8.7, "firstSeen": "2024-01-01"},
             ],
             "partial": True,
-            "total_known_holdings": 104,
+            "totalKnownHoldings": 104,
         })
         assert h.ticker == "QQQ"
         assert h.partial is True
-        assert h.total_known_holdings == 104
+        assert h.totalKnownHoldings == 104
         assert len(h.holdings) == 2
         assert h.holdings[0].ticker == "AAPL"
-        assert h.holdings[0].weight_pct == 9.5
+        assert h.holdings[0].weightPct == 9.5
 
     def test_from_dict_omitted_partial(self):
         h = EtfHoldings.from_dict({
             "ticker": "SPY",
             "issuer": "SPDR",
-            "issuer_endpoint": None,
-            "as_of_date": "2026-05-15",
-            "fetched_at": "2026-05-15T12:00:00Z",
-            "next_refresh_due": "2026-05-16T12:00:00Z",
-            "total_holdings": 504,
+            "issuerEndpoint": None,
+            "asOfDate": "2026-05-15",
+            "fetchedAt": "2026-05-15T12:00:00Z",
+            "nextRefreshDue": "2026-05-16T12:00:00Z",
+            "totalHoldings": 504,
             "holdings": [],
         })
         assert h.partial is None
-        assert h.total_known_holdings is None
+        assert h.totalKnownHoldings is None
 
 
 class TestEtfAnalystAggregate:
@@ -95,14 +95,14 @@ class TestEtfAnalystAggregate:
                 "distribution": {"BUY": 0.94, "HOLD": 0.06},
                 "totalAnalysts": 938,
             },
-            "topContributors": None,  # FREE
+            "topContributors": None,  # FREE: null/absent on the wire, normalized to []
         })
         assert agg.ticker == "QQQ"
         assert isinstance(agg.coverage, EtfAggregateCoverage)
         assert agg.coverage.weightCovered == 69.25
         assert isinstance(agg.weightedConsensus, WeightedConsensus)
         assert agg.weightedConsensus.consensusLabel == "BUY"
-        assert agg.topContributors is None
+        assert agg.topContributors == []
 
     def test_from_dict_pro_tier_with_contributors(self):
         agg = EtfAnalystAggregate.from_dict({
