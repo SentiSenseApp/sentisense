@@ -492,7 +492,11 @@ class Story(APIModel):
     """AI-curated news story with impact score and tickers."""
 
     cluster: Optional[StoryCluster] = None
+    #: Human-formatted labels for display, e.g. ``"Apple Inc (AAPL)"``. For display
+    #: only; do not parse symbols out of these. Use ``tickers`` programmatically.
     displayTickers: List[str] = field(default_factory=list)
+    #: Bare ticker symbols for programmatic use, e.g. ``"AAPL"``. Use these to filter
+    #: or look up stocks.
     tickers: List[str] = field(default_factory=list)
     impactScore: float = 0.0
     brokeAt: Optional[int] = None
