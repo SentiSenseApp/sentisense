@@ -318,6 +318,24 @@ class ClusterBuy(APIModel):
 
 
 @dataclass
+class AssetMetadata(APIModel):
+    """Asset-type-specific detail on a congressional trade.
+
+    ``None`` for plain ``Stock``/``ETF`` holdings. When present it is a
+    discriminated ("oneOf") shape keyed by ``kind``. Today only options carry
+    metadata: ``kind="OPTION"`` -> ``optionType`` (``"CALL"``/``"PUT"``),
+    ``strikePrice`` (dollars), ``expirationDate`` (ISO ``"YYYY-MM-DD"``). Only
+    the fields relevant to ``kind`` are present.
+    """
+
+    kind: Optional[str] = None  # discriminator; currently only "OPTION"
+    # OPTION variant
+    optionType: Optional[str] = None  # "CALL" or "PUT"
+    strikePrice: Optional[float] = None  # strike in dollars
+    expirationDate: Optional[str] = None  # ISO "YYYY-MM-DD"
+
+
+@dataclass
 class CongressTrade(APIModel):
     """Congressional STOCK Act trade disclosure."""
 
@@ -339,9 +357,22 @@ class CongressTrade(APIModel):
     owner: str = ""
     urlSlug: str = ""
     imageUrl: Optional[str] = None
-    assetType: Optional[str] = None
+    assetType: Optional[str] = None  # "Stock", "ETF", or "Stock Option"
+    # Structured asset detail (None for plain Stock/ETF). For options carries
+    # optionType/strikePrice/expirationDate under kind="OPTION".
+    assetMetadata: Optional[AssetMetadata] = None
     disclosureDelayDays: Optional[int] = None
     sentiSenseScore: Optional[float] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CongressTrade":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known}
+        if data.get("assetMetadata"):
+            kwargs["assetMetadata"] = AssetMetadata.from_dict(data["assetMetadata"])
+        return cls(**kwargs)
 
 
 @dataclass

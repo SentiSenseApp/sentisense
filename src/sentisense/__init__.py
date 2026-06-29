@@ -10,6 +10,7 @@ from sentisense.exceptions import (
     SentiSenseError,
 )
 from sentisense.types import (
+    AssetMetadata,
     CalendarMeta,
     ClusterBuy,
     CompanyKpis,
@@ -62,6 +63,7 @@ from sentisense.types import (
 __all__ = [
     "__version__",
     "APIError",
+    "AssetMetadata",
     "AuthenticationError",
     "CalendarMeta",
     "ClusterBuy",
