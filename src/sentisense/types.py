@@ -162,6 +162,7 @@ class StockQuote(APIModel):
     peRatio: Optional[float] = None
     epsTTM: Optional[float] = None
     dividendYield: Optional[float] = None
+    movingAverage200Day: Optional[float] = None
     timestamp: Optional[int] = None
     extendedHours: Optional[ExtendedHoursInfo] = None
 
