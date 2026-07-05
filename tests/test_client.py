@@ -359,17 +359,17 @@ class TestDocumentEndpoints:
 
     @patch.object(SentiSenseClient, "_get")
     def test_search_documents(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=[{"id": "doc1"}])
+        mock_get.return_value = _mock_response(json_data={"documents": [{"id": "doc1"}], "totalCount": 1})
         result = client.search_documents("AI earnings", source="reddit", limit=5)
         mock_get.assert_called_once_with(
             "/api/v1/documents/search",
             params={"query": "AI earnings", "source": "reddit", "limit": 5},
         )
-        assert len(result) == 1
+        assert len(result.documents) == 1
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_documents_by_source(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data=[])
+        mock_get.return_value = _mock_response(json_data={"documents": []})
         client.get_documents_by_source("x", hours=24)
         mock_get.assert_called_once_with(
             "/api/v1/documents/source/x",
@@ -401,7 +401,7 @@ class TestMetricsV2Endpoints:
         mock_get.return_value = _mock_response(json_data=[{"timestamp": 1700000000000, "value": 5}])
         result = client.get_metrics("AAPL")
         mock_get.assert_called_once_with(
-            "/api/v2/metrics/entity/AAPL/metric/mentions",
+            "/api/v2/metrics/entity/AAPL/metric/sentiment",
             params={},
         )
         assert result == [{"timestamp": 1700000000000, "value": 5}]

@@ -1009,7 +1009,7 @@ class SentiSenseClient:
         days: Optional[int] = None,
         hours: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> DocumentSearchResponse:
         """Get documents for a knowledge base entity.
 
         Args:
@@ -1028,7 +1028,7 @@ class SentiSenseClient:
             params["hours"] = hours
         if limit is not None:
             params["limit"] = limit
-        return self._get(f"/api/v1/documents/entity/{entity_id}", params=params).json()
+        return self._parse(self._get(f"/api/v1/documents/entity/{entity_id}", params=params).json(), DocumentSearchResponse)
 
     def search_documents(
         self,
@@ -1036,7 +1036,7 @@ class SentiSenseClient:
         source: Optional[str] = None,
         days: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> DocumentSearchResponse:
         """Search news and social posts with a natural language query.
 
         Args:
@@ -1052,7 +1052,7 @@ class SentiSenseClient:
             params["days"] = days
         if limit is not None:
             params["limit"] = limit
-        return self._get("/api/v1/documents/search", params=params).json()
+        return self._parse(self._get("/api/v1/documents/search", params=params).json(), DocumentSearchResponse)
 
     def get_documents_by_source(
         self,
@@ -1060,7 +1060,7 @@ class SentiSenseClient:
         days: Optional[int] = None,
         hours: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> DocumentSearchResponse:
         """Get latest documents from a specific source.
 
         Args:
@@ -1076,7 +1076,7 @@ class SentiSenseClient:
             params["hours"] = hours
         if limit is not None:
             params["limit"] = limit
-        return self._get(f"/api/v1/documents/source/{source}", params=params).json()
+        return self._parse(self._get(f"/api/v1/documents/source/{source}", params=params).json(), DocumentSearchResponse)
 
     def get_stories(
         self,
@@ -1131,7 +1131,7 @@ class SentiSenseClient:
     def get_metrics(
         self,
         symbol: str,
-        metric_type: str = "mentions",
+        metric_type: str = "sentiment",
         start_time: Optional[int] = None,
         end_time: Optional[int] = None,
         max_data_points: Optional[int] = None,
