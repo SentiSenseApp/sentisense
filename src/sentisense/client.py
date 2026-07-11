@@ -1152,6 +1152,15 @@ class SentiSenseClient:
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
             max_data_points: Maximum number of data points to return.
+
+        Returns:
+            A list of points, time-ordered ascending by ``timestamp``. Each point
+            carries a flat ``value`` scalar (the polarity for sentiment, the count for
+            mentions); read that instead of walking the nested ``metricValue.value``
+            (count metrics) or ``metricValue.value.value`` (value metrics). A point
+            with no reading omits ``value``. For the current reading and its change,
+            take the last point's ``value`` and subtract the prior point's; a window
+            with 0 or 1 point has no derivable trend, so widen ``start_time``.
         """
         params: Dict[str, Any] = {}
         if start_time is not None:

@@ -291,6 +291,8 @@ class InsiderTrade(APIModel):
     transactionDate: str = ""
     filedDate: str = ""
     transactionCode: str = ""
+    # "BUY" | "SELL" | "EXERCISE" | "AWARD" | "GIFT" | "OTHER". For an open-market buys/sells
+    # tally filter to BUY/SELL only. Insider uses BUY/SELL, NOT the congress PURCHASE/SALE vocab.
     transactionType: str = ""
     securityTitle: str = ""
     sharesTransacted: int = 0
@@ -349,6 +351,8 @@ class CongressTrade(APIModel):
     bioguideId: str = ""
     ticker: str = ""
     assetDescription: str = ""
+    # "PURCHASE" | "SALE" | "EXCHANGE" | "OTHER". Congress uses PURCHASE/SALE, NOT the insider
+    # endpoint's BUY/SELL vocab (a filter written for one returns zero on the other).
     transactionType: str = ""
     transactionDate: str = ""
     disclosureDate: str = ""
