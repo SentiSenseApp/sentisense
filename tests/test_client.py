@@ -377,6 +377,15 @@ class TestDocumentEndpoints:
         )
 
     @patch.object(SentiSenseClient, "_get")
+    def test_get_documents_by_source_sort(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"documents": []})
+        client.get_documents_by_source("news", hours=6, limit=50, sort="top")
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/source/news",
+            params={"hours": 6, "limit": 50, "sort": "top"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_stories(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[{"cluster": {"id": "c1"}}])
         client.get_stories(limit=5)

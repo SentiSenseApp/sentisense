@@ -1060,6 +1060,7 @@ class SentiSenseClient:
         days: Optional[int] = None,
         hours: Optional[int] = None,
         limit: Optional[int] = None,
+        sort: Optional[str] = None,
     ) -> DocumentSearchResponse:
         """Get latest documents from a specific source.
 
@@ -1068,6 +1069,10 @@ class SentiSenseClient:
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
+            sort: Result ordering. "latest" (default) returns newest first.
+                "top" returns a reliability-first ranking that surfaces recent
+                content from high-authority publishers ahead of low-authority
+                floods.
         """
         params: Dict[str, Any] = {}
         if days is not None:
@@ -1076,6 +1081,8 @@ class SentiSenseClient:
             params["hours"] = hours
         if limit is not None:
             params["limit"] = limit
+        if sort is not None:
+            params["sort"] = sort
         return self._parse(self._get(f"/api/v1/documents/source/{source}", params=params).json(), DocumentSearchResponse)
 
     def get_stories(
