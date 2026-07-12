@@ -426,7 +426,7 @@ class InsightDocRef(APIModel):
     """Source document referenced by an insight."""
 
     url: str = ""
-    type: str = ""  # "News", "X", "Reddit", etc.
+    type: str = ""  # "News", "X", "Reddit", "YouTube", etc.
 
 
 @dataclass

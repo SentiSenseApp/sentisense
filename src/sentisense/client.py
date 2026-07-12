@@ -962,7 +962,7 @@ class SentiSenseClient:
 
         Args:
             ticker: Stock ticker symbol.
-            source: Filter by source: "news", "reddit", "x", or "substack".
+            source: Filter by source: "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
@@ -992,7 +992,7 @@ class SentiSenseClient:
             ticker: Stock ticker symbol.
             start_date: Start date (e.g. "2025-01-01").
             end_date: End date (e.g. "2025-01-31").
-            source: Filter by source — "news", "reddit", "x", or "substack".
+            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
             limit: Maximum number of results.
         """
         params: Dict[str, Any] = {"startDate": start_date, "endDate": end_date}
@@ -1014,7 +1014,7 @@ class SentiSenseClient:
 
         Args:
             entity_id: KB entity ID.
-            source: Filter by source — "news", "reddit", "x", or "substack".
+            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
@@ -1041,7 +1041,7 @@ class SentiSenseClient:
 
         Args:
             query: Search query string.
-            source: Filter by source — "news", "reddit", "x", or "substack".
+            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             limit: Maximum number of results.
         """
@@ -1065,7 +1065,7 @@ class SentiSenseClient:
         """Get latest documents from a specific source.
 
         Args:
-            source: Source type — "news", "reddit", "x", or "substack".
+            source: Source type — "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
@@ -1219,7 +1219,7 @@ class SentiSenseClient:
 
         Args:
             symbol: Stock ticker symbol.
-            source: Filter by source — "news", "reddit", "x", or "substack".
+            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
             start_date: Start date (e.g. "2025-01-01").
             end_date: End date (e.g. "2025-01-31").
         """
@@ -1247,7 +1247,7 @@ class SentiSenseClient:
 
         Args:
             symbol: Stock ticker symbol.
-            source: Filter by source — "news", "reddit", "x", or "substack".
+            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
             start_date: Start date (e.g. "2025-01-01").
             end_date: End date (e.g. "2025-01-31").
         """
@@ -1266,7 +1266,7 @@ class SentiSenseClient:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get mention counts broken down by source (news, reddit, x, substack).
+        """Get mention counts broken down by source (news, reddit, x, substack, youtube).
 
         .. deprecated::
             Use :meth:`get_metrics_distribution` with ``metric_type="mentions"``
@@ -1310,7 +1310,7 @@ class SentiSenseClient:
         return self._get(f"/api/v1/entity-metrics/stocks/{symbol}/sentiment", params=params).json()
 
     def get_sentiment_by_source(self, symbol: str, date: Optional[str] = None) -> Dict[str, Any]:
-        """Get mean sentiment polarity broken down by source (News, Reddit, X, Substack).
+        """Get mean sentiment polarity broken down by source (News, Reddit, X, Substack, YouTube).
 
         Returns a JSON map of ``{source: meanPolarity}`` where each polarity is a
         float in ``[-1, 1]``, e.g. ``{"Reddit": 0.15, "News": 0.38, "X": 0.19}``.
