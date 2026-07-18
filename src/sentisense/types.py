@@ -588,6 +588,15 @@ class InstitutionalFlow(APIModel):
     soldOutPositions: int = 0
     indexFundNetChange: int = 0
     hedgeFundNetChange: int = 0
+    # Net share change contributed by each remaining filer category this quarter.
+    activistNetChange: int = 0
+    pensionNetChange: int = 0
+    bankNetChange: int = 0
+    insuranceNetChange: int = 0
+    mutualFundNetChange: int = 0
+    sovereignWealthNetChange: int = 0
+    endowmentNetChange: int = 0
+    conglomerateNetChange: int = 0
     activistActivity: bool = False
     reportDate: str = ""
     # Quarterly average closing price used to weight the dollar flow. None when no
