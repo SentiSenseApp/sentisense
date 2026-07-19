@@ -316,6 +316,34 @@ class TestInstitutionalEndpoints:
         assert result.outflows == []
 
     @patch.object(SentiSenseClient, "_get")
+    def test_get_institutional_flows_omitted_report_date(self, mock_get, client):
+        # Omitting report_date should not send reportDate; the server defaults to the
+        # latest quarter and labels a partial one via the coverage fields.
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "data": {
+                    "inflows": [],
+                    "outflows": [],
+                    "reportDate": "2026-06-30",
+                    "isPending": True,
+                    "filerCount": 578,
+                    "baselineFilerCount": 8789,
+                },
+            }
+        )
+        result = client.get_institutional_flows()
+        mock_get.assert_called_once_with(
+            "/api/v1/institutional/flows",
+            params={"limit": 50},
+        )
+        assert result.reportDate == "2026-06-30"
+        assert result.isPending is True
+        assert result.filerCount == 578
+        assert result.baselineFilerCount == 8789
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_stock_holders(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[])
         client.get_stock_holders("AAPL", "2025-12-31")

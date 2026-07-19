@@ -124,7 +124,7 @@ The following methods hit the v1 entity-metrics endpoints which return empty dat
 | Method | Description |
 |--------|-------------|
 | `get_institutional_quarters()` | Available 13F reporting quarters |
-| `get_institutional_flows(report_date, limit=50)` | Fund flows for a quarter |
+| `get_institutional_flows(report_date=None, limit=50)` | Fund flows for a quarter (omit `report_date` for the latest) |
 | `get_stock_holders(ticker, report_date)` | Institutional holders for a stock |
 | `get_activist_positions(report_date)` | Activist investor positions |
 

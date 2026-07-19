@@ -609,16 +609,32 @@ class InstitutionalFlow(APIModel):
 
 @dataclass
 class InstitutionalFlows(APIModel):
-    """Market flows split into inflows and outflows."""
+    """Market flows split into inflows and outflows.
+
+    When ``report_date`` is omitted from the request, the server returns the latest
+    available quarter and populates ``reportDate`` here so callers know which quarter
+    they received. ``isPending`` is True for a still-open 13F filing window (within 45
+    days of quarter end), where only early filers are represented; ``filerCount`` and
+    ``baselineFilerCount`` then give the coverage (e.g. 578 of 8789 filers). All three
+    coverage fields are None on a fully-filed quarter and on legacy responses.
+    """
 
     inflows: List[InstitutionalFlow] = field(default_factory=list)
     outflows: List[InstitutionalFlow] = field(default_factory=list)
+    reportDate: Optional[str] = None
+    isPending: Optional[bool] = None
+    filerCount: Optional[int] = None
+    baselineFilerCount: Optional[int] = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "InstitutionalFlows":
         return cls(
             inflows=[InstitutionalFlow.from_dict(f) for f in data.get("inflows", [])],
             outflows=[InstitutionalFlow.from_dict(f) for f in data.get("outflows", [])],
+            reportDate=data.get("reportDate"),
+            isPending=data.get("isPending"),
+            filerCount=data.get("filerCount"),
+            baselineFilerCount=data.get("baselineFilerCount"),
         )
 
 

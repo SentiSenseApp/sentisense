@@ -310,18 +310,24 @@ class SentiSenseClient:
         """Get available 13F reporting quarters."""
         return self._parse_list(self._get("/api/v1/institutional/quarters").json(), Quarter)
 
-    def get_institutional_flows(self, report_date: str, limit: int = 50) -> PreviewResult[InstitutionalFlows]:
+    def get_institutional_flows(self, report_date: Optional[str] = None, limit: int = 50) -> PreviewResult[InstitutionalFlows]:
         """Get institutional fund flows for a reporting quarter.
 
         Auto-unwrapped. Access flows via ``result.inflows`` and ``result.outflows``.
         Check ``result.is_preview`` for tier status.
 
         Args:
-            report_date: Quarter date string (e.g. "2025-12-31").
+            report_date: Quarter date string (e.g. "2025-12-31"). Optional: omit it to
+                get the latest available quarter, which may be a still-open one holding
+                only early filers. The response then carries ``reportDate`` plus
+                ``isPending`` and filer coverage counts so a partial quarter is labeled.
             limit: Maximum number of results per direction.
         """
+        params: Dict[str, Any] = {"limit": limit}
+        if report_date is not None:
+            params["reportDate"] = report_date
         return self._unwrap(
-            self._get("/api/v1/institutional/flows", params={"reportDate": report_date, "limit": limit}).json(),
+            self._get("/api/v1/institutional/flows", params=params).json(),
             item_cls=InstitutionalFlows,
         )
 
