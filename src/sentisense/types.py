@@ -553,7 +553,9 @@ class Story(APIModel):
 class MarketSummary(APIModel):
     """AI-generated market summary."""
 
+    #: Not populated by the API (always 0); retained so existing consumers keep working.
     totalMentions: int = 0
+    #: Not populated by the API (always empty); retained so existing consumers keep working.
     topActiveStocks: List[str] = field(default_factory=list)
     lastUpdated: int = 0
     headline: Optional[str] = None
