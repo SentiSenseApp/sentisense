@@ -1147,10 +1147,12 @@ class SentiSenseClient:
         end_time: Optional[int] = None,
         max_data_points: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """Get time series metrics for a stock (mentions, sentiment, etc.).
+        """Get time series metrics for a stock or entity (mentions, sentiment, etc.).
 
         Args:
-            symbol: Stock ticker symbol (e.g. "AAPL").
+            symbol: Stock ticker symbol (e.g. "AAPL") or entity urlSlug
+                (e.g. "Nancy-Pelosi"). Case-insensitive. Discover slugs via
+                ``GET /api/v1/kb/entities/search?q=`` or ``get_stock_entities()``.
             metric_type: Metric to retrieve — "mentions", "sentiment",
                 "sentisense", or "social_dominance".
             start_time: Start of window as epoch milliseconds.
