@@ -65,6 +65,7 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `get_stock_price(ticker)` | Real-time price for a single stock |
 | `get_stock_prices(tickers)` | Real-time prices for multiple stocks |
 | `get_stock_profile(ticker)` | Company profile |
+| `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products) |
 | `get_stock_chart(ticker, timeframe="1M")` | OHLCV chart data |
 | `get_all_stocks()` | List of available tickers |
 | `get_all_stocks_detailed()` | Tickers with company names and entity IDs |
@@ -81,7 +82,6 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | Method | Description |
 |--------|-------------|
 | `get_popular_kb_entities()` | Popular KB entities (search suggestions) |
-| `get_all_kb_entities()` | All tracked KB entities |
 
 ### News & Documents
 

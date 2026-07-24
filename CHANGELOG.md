@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.30.0
+
+### Breaking (removed)
+
+- `get_all_kb_entities`. The unpaginated full-entity dump endpoint has been retired
+  server-side (HTTP 410). Use `get_popular_kb_entities()` for suggestions, or
+  `get_stock_entities(ticker)` for the entities related to a ticker.
+
+### Added
+
+- `get_stock_entities(ticker)`: the tracked entities related to a stock (executives,
+  products, organizations). Already available in the Node SDK as `stocks.getEntities`.
+
 ## 0.29.0
 
 Removed methods whose endpoints no longer work. All were unusable at runtime, so this
@@ -13,7 +26,8 @@ breaks only code that was already failing.
   `get_metrics(symbol, metric_type=...)` and `get_metrics_distribution(symbol, metric_type=...)`
   instead.
 - `get_kb_entity`. Its endpoint returned 400/404 for every id form, so it never worked.
-  Use `get_popular_kb_entities()` / `get_all_kb_entities()`.
+  Use `get_popular_kb_entities()`. (This entry originally also pointed at
+  `get_all_kb_entities`, which was itself removed in 0.30.0.)
 
 ## 0.28.0
 

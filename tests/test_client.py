@@ -202,18 +202,21 @@ class TestKbEndpoints:
         mock_get.assert_called_once_with("/api/v1/kb/entities/popular")
         assert result[0]["entityId"] == "kb/company/1"
 
+    def test_get_all_kb_entities_removed(self, client):
+        assert not hasattr(client, "get_all_kb_entities")
+
     @patch.object(SentiSenseClient, "_get")
-    def test_get_all_kb_entities(self, mock_get, client):
+    def test_get_stock_entities(self, mock_get, client):
         mock_get.return_value = _mock_response(
             json_data=[
-                {"entityId": "kb/company/1", "name": "Apple Inc."},
-                {"entityId": "kb/person/2", "name": "Tim Cook"},
+                {"entityId": "kb/person/1", "name": "Tim Cook", "type": "PERSON"},
+                {"entityId": "kb/product/3", "name": "iPhone", "type": "PRODUCT"},
             ]
         )
-        result = client.get_all_kb_entities()
-        mock_get.assert_called_once_with("/api/v1/kb/entities/all")
+        result = client.get_stock_entities("AAPL")
+        mock_get.assert_called_once_with("/api/v1/stocks/AAPL/entities")
         assert len(result) == 2
-        assert result[1]["name"] == "Tim Cook"
+        assert result[1]["name"] == "iPhone"
 
 
 class TestKpiEndpoints:

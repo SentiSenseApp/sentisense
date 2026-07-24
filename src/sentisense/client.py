@@ -200,6 +200,16 @@ class SentiSenseClient:
         """Get company profile for a stock."""
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 
+    def get_stock_entities(self, ticker: str) -> List[Dict[str, Any]]:
+        """Get the tracked entities related to a stock (executives, products, organizations).
+
+        Each entry carries ``entityId``, ``name``, and ``type``.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+        """
+        return self._get(f"/api/v1/stocks/{ticker}/entities").json()
+
     def get_similar_stocks(self, ticker: str, limit: int = 5) -> List[SimilarStock]:
         """Get peer/similar stocks with current prices.
 
@@ -754,10 +764,6 @@ class SentiSenseClient:
     def get_popular_kb_entities(self) -> List[Dict[str, Any]]:
         """Get popular KB entities (useful for search suggestions)."""
         return self._get("/api/v1/kb/entities/popular").json()
-
-    def get_all_kb_entities(self) -> List[Dict[str, Any]]:
-        """Get all tracked KB entities."""
-        return self._get("/api/v1/kb/entities/all").json()
 
     # ── ETF endpoints ───────────────────────────────────────────
 
