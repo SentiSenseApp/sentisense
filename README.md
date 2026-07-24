@@ -81,7 +81,6 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | Method | Description |
 |--------|-------------|
 | `get_popular_kb_entities()` | Popular KB entities (search suggestions) |
-| `get_kb_entity(entity_id)` | Entity detail with metrics and relationships |
 | `get_all_kb_entities()` | All tracked KB entities |
 
 ### News & Documents
@@ -106,19 +105,6 @@ For full endpoint documentation, request/response schemas, and interactive examp
 
 > **Note:** `start_time` and `end_time` are epoch milliseconds.
 
-### Sentiment & Mentions (deprecated)
-
-The following methods hit the v1 entity-metrics endpoints which return empty data. Use the v2 metrics methods above instead.
-
-| Method | Description |
-|--------|-------------|
-| `get_mentions(symbol, source?, start_date?, end_date?)` | Mention data across news and social |
-| `get_mention_count(symbol, source?, start_date?, end_date?)` | Total mention count |
-| `get_mention_count_by_source(symbol, start_date?, end_date?)` | Mentions broken down by source |
-| `get_sentiment(symbol, start_date?, end_date?)` | Sentiment data for a stock |
-| `get_sentiment_by_source(symbol, date?)` | Sentiment broken down by source |
-| `get_average_sentiment(symbol, start_date?, end_date?)` | Average sentiment score |
-
 ### Institutional Flows (13F)
 
 | Method | Description |
@@ -130,7 +116,7 @@ The following methods hit the v1 entity-metrics endpoints which return empty dat
 
 ### Analyst Ratings
 
-The **price target cone** (mean, high, low, upside %) and consensus are **free for everyone, full data via API** — we give it away. Upgrade/downgrade feeds and forward EPS estimates are limited on free, unlimited on PRO.
+The **price target cone** (mean, high, low, upside %) and consensus are **free for everyone, full data via API**: we give it away. Upgrade/downgrade feeds and forward EPS estimates are limited on free, unlimited on PRO.
 
 | Method | Description |
 |--------|-------------|

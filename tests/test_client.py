@@ -203,15 +203,6 @@ class TestKbEndpoints:
         assert result[0]["entityId"] == "kb/company/1"
 
     @patch.object(SentiSenseClient, "_get")
-    def test_get_kb_entity(self, mock_get, client):
-        mock_get.return_value = _mock_response(
-            json_data={"entityId": "kb/company/1", "name": "Apple Inc.", "type": "company"}
-        )
-        result = client.get_kb_entity("kb/company/1")
-        mock_get.assert_called_once_with("/api/v1/kb/entities/kb/company/1")
-        assert result["type"] == "company"
-
-    @patch.object(SentiSenseClient, "_get")
     def test_get_all_kb_entities(self, mock_get, client):
         mock_get.return_value = _mock_response(
             json_data=[
@@ -490,63 +481,6 @@ class TestMetricsV2Endpoints:
         mock_get.assert_called_once_with(
             "/api/v2/metrics/entity/MSFT/distribution/sentiment",
             params={"dimension": "source", "startTime": 1700000000000, "endTime": 1700100000000},
-        )
-
-
-class TestEntityMetricsEndpoints:
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_mentions(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={"data": []})
-        client.get_mentions("AAPL", source="reddit", start_date="2025-01-01")
-        mock_get.assert_called_once_with(
-            "/api/v1/entity-metrics/stocks/AAPL/mentions",
-            params={"source": "reddit", "startDate": "2025-01-01"},
-        )
-
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_mention_count(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={"count": 42})
-        result = client.get_mention_count("AAPL")
-        mock_get.assert_called_once_with(
-            "/api/v1/entity-metrics/stocks/AAPL/mentions/count",
-            params={},
-        )
-
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_mention_count_by_source(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={})
-        client.get_mention_count_by_source("TSLA", start_date="2025-01-01", end_date="2025-01-31")
-        mock_get.assert_called_once_with(
-            "/api/v1/entity-metrics/stocks/TSLA/mentions/count/by-source",
-            params={"startDate": "2025-01-01", "endDate": "2025-01-31"},
-        )
-
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_sentiment(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={"sentiment": 0.75})
-        result = client.get_sentiment("AAPL")
-        mock_get.assert_called_once_with(
-            "/api/v1/entity-metrics/stocks/AAPL/sentiment",
-            params={},
-        )
-        assert result["sentiment"] == 0.75
-
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_sentiment_by_source(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={})
-        client.get_sentiment_by_source("AAPL", date="2025-01-15")
-        mock_get.assert_called_once_with(
-            "/api/v2/metrics/entity/AAPL/metric/sentiment/mean-by/source",
-            params={"startTime": 1736899200000, "endTime": 1736985599000},
-        )
-
-    @patch.object(SentiSenseClient, "_get")
-    def test_get_average_sentiment(self, mock_get, client):
-        mock_get.return_value = _mock_response(json_data={})
-        client.get_average_sentiment("NVDA", start_date="2025-01-01", end_date="2025-03-01")
-        mock_get.assert_called_once_with(
-            "/api/v1/entity-metrics/stocks/NVDA/sentiment/average",
-            params={"startDate": "2025-01-01", "endDate": "2025-03-01"},
         )
 
 
