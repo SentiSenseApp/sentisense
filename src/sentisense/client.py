@@ -292,11 +292,35 @@ class SentiSenseClient:
     ) -> Dict[str, Any]:
         """Get fundamental financial data for a stock.
 
+        Returns one reporting period: income statement, balance sheet, and cash
+        flow line items, keyed camelCase as on the wire.
+
+        Cash-flow keys worth knowing, since their signs and relationships are
+        easy to get wrong:
+
+        - ``operatingCashFlow`` / ``investingCashFlow`` / ``financingCashFlow``:
+          net cash from each activity, in dollars.
+        - ``capitalExpenditure``: in dollars, signed **as filed**, so normally
+          NEGATIVE because it is an outflow. Take ``abs()`` before using it as a
+          magnitude.
+        - ``freeCashFlow``: ``operatingCashFlow - abs(capitalExpenditure)``. It is
+          ``None`` rather than a guess when the period's capital expenditure is
+          unavailable, so a screen for positive free cash flow can never match on
+          a fabricated number. Do not substitute
+          ``operatingCashFlow + investingCashFlow``: investing cash flow also
+          carries marketable-securities and acquisition activity, which for a
+          company holding a large securities portfolio is wrong by billions and
+          can flip the sign.
+
         Args:
             ticker: Stock ticker symbol.
             timeframe: "quarterly" or "annual".
             fiscal_period: Filter by fiscal period (e.g. "Q1", "Q2").
             fiscal_year: Filter by fiscal year (e.g. 2025).
+
+        Example:
+            >>> q = client.get_fundamentals("AAPL")
+            >>> abs(q["capitalExpenditure"]), q["freeCashFlow"]
         """
         params: Dict[str, Any] = {"ticker": ticker, "timeframe": timeframe}
         if fiscal_period:

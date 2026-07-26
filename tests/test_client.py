@@ -536,7 +536,7 @@ class TestCalendarEndpoints:
                     "fiscalQuarter": "Q2 2026",
                     "confirmed": True,
                     "estimatedEps": 1.62,
-                    "source": "fmp+web",
+                    "source": "provider+web",
                 }
             ],
             "metadata": {
