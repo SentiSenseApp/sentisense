@@ -224,7 +224,11 @@ class SentiSenseClient:
 
         Args:
             ticker: Stock ticker symbol.
-            timeframe: Chart timeframe. One of "1D", "5D", "1W", "1M", "3M", "6M", "1Y", "ALL".
+            timeframe: Chart timeframe. One of "1D", "5D", "1W", "1M", "3M", "6M",
+                "1Y", "5Y", "10Y", "MAX". "MAX" returns the full available history
+                (up to ~26 years). Ranges of "5Y" and longer are split- and
+                dividend-adjusted; shorter ranges are split-adjusted only. "ALL" is
+                a legacy alias of "5Y" and still accepted.
 
         Each bar carries: ``timestamp`` (Unix ms), ``date`` (display string), ``open``,
         ``high``, ``low``, ``close``, ``volume``, and ``session`` ("pre" / "regular" /
