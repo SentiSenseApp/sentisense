@@ -6,6 +6,7 @@ from sentisense.exceptions import (
     APIError,
     AuthenticationError,
     NotFoundError,
+    DeepHistoryUnavailable,
     RateLimitError,
     SentiSenseError,
 )
@@ -104,6 +105,7 @@ __all__ = [
     "PoliticianSummary",
     "PreviewResult",
     "Quarter",
+    "DeepHistoryUnavailable",
     "RateLimitError",
     "SentiSenseClient",
     "SentiSenseError",

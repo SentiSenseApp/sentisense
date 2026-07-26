@@ -28,6 +28,16 @@ class NotFoundError(SentiSenseError):
     """Raised on 404 responses."""
 
 
+class DeepHistoryUnavailable(SentiSenseError):
+    """Raised when a deep chart range is still being assembled.
+
+    The API answers ``202`` for ``10Y`` and ``MAX`` the first time a rarely-requested
+    stock is asked for, while its history is built. It deliberately does not substitute
+    a shorter range, so a successful response always carries the timeframe you asked
+    for. Retry after a few seconds.
+    """
+
+
 class RateLimitError(SentiSenseError):
     """Raised on 429 responses (rate limit exceeded)."""
 

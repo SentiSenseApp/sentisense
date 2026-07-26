@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Type, TypeVar
 import requests
 
 from sentisense.__about__ import __version__
-from sentisense.exceptions import SentiSenseError, _raise_for_status
+from sentisense.exceptions import DeepHistoryUnavailable, SentiSenseError, _raise_for_status
 from sentisense.types import (
     APIModel,
     ClusterBuy,
@@ -47,6 +47,22 @@ from sentisense.types import (
 )
 
 _M = TypeVar("_M", bound=APIModel)
+
+
+# Deep chart ranges ("10Y", "MAX") answer 202 while a cold stock's history is assembled.
+# Retries are bounded: if the upstream is throttled the series will not arrive within any
+# reasonable wait, and blocking a caller indefinitely is worse than raising.
+_DEEP_HISTORY_ATTEMPTS = 3
+_DEEP_HISTORY_FALLBACK_WAIT = 3.0
+
+
+def _retry_after_seconds(response: "requests.Response") -> float:
+    """Seconds to wait before retrying, from ``Retry-After`` when present."""
+    raw = response.headers.get("Retry-After")
+    try:
+        return max(0.5, float(raw)) if raw else _DEEP_HISTORY_FALLBACK_WAIT
+    except (TypeError, ValueError):
+        return _DEEP_HISTORY_FALLBACK_WAIT
 
 
 class SentiSenseClient:
@@ -233,8 +249,27 @@ class SentiSenseClient:
         Each bar carries: ``timestamp`` (Unix ms), ``date`` (display string), ``open``,
         ``high``, ``low``, ``close``, ``volume``, and ``session`` ("pre" / "regular" /
         "post" for intraday timeframes; ``None`` for daily and weekly bars).
+
+        The deep ranges ("10Y", "MAX") answer ``202`` while a rarely-requested stock's
+        history is still being assembled. This method retries that automatically,
+        honouring ``Retry-After``, and raises :class:`DeepHistoryUnavailable` if the
+        series is still not ready. It never returns a shorter range in place of the one
+        you asked for, so a successful call always carries the requested timeframe.
         """
-        return self._get("/api/v1/stocks/chart", params={"ticker": ticker, "timeframe": timeframe}).json()
+        for attempt in range(_DEEP_HISTORY_ATTEMPTS):
+            response = self._get(
+                "/api/v1/stocks/chart",
+                params={"ticker": ticker, "timeframe": timeframe},
+            )
+            if response.status_code != 202:
+                return response.json()
+            if attempt == _DEEP_HISTORY_ATTEMPTS - 1:
+                break
+            time.sleep(_retry_after_seconds(response))
+        raise DeepHistoryUnavailable(
+            f"Deep history for {ticker} ({timeframe}) is still being assembled. "
+            "Retry in a few seconds."
+        )
 
     def get_all_stocks(self) -> List[str]:
         """Get all available stock tickers."""
