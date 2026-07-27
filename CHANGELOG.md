@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.32.0
+
+### Added
+
+- **`reportedCurrency` on fundamentals responses.** Names the currency the filer reports in
+  ("USD", "KRW", "EUR", ...). Statement figures are as reported in that currency and are never
+  converted to US dollars; foreign companies listed as ADRs file in their home currency while
+  their listed share price is in USD. When the key is absent the currency is unknown, not
+  implicitly USD. For non-USD filers the API serves `peRatio` / `psRatio` / `pbRatio` as `None`
+  on purpose: a USD price over a home-currency per-share figure is a unit mismatch, so do not
+  recompute them client-side.
+
 ## 0.30.0
 
 ### Breaking (removed)

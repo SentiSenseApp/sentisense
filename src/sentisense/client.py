@@ -295,12 +295,21 @@ class SentiSenseClient:
         Returns one reporting period: income statement, balance sheet, and cash
         flow line items, keyed camelCase as on the wire.
 
+        Currency: figures are **as reported in the filer's own currency**, never
+        converted to US dollars. Foreign companies listed as ADRs file in their
+        home currency (KRW, JPY, EUR, ...) while their listed share price is in
+        USD. The optional ``reportedCurrency`` key ("USD", "KRW", ...) names the
+        currency; when absent it is unknown, not implicitly USD. For non-USD
+        filers the API serves ``peRatio`` / ``psRatio`` / ``pbRatio`` as ``None``
+        on purpose (a USD price over a home-currency per-share figure is a unit
+        mismatch); do not recompute them client-side.
+
         Cash-flow keys worth knowing, since their signs and relationships are
         easy to get wrong:
 
         - ``operatingCashFlow`` / ``investingCashFlow`` / ``financingCashFlow``:
-          net cash from each activity, in dollars.
-        - ``capitalExpenditure``: in dollars, signed **as filed**, so normally
+          net cash from each activity, in the reporting currency.
+        - ``capitalExpenditure``: in the reporting currency, signed **as filed**, so normally
           NEGATIVE because it is an outflow. Take ``abs()`` before using it as a
           magnitude.
         - ``freeCashFlow``: ``operatingCashFlow - abs(capitalExpenditure)``. It is
