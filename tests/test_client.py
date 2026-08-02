@@ -590,3 +590,93 @@ class TestCalendarEndpoints:
                 "time": "before_open",
             },
         )
+
+
+class TestRetryAfterParsing:
+    """`Retry-After` is attacker- and vendor-controlled input, not a trusted number.
+
+    Two shapes have to be safe: a value large enough to strand a synchronous caller, and a
+    value that is not a number at all (the header may legally carry an HTTP-date). Before
+    the clamp, the first slept for the full duration and the second raised ValueError out
+    of the 429 path.
+    """
+
+    def test_absent_header_uses_default(self):
+        from sentisense.client import _retry_after_seconds
+
+        resp = MagicMock()
+        resp.headers = {}
+        assert _retry_after_seconds(resp, default=7.0) == 7.0
+
+    def test_numeric_value_is_honoured(self):
+        from sentisense.client import _retry_after_seconds
+
+        resp = MagicMock()
+        resp.headers = {"Retry-After": "5"}
+        assert _retry_after_seconds(resp) == 5.0
+
+    def test_oversized_value_is_capped(self):
+        from sentisense.client import _retry_after_seconds, _MAX_DEEP_HISTORY_WAIT
+
+        resp = MagicMock()
+        resp.headers = {"Retry-After": "86400"}
+        assert _retry_after_seconds(resp) == _MAX_DEEP_HISTORY_WAIT
+
+    def test_rate_limit_gets_the_longer_ceiling(self):
+        from sentisense.client import _retry_after_seconds, _MAX_RATE_LIMIT_WAIT
+
+        resp = MagicMock()
+        resp.headers = {"Retry-After": "86400"}
+        got = _retry_after_seconds(resp, default=60.0, max_wait=_MAX_RATE_LIMIT_WAIT)
+        assert got == _MAX_RATE_LIMIT_WAIT
+
+    def test_http_date_falls_back_instead_of_raising(self):
+        from sentisense.client import _retry_after_seconds
+
+        resp = MagicMock()
+        resp.headers = {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+        assert _retry_after_seconds(resp, default=3.0) == 3.0
+
+    @pytest.mark.parametrize("raw", ["nan", "inf", "-inf"])
+    def test_non_finite_values_fall_back(self, raw):
+        from sentisense.client import _retry_after_seconds
+
+        resp = MagicMock()
+        resp.headers = {"Retry-After": raw}
+        assert _retry_after_seconds(resp, default=3.0) == 3.0
+
+    def test_negative_value_still_waits_a_little(self):
+        from sentisense.client import _retry_after_seconds
+
+        resp = MagicMock()
+        resp.headers = {"Retry-After": "-10"}
+        assert _retry_after_seconds(resp) == 0.5
+
+
+class TestGetStockSentiment:
+    def test_calls_the_sentiment_path_and_unwraps(self, client):
+        payload = {
+            "isPreview": False,
+            "previewReason": None,
+            "data": {
+                "ticker": "AAPL",
+                "sentisenseScore": 41.2,
+                "direction": "Bullish",
+                "bySource": [{"source": "news", "direction": "Bullish", "mentionShare": 0.5}],
+            },
+        }
+        with patch.object(client.session, "request", return_value=_mock_response(json_data=payload)) as req:
+            result = client.get_stock_sentiment("AAPL")
+
+        assert "/api/v1/stocks/AAPL/sentiment" in req.call_args[0][1]
+        assert result.is_preview is False
+        assert result["ticker"] == "AAPL"
+        assert result["direction"] == "Bullish"
+
+    def test_preview_flag_is_surfaced(self, client):
+        payload = {"isPreview": True, "previewReason": "PRO_REQUIRED", "data": {"ticker": "AAPL"}}
+        with patch.object(client.session, "request", return_value=_mock_response(json_data=payload)):
+            result = client.get_stock_sentiment("AAPL")
+
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"

@@ -1,5 +1,6 @@
 """SentiSense API client."""
 
+import math
 import random
 import time
 from typing import Any, Dict, List, Optional, Type, TypeVar
@@ -55,14 +56,37 @@ _M = TypeVar("_M", bound=APIModel)
 _DEEP_HISTORY_ATTEMPTS = 3
 _DEEP_HISTORY_FALLBACK_WAIT = 3.0
 
+# Upper bounds on any server-supplied Retry-After. This client is synchronous, so the wait
+# blocks the calling thread for its whole duration; without a ceiling a single oversized
+# header value turns into an unbounded hang that looks like the process is wedged. Rate
+# limiting gets the longer ceiling because a genuine limit window is legitimately minutes.
+_MAX_DEEP_HISTORY_WAIT = 30.0
+_MAX_RATE_LIMIT_WAIT = 120.0
+_RATE_LIMIT_FALLBACK_WAIT = 60.0
 
-def _retry_after_seconds(response: "requests.Response") -> float:
-    """Seconds to wait before retrying, from ``Retry-After`` when present."""
+
+def _retry_after_seconds(
+    response: "requests.Response",
+    default: float = _DEEP_HISTORY_FALLBACK_WAIT,
+    max_wait: float = _MAX_DEEP_HISTORY_WAIT,
+) -> float:
+    """Seconds to wait before retrying, from ``Retry-After`` when present.
+
+    The result is clamped to ``[0.5, max_wait]``. ``Retry-After`` may legally carry an
+    HTTP-date instead of a number of seconds, and ``float()`` also accepts ``"nan"`` and
+    ``"inf"``, so anything that is not a finite number falls back to ``default`` rather
+    than raising or producing a nonsense sleep.
+    """
     raw = response.headers.get("Retry-After")
+    if not raw:
+        return default
     try:
-        return max(0.5, float(raw)) if raw else _DEEP_HISTORY_FALLBACK_WAIT
+        seconds = float(raw)
     except (TypeError, ValueError):
-        return _DEEP_HISTORY_FALLBACK_WAIT
+        return default
+    if not math.isfinite(seconds):
+        return default
+    return min(max(0.5, seconds), max_wait)
 
 
 class SentiSenseClient:
@@ -112,8 +136,11 @@ class SentiSenseClient:
             is_retryable = resp.status_code == 429 or resp.status_code >= 500
             if is_retryable and attempt < self.max_retries:
                 if resp.status_code == 429:
-                    ra = resp.headers.get("Retry-After")
-                    delay = float(ra) if ra else 60.0
+                    delay = _retry_after_seconds(
+                        resp,
+                        default=_RATE_LIMIT_FALLBACK_WAIT,
+                        max_wait=_MAX_RATE_LIMIT_WAIT,
+                    )
                 else:
                     delay = min(1.0 * (2 ** attempt), 60.0) + random.random()
                 time.sleep(delay)
@@ -215,6 +242,32 @@ class SentiSenseClient:
     def get_stock_profile(self, ticker: str) -> Dict[str, Any]:
         """Get company profile for a stock."""
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
+
+    def get_stock_sentiment(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
+        """Get the headline sentiment picture for a stock in one call.
+
+        Returns the SentiSense Score with its 30-day regime (``sentisenseScore``,
+        ``sentisenseScoreAvg30d``, ``sentisenseScoreDelta30d``, ``scoreLabel``,
+        ``direction``, ``latestDirection``, ``trend``, ``scoreSparkline``), mention
+        volume (``mentions``, ``mentionsAvg30d``, ``socialDominance``), per-source
+        tone in ``bySource`` (``source``, ``direction``, ``mentionShare``, and
+        ``value`` for the exact polarity in ``[-1, 1]``), plus ``relatedTickers``,
+        ``drivers``, ``narrative`` and ``faq``.
+
+        Auto-unwrapped. Available in full on every API-key tier.
+
+        Use :meth:`get_metrics` with ``metric_type="sentiment"`` instead when you
+        need a time series over a specific window rather than the headline read.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+
+        Raises:
+            NotFoundError: The ticker has no sentiment coverage.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/stocks/{ticker}/sentiment").json(),
+        )
 
     def get_stock_entities(self, ticker: str) -> List[Dict[str, Any]]:
         """Get the tracked entities related to a stock (executives, products, organizations).

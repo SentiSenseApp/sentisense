@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.33.0
+
+### Added
+
+- **`get_stock_sentiment(ticker)`.** One call for a stock's headline sentiment picture: the
+  SentiSense Score with its 30-day regime (`sentisenseScore`, `sentisenseScoreAvg30d`,
+  `scoreLabel`, `direction`, `trend`, `scoreSparkline`), mention volume and social dominance,
+  per-source tone in `bySource`, plus related tickers, story drivers, a narrative and an FAQ.
+  Available in full on every API-key tier. Use `get_metrics(..., metric_type="sentiment")`
+  instead when you need a time series over a specific window.
+
+### Fixed
+
+- **`Retry-After` is now validated and clamped.** A large value previously blocked the calling
+  thread for its full duration, and on the rate-limit path a non-numeric value (the header may
+  legally carry an HTTP-date) raised `ValueError` out of the client. Waits are now bounded at 30
+  seconds for deep-history retries and 120 seconds for rate limiting, and any non-finite or
+  unparseable value falls back to the default wait.
+
 ## 0.32.0
 
 ### Added
