@@ -249,10 +249,14 @@ class SentiSenseClient:
         Returns the SentiSense Score with its 30-day regime (``sentisenseScore``,
         ``sentisenseScoreAvg30d``, ``sentisenseScoreDelta30d``, ``scoreLabel``,
         ``direction``, ``latestDirection``, ``trend``, ``scoreSparkline``), mention
-        volume (``mentions``, ``mentionsAvg30d``, ``socialDominance``), per-source
-        tone in ``bySource`` (``source``, ``direction``, ``mentionShare``, and
-        ``value`` for the exact polarity in ``[-1, 1]``), plus ``relatedTickers``,
-        ``drivers``, ``narrative`` and ``faq``.
+        volume (``mentions``, ``mentionsAvg30d``, and ``socialDominance`` as a
+        fraction where ``0.021`` means 2.1%), per-source tone in ``bySource``
+        (``source``, ``direction``, ``mentionShare`` as a whole-number percent that
+        sums to 100 across the list, and ``value`` for the exact polarity in
+        ``[-1, 1]``), plus ``relatedTickers``, ``drivers``, ``narrative`` and ``faq``.
+
+        Note that ``mentionShare`` and ``socialDominance`` are in different units: the
+        first is a percent, the second a fraction.
 
         Auto-unwrapped. Available in full on every API-key tier.
 
