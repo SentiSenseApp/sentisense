@@ -145,6 +145,13 @@ class StockQuote(APIModel):
     ``currentPrice`` is always the regular-session price. ``extendedHours`` is
     populated only during pre-market or after-hours sessions; see
     :class:`ExtendedHoursInfo` for the nested shape.
+
+    ``reportedCurrency`` names the currency the filer reports in ("USD", "KRW",
+    ...) and travels with the filing-derived fields (``epsTTM``, ``peRatio``).
+    It is ``None`` when the quote carries no filing-derived data; that means the
+    currency is unknown, not implicitly USD. Price fields are always quoted in
+    the listing currency of the exchange, which for an ADR is USD even when the
+    filer reports in something else, so never mix the two.
     """
 
     ticker: str = ""
@@ -165,6 +172,9 @@ class StockQuote(APIModel):
     movingAverage200Day: Optional[float] = None
     timestamp: Optional[int] = None
     extendedHours: Optional[ExtendedHoursInfo] = None
+    # Appended rather than grouped with the filing-derived fields above so that any
+    # positional construction of this dataclass keeps binding the same arguments.
+    reportedCurrency: Optional[str] = None
 
 
 @dataclass
@@ -605,7 +615,7 @@ class InstitutionalFlow(APIModel):
     # price is cached for this (quarter, ticker) yet.
     avgClosePrice: Optional[float] = None
     # Dollar-weighted net flow: netSharesChange × avgClosePrice. 0 when avgClosePrice
-    # is missing — clients should fall back to displaying netSharesChange.
+    # is missing, so clients should fall back to displaying netSharesChange.
     dollarFlowUsd: float = 0.0
 
 
@@ -936,7 +946,7 @@ class EtfSentimentReading(APIModel):
 @dataclass
 class EtfSentimentAggregate(APIModel):
     """Top-level shape returned by ``client.get_etf_sentiment_aggregate``. **Beta**
-    as of 2026-05-15 — limited fund coverage; expect 404 for funds outside the
+    as of 2026-05-15: limited fund coverage, so expect 404 for funds outside the
     current coverage window."""
 
     ticker: str = ""
@@ -962,9 +972,9 @@ class EtfSentimentAggregate(APIModel):
 
 # ── Trackers ────────────────────────────────────────────────
 #
-# Trackers are observational data products. Every tracker — institution rankings,
+# Trackers are observational data products. Every tracker (institution rankings,
 # hedge-fund reported returns, social trackers, surveillance
-# dashboards — returns the same standardized `TrackerSnapshot` envelope.
+# dashboards) returns the same standardized `TrackerSnapshot` envelope.
 # Dispatch on ``viewType`` to pick a renderer; consumers write one renderer per
 # viewType and get every tracker for free.
 
@@ -1097,7 +1107,7 @@ class TrackerSnapshot(APIModel):
     headline: List[TrackerHeadlineMetric] = field(default_factory=list)
     geo: List[TrackerGeoEntry] = field(default_factory=list)
     rows: List[TrackerTableRow] = field(default_factory=list)
-    # `timeSeries`, `events`, `signals`, `sources` aren't typed yet — they're
+    # `timeSeries`, `events`, `signals`, `sources` aren't typed yet; they're
     # forward-compatible (Phase 3 trackers add them); access via .raw if needed.
     raw: Dict[str, Any] = field(default_factory=dict)
 

@@ -1,4 +1,4 @@
-"""SentiSense — Official Python SDK for the SentiSense market intelligence API."""
+"""SentiSense: the official Python SDK for the SentiSense market intelligence API."""
 
 from sentisense.__about__ import __version__
 from sentisense.client import SentiSenseClient

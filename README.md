@@ -66,7 +66,7 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `get_stock_prices(tickers)` | Real-time prices for multiple stocks |
 | `get_stock_profile(ticker)` | Company profile |
 | `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products) |
-| `get_stock_chart(ticker, timeframe="1M")` | OHLCV chart data |
+| `get_stock_chart(ticker, timeframe="1M")` | OHLCV chart data, returned as a bare list of bars (oldest first) |
 | `get_all_stocks()` | List of available tickers |
 | `get_all_stocks_detailed()` | Tickers with company names and entity IDs |
 | `get_market_status()` | Market open/closed status |
@@ -93,14 +93,13 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `search_documents(query, source?, days?, limit?)` | Natural language search across news and social |
 | `get_documents_by_source(source, days?, hours?, limit?)` | Latest from a source ("news", "reddit", "x", "substack") |
 | `get_stories(limit?, days?, expanded?)` | AI-curated news story clusters |
-| `get_story(cluster_id)` | Single story with all source documents |
 | `get_stories_by_ticker(ticker, limit?)` | Stories for a specific stock |
 
 ### Metrics (v2)
 
 | Method | Description |
 |--------|-------------|
-| `get_metrics(symbol, metric_type="mentions", start_time?, end_time?, max_data_points?)` | Time series for a metric (mentions, sentiment, sentisense_score, social_dominance, creators) |
+| `get_metrics(symbol, metric_type="sentiment", start_time?, end_time?, max_data_points?)` | Time series for a metric (mentions, sentiment, sentisense_score, social_dominance, creators) |
 | `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time?, end_time?)` | Metric distribution by dimension (e.g. mentions by source) |
 
 > **Note:** `start_time` and `end_time` are epoch milliseconds.
@@ -201,6 +200,7 @@ except RateLimitError:
 | `AuthenticationError` | 401, 403 | Invalid or missing API key |
 | `NotFoundError` | 404 | Resource not found |
 | `RateLimitError` | 429 | Rate limit exceeded |
+| `DeepHistoryUnavailable` | 202 | Deep chart history (`10Y`, `MAX`) is still being assembled; retry shortly |
 | `APIError` | Other 4xx/5xx | General API error |
 
 All exceptions inherit from `SentiSenseError` and include `.status_code`, `.message`, and `.response` attributes.
@@ -210,8 +210,9 @@ All exceptions inherit from `SentiSenseError` and include `.status_code`, `.mess
 A few endpoints available in the Node SDK are intentionally not yet exposed here
 (low-traffic / discovery-convenience surfaces). Call them directly over HTTP if you
 need them: `/api/v1/stocks/images`, `/api/v1/stocks/descriptions`,
-`/api/v1/stocks/popular`, `/api/v1/stocks/{ticker}/entities`,
-`/api/v1/stocks/{ticker}/ai-summary`, and the metrics breakdown endpoint.
+`/api/v1/stocks/popular`, `/api/v1/stocks/{ticker}/ai-summary`,
+`/api/v1/documents/stories/{clusterId}` (single-story detail), and the metrics
+breakdown endpoint.
 
 ## License
 

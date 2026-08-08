@@ -223,7 +223,7 @@ class SentiSenseClient:
         ``ticker`` may be ``None`` when upstream data is unavailable.
 
         ``currentPrice`` is always the regular-session price. During pre-market and
-        after-hours, the response includes a nested ``extendedHours`` object — see
+        after-hours, the response includes a nested ``extendedHours`` object; see
         :meth:`get_stock_price` for the shape.
 
         Args:
@@ -251,9 +251,14 @@ class SentiSenseClient:
         ``direction``, ``latestDirection``, ``trend``, ``scoreSparkline``), mention
         volume (``mentions``, ``mentionsAvg30d``, and ``socialDominance`` as a
         fraction where ``0.021`` means 2.1%), per-source tone in ``bySource``
-        (``source``, ``direction``, ``mentionShare`` as a whole-number percent that
-        sums to 100 across the list, and ``value`` for the exact polarity in
-        ``[-1, 1]``), plus ``relatedTickers``, ``drivers``, ``narrative`` and ``faq``.
+        (``source``, ``direction``, ``mentionShare``, and ``value`` for the exact
+        polarity in ``[-1, 1]``), plus ``relatedTickers``, ``drivers``, ``narrative``
+        and ``faq``.
+
+        ``mentionShare`` is a whole-number percent of the ticker's mentions, rounded
+        per source. Each source's share is rounded independently, so the list sums to
+        about 100 rather than exactly 100: 101 is common and is not a data error. Do
+        not use the shares to reconstruct per-source counts.
 
         Note that ``mentionShare`` and ``socialDominance`` are in different units: the
         first is a percent, the second a fraction.
@@ -276,7 +281,10 @@ class SentiSenseClient:
     def get_stock_entities(self, ticker: str) -> List[Dict[str, Any]]:
         """Get the tracked entities related to a stock (executives, products, organizations).
 
-        Each entry carries ``entityId``, ``name``, and ``type``.
+        Each entry carries ``id`` (the knowledge-base id, e.g. ``"kb/person/1"``),
+        ``displayName``, ``type`` ("PERSON", "PRODUCT", ...), ``relatedStock``,
+        ``urlSlug``, and the nullable ``title``, ``category`` and ``iconUrl``.
+        Pass ``urlSlug`` to :meth:`get_metrics` to pull an entity's time series.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
@@ -292,16 +300,22 @@ class SentiSenseClient:
         """
         return self._parse_list(self._get(f"/api/v1/stocks/{ticker}/similar", params={"limit": limit}).json(), SimilarStock)
 
-    def get_stock_chart(self, ticker: str, timeframe: str = "1M") -> Dict[str, Any]:
+    def get_stock_chart(self, ticker: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
         """Get OHLCV chart data for a stock.
+
+        Returns a bare list of bars, oldest first. There is no wrapper object, so
+        index it (``bars[-1]["close"]``) or iterate it; do not subscript it by
+        field name.
 
         Args:
             ticker: Stock ticker symbol.
             timeframe: Chart timeframe. One of "1D", "5D", "1W", "1M", "3M", "6M",
                 "1Y", "5Y", "10Y", "MAX". "MAX" returns the full available history
-                (up to ~26 years). Ranges of "5Y" and longer are split- and
-                dividend-adjusted; shorter ranges are split-adjusted only. "ALL" is
-                a legacy alias of "5Y" and still accepted.
+                (up to ~26 years). "10Y" and "MAX" are split- and dividend-adjusted;
+                every shorter range, "5Y" included, is split-adjusted only, so the
+                same historical day can carry a different close depending on which
+                timeframe you asked for. "ALL" is a legacy alias of "5Y" and still
+                accepted.
 
         Each bar carries: ``timestamp`` (Unix ms), ``date`` (display string), ``open``,
         ``high``, ``low``, ``close``, ``volume``, and ``session`` ("pre" / "regular" /
@@ -676,17 +690,45 @@ class SentiSenseClient:
 
     # ── Politicians trading endpoints ──────────────────────────
 
-    def get_politician_activity(self, lookback_days: int = 90) -> PreviewResult[List[CongressTrade]]:
+    def get_politician_activity(
+        self,
+        lookback_days: int = 90,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> PreviewResult[List[CongressTrade]]:
         """Get recent congressional STOCK Act trading activity across all politicians.
 
         Auto-unwrapped. Iterate directly: ``for trade in result: ...``.
         Check ``result.is_preview`` for tier status.
 
+        The window holds far more rows than one response returns. A 365-day lookback
+        covers thousands of trades but answers with the first page only, so read
+        ``result.total_count`` to size the window and page through it with ``limit``
+        and ``offset``. Omitting both sends the original unpaged request.
+
         Args:
             lookback_days: Number of days to look back (1-365). Default 90.
+            limit: Maximum rows to return. Values above the server cap are clamped
+                server-side. Omit for the server's own default page size.
+            offset: Row offset to start from, for paging with ``limit``. Server
+                default is 0.
+
+        Example::
+
+            first = client.get_politician_activity(lookback_days=365, limit=500)
+            print(first.total_count)
+            more = client.get_politician_activity(
+                lookback_days=365, limit=500, offset=500
+            )
         """
+        params: Dict[str, Any] = {"lookbackDays": lookback_days}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         return self._unwrap(
-            self._get("/api/v1/politicians/activity", params={"lookbackDays": lookback_days}).json(),
+            self._get("/api/v1/politicians/activity", params=params).json(),
             list_cls=CongressTrade,
         )
 
@@ -1157,7 +1199,7 @@ class SentiSenseClient:
             ticker: Stock ticker symbol.
             start_date: Start date (e.g. "2025-01-01").
             end_date: End date (e.g. "2025-01-31").
-            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
+            source: Filter by source: "news", "reddit", "x", "substack", or "youtube".
             limit: Maximum number of results.
         """
         params: Dict[str, Any] = {"startDate": start_date, "endDate": end_date}
@@ -1179,7 +1221,7 @@ class SentiSenseClient:
 
         Args:
             entity_id: KB entity ID.
-            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
+            source: Filter by source: "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
@@ -1206,7 +1248,7 @@ class SentiSenseClient:
 
         Args:
             query: Search query string.
-            source: Filter by source — "news", "reddit", "x", "substack", or "youtube".
+            source: Filter by source: "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             limit: Maximum number of results.
         """
@@ -1230,7 +1272,7 @@ class SentiSenseClient:
         """Get latest documents from a specific source.
 
         Args:
-            source: Source type — "news", "reddit", "x", "substack", or "youtube".
+            source: Source type: "news", "reddit", "x", "substack", or "youtube".
             days: Look back N days.
             hours: Look back N hours.
             limit: Maximum number of results.
@@ -1314,7 +1356,7 @@ class SentiSenseClient:
             symbol: Stock ticker symbol (e.g. "AAPL") or entity urlSlug
                 (e.g. "Nancy-Pelosi"). Case-insensitive. Discover slugs via
                 ``GET /api/v1/kb/entities/search?q=`` or ``get_stock_entities()``.
-            metric_type: Metric to retrieve — "mentions", "sentiment",
+            metric_type: Metric to retrieve: "mentions", "sentiment",
                 "sentisense", or "social_dominance".
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
@@ -1353,7 +1395,7 @@ class SentiSenseClient:
 
         Args:
             symbol: Stock ticker symbol (e.g. "AAPL").
-            metric_type: Metric to retrieve — "mentions", "sentiment",
+            metric_type: Metric to retrieve: "mentions", "sentiment",
                 "sentisense", or "social_dominance".
             dimension: Dimension to break down by (e.g. "source").
             start_time: Start of window as epoch milliseconds.
@@ -1369,7 +1411,7 @@ class SentiSenseClient:
             params=params,
         ).json()
 
-    # ── Entity metrics endpoints (DEPRECATED — use get_metrics / get_metrics_distribution) ──
+    # ── Entity metrics endpoints (DEPRECATED: use get_metrics / get_metrics_distribution) ──
 
     def list_trackers(self) -> TrackerListResponse:
         """List every publicly-visible tracker.

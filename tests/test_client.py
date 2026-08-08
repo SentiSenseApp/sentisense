@@ -746,3 +746,149 @@ class TestGetStockSentiment:
 
         assert result.is_preview is True
         assert result.preview_reason == "PRO_REQUIRED"
+
+
+class TestPoliticianActivityPaging:
+    """The activity window holds thousands of rows but answers one page at a time.
+
+    Without ``limit`` / ``offset`` a caller can only ever see the first page, so the
+    arguments have to reach the wire, and omitting them has to keep producing exactly
+    the request the SDK sent before they existed.
+    """
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_both_sends_the_original_request(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_politician_activity()
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/activity",
+            params={"lookbackDays": 90},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_both_with_explicit_lookback(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_politician_activity(365)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/activity",
+            params={"lookbackDays": 365},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_limit_and_offset_are_sent(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_politician_activity(365, limit=500, offset=500)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/activity",
+            params={"lookbackDays": 365, "limit": 500, "offset": 500},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_limit_alone_leaves_offset_to_the_server(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_politician_activity(limit=25)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/activity",
+            params={"lookbackDays": 90, "limit": 25},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_offset_zero_is_sent(self, mock_get, client):
+        # offset=0 is a real value, not "unset": it must survive the None check.
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_politician_activity(limit=5, offset=0)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/activity",
+            params={"lookbackDays": 90, "limit": 5, "offset": 0},
+        )
+
+    def test_paging_arguments_are_keyword_only(self, client):
+        with pytest.raises(TypeError):
+            client.get_politician_activity(365, 500)  # type: ignore[misc]
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_total_count_sizes_the_window(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "totalCount": 6586,
+                "data": [
+                    {"ticker": "MPC", "transactionType": "purchase"},
+                    {"ticker": "NOW", "transactionType": "sale"},
+                ],
+            }
+        )
+        result = client.get_politician_activity(365, limit=2)
+        assert result.total_count == 6586
+        assert len(result) == 2
+        assert result[0].ticker == "MPC"
+
+
+class TestStockChartReturnShape:
+    """The endpoint answers with a bare list of bars, not an object.
+
+    The wheel ships ``py.typed``, so the declared return type is what type checkers
+    hand callers. Declaring a mapping steered them straight into ``chart["close"]``,
+    which raises at runtime on every timeframe.
+    """
+
+    def test_returns_the_bar_list_untouched(self, client):
+        bars = [
+            {"timestamp": 1754524800000, "open": 1.0, "high": 2.0, "low": 0.5,
+             "close": 1.5, "volume": 10, "date": "Aug 07", "session": None},
+            {"timestamp": 1754611200000, "open": 1.5, "high": 2.5, "low": 1.0,
+             "close": 2.0, "volume": 20, "date": "Aug 08", "session": None},
+        ]
+        with patch.object(SentiSenseClient, "_get") as mock_get:
+            mock_get.return_value = _mock_response(json_data=bars)
+            result = client.get_stock_chart("AAPL", timeframe="1Y")
+
+        assert isinstance(result, list)
+        assert result[-1]["close"] == 2.0
+
+    def test_declared_return_type_is_a_list_of_bars(self):
+        from typing import Any, Dict, List
+
+        annotation = SentiSenseClient.get_stock_chart.__annotations__["return"]
+        assert annotation == List[Dict[str, Any]]
+
+    def test_docstring_does_not_promise_a_mapping_lookup(self):
+        doc = SentiSenseClient.get_stock_chart.__doc__ or ""
+        assert "bare list of bars" in doc
+
+
+class TestStockQuoteReportedCurrency:
+    """The quote carries the filer's reporting currency next to its filing-derived fields.
+
+    Dropping it silently invited the assumption that ``epsTTM`` is dollars for every
+    ticker, which is wrong for a filer that reports in its home currency.
+    """
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_reported_currency_is_parsed(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "ticker": "AAPL",
+                "currentPrice": 313.33,
+                "epsTTM": 8.1,
+                "peRatio": 38.7,
+                "reportedCurrency": "USD",
+                "timestamp": 1754611200,
+            }
+        )
+        result = client.get_stock_quote("AAPL")
+        mock_get.assert_called_once_with("/api/v1/stocks/AAPL/quote")
+        assert result.reportedCurrency == "USD"
+        assert result["reportedCurrency"] == "USD"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_absent_currency_is_none_not_usd(self, mock_get, client):
+        # Quotes with no filing-derived block omit the key entirely. Absent means
+        # unknown, so it must not default to a currency.
+        mock_get.return_value = _mock_response(
+            json_data={"ticker": "TSM", "currentPrice": 300.0, "timestamp": 1754611200}
+        )
+        result = client.get_stock_quote("TSM")
+        assert result.reportedCurrency is None
+        assert result.epsTTM is None
