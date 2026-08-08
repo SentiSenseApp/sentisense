@@ -111,8 +111,43 @@ For full endpoint documentation, request/response schemas, and interactive examp
 |--------|-------------|
 | `get_institutional_quarters()` | Available 13F reporting quarters |
 | `get_institutional_flows(report_date=None, limit=50)` | Fund flows for a quarter (omit `report_date` for the latest) |
-| `get_stock_holders(ticker, report_date)` | Institutional holders for a stock |
+| `get_stock_holders(ticker, report_date, limit=None, offset=None, sort_by=None, sort_dir=None)` | Institutional holders for a stock (see paging note below) |
 | `get_activist_positions(report_date)` | Activist investor positions |
+
+#### Paging the holder list
+
+A widely held ticker returns thousands of rows: a megacap quarter is roughly 6,000
+holders and 1.5 MB on the wire. Pass `limit` unless you really want the whole list.
+Omitting every paging argument sends the original unbounded request, so existing code
+keeps working.
+
+| Argument | Values |
+|----------|--------|
+| `limit` | Maximum rows to return. Must be >= 1; values above 1000 are capped server-side. Omit for the full list. |
+| `offset` | Row offset to start from, used with `limit`. Server default is 0. |
+| `sort_by` | `"shares"` (server default), `"valueUsd"`, or `"sharesChangePct"`. |
+| `sort_dir` | `"desc"` (server default) or `"asc"`. |
+
+```python
+import os
+from sentisense import SentiSenseClient
+
+client = SentiSenseClient(os.environ["SENTISENSE_API_KEY"])
+
+# Top 10 holders by position value, largest first
+top = client.get_stock_holders(
+    "AAPL", "2026-03-31", limit=10, sort_by="valueUsd", sort_dir="desc"
+)
+for holder in top.holders:
+    print(holder["filerName"], holder["valueUsd"])
+
+# Walk the list a page at a time
+page = client.get_stock_holders("AAPL", "2026-03-31", limit=100, offset=100)
+print(f"{page.returnedCount} rows from offset {page.offset} of {page.holderCount}")
+```
+
+Paged responses carry `returnedCount` and `offset` next to the holder rows, so you can
+walk the list without re-counting it yourself.
 
 ### Analyst Ratings
 

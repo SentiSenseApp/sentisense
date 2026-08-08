@@ -3,7 +3,7 @@
 import math
 import random
 import time
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 
 import requests
 
@@ -470,17 +470,49 @@ class SentiSenseClient:
             item_cls=InstitutionalFlows,
         )
 
-    def get_stock_holders(self, ticker: str, report_date: str) -> PreviewResult:
+    def get_stock_holders(
+        self,
+        ticker: str,
+        report_date: str,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: Optional[Literal["shares", "valueUsd", "sharesChangePct"]] = None,
+        sort_dir: Optional[Literal["asc", "desc"]] = None,
+    ) -> PreviewResult:
         """Get institutional holders for a specific stock.
 
         Auto-unwrapped. Check ``result.is_preview`` for tier status.
 
+        A widely held ticker returns thousands of rows: a megacap quarter is about
+        6,000 holders and 1.5 MB. Pass ``limit`` unless you really want all of them.
+        Omitting every paging argument sends the original unbounded request.
+
+        Paged responses also carry ``returnedCount`` and ``offset`` alongside the
+        holder rows, so you can walk the list without re-counting it yourself.
+
         Args:
             ticker: Stock ticker symbol.
             report_date: Quarter date string (e.g. "2025-12-31").
+            limit: Maximum holder rows to return. Must be >= 1; values above 1000
+                are capped server-side. Omit for the full list.
+            offset: Row offset to start from, for paging with ``limit``. Server
+                default is 0.
+            sort_by: Sort field, one of "shares" (server default), "valueUsd", or
+                "sharesChangePct".
+            sort_dir: Sort direction, "desc" (server default) or "asc".
         """
+        params: Dict[str, Any] = {"reportDate": report_date}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        if sort_by is not None:
+            params["sortBy"] = sort_by
+        if sort_dir is not None:
+            params["sortDir"] = sort_dir
         return self._unwrap(
-            self._get(f"/api/v1/institutional/holders/{ticker}", params={"reportDate": report_date}).json(),
+            self._get(f"/api/v1/institutional/holders/{ticker}", params=params).json(),
         )
 
     def get_activist_positions(self, report_date: str) -> PreviewResult[List[Dict[str, Any]]]:

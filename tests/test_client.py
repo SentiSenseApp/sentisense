@@ -347,6 +347,72 @@ class TestInstitutionalEndpoints:
         )
 
     @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_paging_params(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stock_holders(
+            "AAPL",
+            "2025-12-31",
+            limit=5,
+            offset=10,
+            sort_by="valueUsd",
+            sort_dir="asc",
+        )
+        mock_get.assert_called_once_with(
+            "/api/v1/institutional/holders/AAPL",
+            params={
+                "reportDate": "2025-12-31",
+                "limit": 5,
+                "offset": 10,
+                "sortBy": "valueUsd",
+                "sortDir": "asc",
+            },
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_partial_paging_params(self, mock_get, client):
+        # Only the arguments actually supplied are sent, so the server keeps applying
+        # its own defaults for the rest instead of receiving nulls.
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stock_holders("AAPL", "2025-12-31", limit=25)
+        mock_get.assert_called_once_with(
+            "/api/v1/institutional/holders/AAPL",
+            params={"reportDate": "2025-12-31", "limit": 25},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_offset_zero_is_sent(self, mock_get, client):
+        # offset=0 is a real value, not "unset": it must survive the None check.
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stock_holders("AAPL", "2025-12-31", limit=5, offset=0)
+        mock_get.assert_called_once_with(
+            "/api/v1/institutional/holders/AAPL",
+            params={"reportDate": "2025-12-31", "limit": 5, "offset": 0},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_paged_response_unwraps(self, mock_get, client):
+        # A paged response carries the paging metadata next to the rows.
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "totalCount": 6044,
+                "data": {
+                    "ticker": "AAPL",
+                    "holderCount": 6044,
+                    "returnedCount": 2,
+                    "offset": 0,
+                    "holders": [{"filerName": "A"}, {"filerName": "B"}],
+                },
+            }
+        )
+        result = client.get_stock_holders("AAPL", "2025-12-31", limit=2)
+        assert result.is_preview is False
+        assert result.returnedCount == 2
+        assert result.offset == 0
+        assert len(result.holders) == 2
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_activist_positions(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[])
         client.get_activist_positions("2025-12-31")
