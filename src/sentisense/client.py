@@ -291,6 +291,46 @@ class SentiSenseClient:
         """
         return self._get(f"/api/v1/stocks/{ticker}/entities").json()
 
+    def get_stock_ai_summary(self, ticker: str, depth: str = "basic") -> Dict[str, Any]:
+        """Get the curated AI research report for a stock.
+
+        Returns a flat object, not a preview envelope: ``ticker``, ``companyName``,
+        ``status`` ("READY", "NOT_AVAILABLE" or "ERROR"), ``statusReason`` (set on the
+        latter two only), ``reportType``, ``version`` (the report date encoded as a
+        ``yymmdd`` integer, e.g. ``260520``), ``lastUpdated`` (epoch **milliseconds**,
+        not seconds like the timestamps elsewhere in this SDK), ``sections`` (a map of
+        section name to ``{"content": ..., "directives": [...]}``) and ``sectionOrder``.
+
+        Both depths return ``sections`` and ``sectionOrder``, so their presence does not
+        tell you which report you got. Read ``reportType`` instead: ``"SUMMARY"`` for
+        ``depth="basic"``, ``"FULL"`` for ``depth="deep"``.
+
+        ``depth="deep"`` additionally carries ``moatRating`` (0 to 10, ``None`` if the
+        ticker has not been assessed) and ``aiDisruptionRisk`` ("Low", "Medium", "High"
+        or "Critical", likewise nullable). It consumes one report view per call on
+        metered tiers; ``depth="basic"`` does not.
+
+        A ticker with no published report answers ``200`` with ``status`` of
+        ``"NOT_AVAILABLE"`` rather than raising, so branch on ``status`` before reading
+        ``sections``.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``).
+            depth: ``"basic"`` for the one-paragraph summary (default), or ``"deep"``
+                for the full report.
+
+        Raises:
+            RateLimitError: The account's monthly report views are exhausted. This
+                shares the ``429`` status with per-minute rate limiting, which the
+                client retries, so an exhausted monthly allowance waits out
+                ``max_retries`` backoffs before raising. Pass ``max_retries=0`` when
+                calling ``depth="deep"`` in a loop if you would rather fail fast.
+        """
+        return self._get(
+            f"/api/v1/stocks/{ticker}/ai-summary",
+            params={"depth": depth},
+        ).json()
+
     def get_similar_stocks(self, ticker: str, limit: int = 5) -> List[SimilarStock]:
         """Get peer/similar stocks with current prices.
 

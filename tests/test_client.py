@@ -218,6 +218,48 @@ class TestKbEndpoints:
         assert len(result) == 2
         assert result[1]["name"] == "iPhone"
 
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_ai_summary_defaults_to_basic(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "ticker": "AAPL",
+                "status": "READY",
+                "reportType": "SUMMARY",
+                "sectionOrder": ["Executive Summary"],
+            }
+        )
+        result = client.get_stock_ai_summary("AAPL")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/AAPL/ai-summary", params={"depth": "basic"}
+        )
+        assert result["reportType"] == "SUMMARY"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_ai_summary_deep(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "ticker": "AAPL",
+                "status": "READY",
+                "reportType": "FULL",
+                "moatRating": 8,
+                "aiDisruptionRisk": "Low",
+            }
+        )
+        result = client.get_stock_ai_summary("AAPL", depth="deep")
+        mock_get.assert_called_once_with(
+            "/api/v1/stocks/AAPL/ai-summary", params={"depth": "deep"}
+        )
+        assert result["moatRating"] == 8
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_ai_summary_sends_no_force_refresh(self, mock_get, client):
+        # The endpoint accepts a forceRefresh flag that does not change the report a
+        # caller receives. It is deliberately not exposed and never sent.
+        mock_get.return_value = _mock_response(json_data={"ticker": "AAPL"})
+        client.get_stock_ai_summary("AAPL", depth="deep")
+        _, kwargs = mock_get.call_args
+        assert "forceRefresh" not in kwargs["params"]
+
 
 class TestKpiEndpoints:
     @patch.object(SentiSenseClient, "_get")

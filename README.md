@@ -66,6 +66,7 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `get_stock_prices(tickers)` | Real-time prices for multiple stocks |
 | `get_stock_profile(ticker)` | Company profile |
 | `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products) |
+| `get_stock_ai_summary(ticker, depth="basic")` | Curated AI research report. `depth="deep"` returns the full report and consumes one report view |
 | `get_stock_chart(ticker, timeframe="1M")` | OHLCV chart data, returned as a bare list of bars (oldest first) |
 | `get_all_stocks()` | List of available tickers |
 | `get_all_stocks_detailed()` | Tickers with company names and entity IDs |
@@ -210,9 +211,8 @@ All exceptions inherit from `SentiSenseError` and include `.status_code`, `.mess
 A few endpoints available in the Node SDK are intentionally not yet exposed here
 (low-traffic / discovery-convenience surfaces). Call them directly over HTTP if you
 need them: `/api/v1/stocks/images`, `/api/v1/stocks/descriptions`,
-`/api/v1/stocks/popular`, `/api/v1/stocks/{ticker}/ai-summary`,
-`/api/v1/documents/stories/{clusterId}` (single-story detail), and the metrics
-breakdown endpoint.
+`/api/v1/stocks/popular`, `/api/v1/documents/stories/{clusterId}` (single-story
+detail), and the metrics breakdown endpoint.
 
 ## License
 

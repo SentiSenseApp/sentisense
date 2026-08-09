@@ -57,6 +57,9 @@ class TestReadmeMethodTables:
         # be advertised as unavailable.
         assert "/api/v1/stocks/{ticker}/entities" not in section
         assert hasattr(SentiSenseClient, "get_stock_entities")
+        # Same for the report endpoint, wrapped since 0.35.0.
+        assert "/api/v1/stocks/{ticker}/ai-summary" not in section
+        assert hasattr(SentiSenseClient, "get_stock_ai_summary")
 
 
 class TestReadmeArgumentDefaults:

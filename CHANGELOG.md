@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.35.0
+
+### Added
+
+- **`get_stock_ai_summary(ticker, depth="basic")`.** The curated AI research report was
+  reachable from the Node SDK but not from here, so Python callers had to hand-roll the
+  request. `depth="basic"` returns the one-paragraph summary; `depth="deep"` returns the
+  full report plus `moatRating` and `aiDisruptionRisk`, and consumes one report view per
+  call on metered tiers. The response is flat, not a preview envelope, and a ticker with
+  no published report answers with `status` of `"NOT_AVAILABLE"` rather than raising, so
+  branch on `status` before reading `sections`. Note that `lastUpdated` here is epoch
+  milliseconds, unlike the epoch-second timestamps elsewhere in this SDK.
+
 ## 0.34.0
 
 ### Added
