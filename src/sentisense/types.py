@@ -1131,3 +1131,148 @@ class TrackerSnapshot(APIModel):
             rows=[TrackerTableRow.from_dict(r) for r in (data.get("rows") or []) if r is not None],
             raw=data,
         )
+
+
+# ── Indexes ─────────────────────────────────────────────────
+
+
+@dataclass
+class IndexListing(APIModel):
+    """Per-index discovery row returned by ``client.list_indexes()``.
+
+    ``canonicalUrl`` points at the *richest* view of the index, which is not
+    always the detail route. Market Mood's entry points at ``/api/v2/market-mood``
+    because that route carries a phase band, a weekly change, the per-signal
+    breakdown and a per-sector map that the shared index envelope cannot hold.
+    Every advertised ``indexId`` still resolves on ``client.get_index()``, so a
+    generic client can iterate this listing without special-casing anything.
+    """
+
+    indexId: str = ""
+    displayName: str = ""
+    description: str = ""
+    scale: str = ""  # "SENTIMENT" (signed, -1..+1) or "PERCENT_0_100"
+    accessTier: str = ""  # "free" or "pro"; every index is "free" today
+    canonicalUrl: str = ""
+
+
+@dataclass
+class IndexListResponse(APIModel):
+    """Discovery envelope returned by ``client.list_indexes()``."""
+
+    indexes: List[IndexListing] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "IndexListResponse":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(indexes=[IndexListing.from_dict(i) for i in (data.get("indexes") or []) if i is not None])
+
+
+@dataclass
+class IndexConstituent(APIModel):
+    """One entity's contribution to a basket index's headline value.
+
+    ``staleness`` is ``FRESH`` (mentioned inside the lookback), ``CARRIED_FORWARD``
+    (no mentions, last known value standing in), ``EXCLUDED`` (no usable reading,
+    renormalized out), or ``OUT_OF_SEGMENT`` (not in the basket on this date, so
+    ``weight`` is 0 and the row is present only for transparency).
+
+    ``contribution`` is reserved by the API and currently returns ``None`` on
+    every constituent. Do not build on it. To get the same number today, compute
+    ``weight * value`` over the sum of ``weight`` across the constituents whose
+    ``staleness`` is not ``EXCLUDED``.
+    """
+
+    kbEntityId: str = ""
+    displayName: str = ""
+    role: str = ""
+    weight: float = 0.0
+    value: Optional[float] = None
+    mentionsCount: Optional[int] = None
+    staleness: str = ""
+    contribution: Optional[float] = None  # reserved; always None today
+    link: Optional[str] = None
+
+
+@dataclass
+class IndexSnapshot(APIModel):
+    """Latest reading for one index, returned by ``client.get_index()``.
+
+    Two archetypes share this envelope, and the difference is load-bearing:
+
+    * A **basket** index (``fed-sentiment``, ``ai-sentiment``) weight-averages
+      tracked entities, so ``constituents``, ``basketSize``, ``coverage`` and
+      ``totalMentions`` describe how the headline was built.
+    * A **composite** index (``market-mood``) is built from signals rather than
+      entities, so those four are ``None`` *by construction*, not because data is
+      missing. Branch on them; do not treat ``None`` as an error.
+
+    Compare ``coverage`` against ``basketSize`` on a basket index to spot a thin
+    day before quoting the number.
+    """
+
+    indexId: str = ""
+    displayName: str = ""
+    asOf: str = ""  # YYYY-MM-DD; bucket start for weekly indexes
+    value: Optional[float] = None
+    scale: str = ""
+    coverage: Optional[int] = None  # None on a composite index
+    basketSize: Optional[int] = None  # None on a composite index
+    totalMentions: Optional[int] = None  # None on a composite index
+    methodologyNote: str = ""
+    constituents: Optional[List[IndexConstituent]] = None  # None on a composite index
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "IndexSnapshot":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known and k != "constituents"}
+        raw = data.get("constituents")
+        # Preserve the None/[] distinction: None means "not a basket", [] means
+        # "a basket with nothing in it today". Collapsing them loses the archetype.
+        kwargs["constituents"] = (
+            None if raw is None
+            else [IndexConstituent.from_dict(c) for c in raw if c is not None]
+        )
+        return cls(**kwargs)
+
+
+@dataclass
+class IndexHistoryPoint(APIModel):
+    """One point on an index's scalar series."""
+
+    date: str = ""  # YYYY-MM-DD
+    value: Optional[float] = None
+
+
+@dataclass
+class IndexHistoryResponse(APIModel):
+    """Historical series returned by ``client.get_index_history()``.
+
+    Point spacing follows the index, not the calendar: a weekly index emits one
+    point per Monday-Sunday bucket, a daily index one per day, and Market Mood
+    trading days only. Thin or low-coverage buckets are withheld rather than
+    published, so ``history`` can be shorter than ``days`` and can contain gaps.
+    Plot against ``date``; never assume a fixed interval, and never read a
+    missing date as zero.
+    """
+
+    indexId: str = ""
+    displayName: str = ""
+    scale: str = ""
+    days: int = 0
+    history: List[IndexHistoryPoint] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "IndexHistoryResponse":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            indexId=data.get("indexId", ""),
+            displayName=data.get("displayName", ""),
+            scale=data.get("scale", ""),
+            days=data.get("days", 0),
+            history=[IndexHistoryPoint.from_dict(p) for p in (data.get("history") or []) if p is not None],
+        )

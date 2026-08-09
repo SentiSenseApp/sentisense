@@ -43,6 +43,9 @@ from sentisense.types import (
     StockPrice,
     StockQuote,
     Story,
+    IndexHistoryResponse,
+    IndexListResponse,
+    IndexSnapshot,
     TrackerListResponse,
     TrackerSnapshot,
 )
@@ -1452,6 +1455,56 @@ class SentiSenseClient:
         ).json()
 
     # ── Entity metrics endpoints (DEPRECATED: use get_metrics / get_metrics_distribution) ──
+
+    # ── Indexes ──────────────────────────────────────────────────
+
+    def list_indexes(self) -> IndexListResponse:
+        """List every index the platform publishes.
+
+        Returns a discovery envelope with one :class:`IndexListing` per index:
+        id, display name, one-line description, the scale it lives on, its
+        access tier, and where its richest view lives.
+
+        Iterate this rather than hardcoding ids. Every ``indexId`` it advertises
+        resolves on :meth:`get_index` and :meth:`get_index_history`.
+        """
+        return IndexListResponse.from_dict(self._get("/api/v1/indexes").json())
+
+    def get_index(self, index_id: str) -> IndexSnapshot:
+        """Return the latest reading for one index.
+
+        Two archetypes share one envelope. A basket index (``fed-sentiment``,
+        ``ai-sentiment``) populates ``constituents``, ``basketSize``,
+        ``coverage`` and ``totalMentions``; a composite index (``market-mood``)
+        returns ``None`` for all four *by construction*, because it is built
+        from signals rather than entities. Check for ``None`` before iterating
+        ``constituents``.
+
+        For Market Mood specifically, this is the narrowed view. The phase band,
+        weekly change, per-signal breakdown and per-sector map live on
+        :meth:`get_market_mood`, and both report the same headline number.
+
+        Args:
+            index_id: Slug from :meth:`list_indexes`, e.g. ``"fed-sentiment"``.
+        """
+        return IndexSnapshot.from_dict(self._get(f"/api/v1/indexes/{index_id}").json())
+
+    def get_index_history(self, index_id: str, days: int = 180) -> IndexHistoryResponse:
+        """Return an index's historical scalar series, for charting.
+
+        Point spacing follows the index rather than the calendar, and thin or
+        low-coverage buckets are withheld, so the series can be shorter than
+        ``days`` and can contain gaps. Plot against each point's ``date``.
+
+        Args:
+            index_id: Slug from :meth:`list_indexes`.
+            days: Days of history to return. Defaults to the API's own 180.
+        """
+        return IndexHistoryResponse.from_dict(
+            self._get(f"/api/v1/indexes/{index_id}/history", params={"days": days}).json()
+        )
+
+    # ── Trackers ─────────────────────────────────────────────────
 
     def list_trackers(self) -> TrackerListResponse:
         """List every publicly-visible tracker.
