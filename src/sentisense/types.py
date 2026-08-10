@@ -253,6 +253,108 @@ class EarningsCalendar(APIModel):
         )
 
 
+# ── Earnings analysis report types ──────────────────────────
+
+
+@dataclass
+class EarningsKpiHighlight(APIModel):
+    """One KPI card on a reported quarter.
+
+    ``value`` and ``yoy`` are display strings, already formatted (``"$109.4B"``,
+    ``"+16% YoY"``), not numbers to compute with. ``yoy`` is ``None`` when the
+    quarter carries no year-over-year comparison for that line.
+    """
+
+    label: str = ""
+    value: str = ""
+    yoy: Optional[str] = None
+
+
+@dataclass
+class EarningsSource(APIModel):
+    """A citation backing a reported quarter."""
+
+    title: str = ""
+    url: str = ""
+
+
+@dataclass
+class EarningsQuarter(APIModel):
+    """One fiscal quarter of the earnings analysis report.
+
+    The wire shape depends on the caller's tier, so branch on the envelope's
+    ``is_preview`` rather than on field presence. ``fiscalPeriod``,
+    ``reportDate``, ``headline``, ``hasTranscript``, ``generatedAt`` and
+    ``source`` arrive on both tiers.
+
+    PRO adds the bodies: ``summaryMd``, the full ``kpiHighlights``,
+    ``guidance``, ``transcriptSummaryMd``, ``transcriptHighlights``,
+    ``transcriptGeneratedAt`` and ``sources``.
+
+    The FREE preview replaces those bodies with shape: up to two
+    ``kpiHighlights`` cards (without ``yoy``) plus ``kpiHighlightCount``,
+    the section titles in ``summaryTopics`` and ``transcriptTopics``, and
+    ``hasGuidance`` with ``guidanceDirection`` in place of the guidance
+    language. It never carries a body, a KPI history, or a guidance figure.
+
+    Absence is explicit: a quarter with no call summary sets
+    ``hasTranscript`` to ``False`` rather than dropping the concept, so a
+    client can say "no call summary yet" instead of rendering nothing.
+    """
+
+    fiscalPeriod: str = ""
+    reportDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    headline: str = ""
+    hasTranscript: bool = False
+    generatedAt: Optional[int] = None  # epoch seconds
+    source: Optional[str] = None  # "press_release" | "transcript"
+
+    # PRO
+    summaryMd: Optional[str] = None
+    kpiHighlights: List[EarningsKpiHighlight] = field(default_factory=list)
+    guidance: Optional[str] = None
+    transcriptSummaryMd: Optional[str] = None
+    transcriptHighlights: List[EarningsKpiHighlight] = field(default_factory=list)
+    transcriptGeneratedAt: Optional[int] = None  # epoch seconds
+    sources: List[EarningsSource] = field(default_factory=list)
+
+    # FREE preview
+    kpiHighlightCount: Optional[int] = None
+    summaryTopics: List[str] = field(default_factory=list)
+    transcriptTopics: List[str] = field(default_factory=list)
+    hasGuidance: Optional[bool] = None
+    guidanceDirection: Optional[str] = None  # RAISED | CUT | HELD | MIXED | None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EarningsQuarter":
+        known = {f.name for f in dataclasses.fields(cls)}
+        nested = {"kpiHighlights", "transcriptHighlights", "sources"}
+        base = {k: v for k, v in data.items() if k in known and k not in nested}
+        return cls(
+            **base,
+            kpiHighlights=[
+                EarningsKpiHighlight.from_dict(k) for k in (data.get("kpiHighlights") or [])
+            ],
+            transcriptHighlights=[
+                EarningsKpiHighlight.from_dict(k)
+                for k in (data.get("transcriptHighlights") or [])
+            ],
+            sources=[EarningsSource.from_dict(s) for s in (data.get("sources") or [])],
+        )
+
+
+@dataclass
+class RecentEarningsEntry(APIModel):
+    """One company that reported inside the recent window."""
+
+    ticker: str = ""
+    fiscalPeriod: str = ""
+    reportDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    headline: str = ""
+    hasTranscriptSummary: bool = False
+    generatedAt: Optional[int] = None  # epoch seconds
+
+
 # ── Insider types ───────────────────────────────────────────
 
 

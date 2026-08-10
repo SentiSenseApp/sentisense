@@ -16,6 +16,7 @@ from sentisense.types import (
     CongressTrade,
     Document,
     EarningsCalendar,
+    EarningsQuarter,
     DocumentSearchResponse,
     FundamentalsPeriod,
     EtfAnalystAggregate,
@@ -38,6 +39,7 @@ from sentisense.types import (
     PoliticianSummary,
     PreviewResult,
     Quarter,
+    RecentEarningsEntry,
     SimilarStock,
     StockDetail,
     StockPrice,
@@ -684,6 +686,82 @@ class SentiSenseClient:
         return self._unwrap(
             self._get("/api/v1/calendar/earnings", params=params).json(),
             item_cls=EarningsCalendar,
+        )
+
+    # ── Earnings analysis report endpoints ──────────────────────
+
+    def get_earnings_summaries(
+        self, ticker: str, limit: Optional[int] = None
+    ) -> PreviewResult[List[EarningsQuarter]]:
+        """Get the per-quarter earnings analysis report for a ticker, newest first.
+
+        One :class:`EarningsQuarter` per fiscal quarter, carrying the editorial
+        headline, the KPI cards that matter for that company with year-over-year
+        deltas, the guidance language as management phrased it, and a summary of
+        the earnings call.
+
+        Auto-unwrapped: iterate ``result`` or read ``result.data``. Check
+        ``result.is_preview``. A PRO key receives every hydrated quarter in
+        full; a FREE key receives the latest quarter shaped rather than
+        truncated, plus ``result.total_count``. See :class:`EarningsQuarter`
+        for which fields each tier carries.
+
+        A quarter typically appears within 48 hours of the company reporting,
+        and the call summary can arrive after the press-release content for the
+        same quarter, so read ``generatedAt`` and ``transcriptGeneratedAt``
+        rather than assuming a fixed lag. A ticker with no stored quarter
+        answers with an empty list, not a 404.
+
+        Args:
+            ticker: Stock ticker symbol, canonical form (``"GOOGL"``, not
+                ``"GOOG"``; ``"BRK.B"``, not ``"BRK-B"``).
+            limit: Max quarters returned, 1 to 40. Omitted, the API applies
+                its own default of 12. FREE keys receive one quarter whatever
+                you pass.
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        return self._unwrap(
+            self._get(
+                f"/api/v1/stocks/{ticker.upper()}/earnings-summaries", params=params
+            ).json(),
+            list_cls=EarningsQuarter,
+        )
+
+    def get_recent_earnings(
+        self, days: Optional[int] = None, limit: Optional[int] = None
+    ) -> PreviewResult[List[RecentEarningsEntry]]:
+        """Get the companies that reported in a recent window, newest first.
+
+        The cross-ticker view: use it to drive a post-earnings sweep ("who
+        reported this week"), then follow up per ticker with
+        :meth:`get_earnings_summaries`.
+
+        Auto-unwrapped: iterate ``result`` or read ``result.data``. Every API
+        key receives the full window it asks for, so ``result.is_preview`` is
+        always ``False`` here.
+
+        The window is bounded by ``reportDate``, so a quarter reported inside
+        it appears even when its call summary lands later. An empty list means
+        nobody in the covered set reported in that window, not an error. This
+        is the backward-looking feed; :meth:`get_earnings_calendar` is the
+        forward-looking one.
+
+        Args:
+            days: Look-back window in days, 1 to 31. Omitted, the API applies
+                its own default of 7.
+            limit: Max rows returned, 1 to 100. Omitted, the API applies its
+                own default of 50.
+        """
+        params: Dict[str, Any] = {}
+        if days is not None:
+            params["days"] = days
+        if limit is not None:
+            params["limit"] = limit
+        return self._unwrap(
+            self._get("/api/v1/earnings/recent", params=params).json(),
+            list_cls=RecentEarningsEntry,
         )
 
     # ── Insider trading endpoints ───────────────────────────────

@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.37.0
+
+### Added
+
+- **`get_earnings_summaries(ticker, limit=None)`.** The per-quarter earnings analysis report:
+  one `EarningsQuarter` per fiscal period carrying the editorial headline, the KPI cards
+  with year-over-year deltas, the guidance language as management phrased it, and a
+  summary of the earnings call. Auto-unwrapped, so iterate the result or read
+  `result.data`, and branch on `result.is_preview`: a PRO key receives every hydrated
+  quarter in full, a FREE key receives the latest quarter shaped rather than truncated
+  (section titles in `summaryTopics` and `transcriptTopics`, `guidanceDirection` in place
+  of the guidance language, two KPI cards plus `kpiHighlightCount`). A ticker with no
+  stored quarter answers with an empty list rather than a 404, and a quarter can gain its
+  call summary on a later read, so branch on `hasTranscript` and compare
+  `transcriptGeneratedAt` against `generatedAt` rather than assuming a fixed lag.
+
+- **`get_recent_earnings(days=None, limit=None)`.** The cross-ticker view of who reported
+  recently, newest first, as `RecentEarningsEntry` rows. Every key receives the full
+  window it asks for. The window is bounded by `reportDate`, so a quarter reported inside
+  it appears even when its call summary lands later. This is the backward-looking feed;
+  `get_earnings_calendar` remains the forward-looking one.
+
+- New types: `EarningsQuarter`, `EarningsKpiHighlight`, `EarningsSource` and
+  `RecentEarningsEntry`, all exported from the package root.
+
+## 0.36.0
+
+### Added
+
+- **`list_indexes()`, `get_index(index_id)` and `get_index_history(index_id, days=180)`.**
+  Typed access to the published indexes, with models for the listing, the snapshot, its
+  constituents and the history series. A basket index fills `constituents`, `basketSize`,
+  `coverage` and `totalMentions`; a composite index returns `None` for all four by
+  construction, so check for `None` before iterating.
+
 ## 0.35.0
 
 ### Added

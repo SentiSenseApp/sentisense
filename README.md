@@ -167,6 +167,37 @@ The **price target cone** (mean, high, low, upside %) and consensus are **free f
 | `get_company_kpis(ticker)` | Company-specific KPI time-series (product metrics, segment revenue). Free tier returns metadata only (empty `kpis` array); PRO returns full series. |
 | `list_kpi_coverage()` | List all tickers with curated KPI coverage (free, no quota cost) |
 
+### Earnings
+
+The earnings analysis report is the assembled version of a quarter: one object per fiscal period carrying the editorial headline, the KPI cards with year-over-year deltas, the guidance language as management phrased it, and a summary of the earnings call. Pair it with the recent-reporters feed to drive a post-earnings sweep.
+
+| Method | Description |
+|--------|-------------|
+| `get_earnings_summaries(ticker, limit=None)` | Per-quarter earnings analysis report, newest first. FREE: the latest quarter, shaped (section titles and a guidance direction, no bodies). PRO: every hydrated quarter in full. |
+| `get_recent_earnings(days=None, limit=None)` | Which covered companies reported in a recent window, newest first. Full window on every key. |
+
+```python
+import os
+
+from sentisense import SentiSenseClient
+
+client = SentiSenseClient(os.environ["SENTISENSE_API_KEY"])
+
+result = client.get_earnings_summaries("AAPL", limit=1)
+if result.data:
+    quarter = result.data[0]
+    print(quarter.fiscalPeriod, quarter.reportDate)
+    print(quarter.headline)
+    for kpi in quarter.kpiHighlights:
+        print(f"  {kpi.label}: {kpi.value} ({kpi.yoy or 'no YoY'})")
+
+    if result.is_preview:
+        # Free key: section titles stand in for the bodies.
+        print("Summary covers:", ", ".join(quarter.summaryTopics))
+    else:
+        print(quarter.summaryMd)
+```
+
 ### ETFs (beta)
 
 Composition data is public; the holdings-weighted aggregate views follow the same PRO-with-preview pattern as Analyst/Insider. Aggregates synthesize fund-level views from each constituent's per-stock data (analyst coverage, insider trades, sentiment), weighted by allocation. Every aggregate response carries a `coverage` block so you see exactly how much of the fund's AUM the underlying data covered.
