@@ -935,7 +935,7 @@ class SentiSenseClient:
     def get_insight_types(self, ticker: str) -> List[str]:
         """Get available insight types for a specific stock.
 
-        No authentication required. Returns a list of insight type strings
+        API key required. Returns a list of insight type strings
         such as ``"insider_buy_signal"``, ``"institutional_position_change"``, or ``"volume_anomaly_high"``.
 
         Args:
@@ -1266,8 +1266,8 @@ class SentiSenseClient:
         """Get the SentiSense Market Mood composite (fear/greed index).
 
         Returns the latest score, daily history, per-signal breakdown, and
-        per-sector summaries. Free for all users; no API key required (though
-        an API key counts the call against your monthly quota if supplied).
+        per-sector summaries. Available on every tier; send your API key on
+        every call. Requests count against your monthly quota.
 
         Note: lives at ``/api/v2/market-mood`` (v2 path, not v1).
 
