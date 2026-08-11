@@ -192,6 +192,18 @@ class StockQuote(APIModel):
     # positional construction of this dataclass keeps binding the same arguments.
     reportedCurrency: Optional[str] = None
     priceAsOf: Optional[int] = None
+    # Listing lifecycle. ``None`` for an ordinarily listed stock, which is almost every
+    # ticker. ``"DELISTED"`` means the company no longer trades publicly and EVERY price
+    # field above is frozen at the last trade before ``delistedDate``: it is not a live
+    # quote, and ``changePercent`` should not be rendered as a market move.
+    # ``"PENDING_DELISTING"`` means a merger or take-private is scheduled but the stock
+    # still trades normally, so the figures above ARE current; treat it as informational,
+    # not as a data-quality warning.
+    listingStatus: Optional[str] = None
+    # ISO date (YYYY-MM-DD) trading stopped. ``None`` unless ``listingStatus`` is DELISTED.
+    delistedDate: Optional[str] = None
+    # Why it delisted: "acquired", "take_private", "bankruptcy", "exchange_rule", "merged".
+    delistingReason: Optional[str] = None
 
 
 @dataclass
