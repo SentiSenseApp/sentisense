@@ -117,11 +117,18 @@ class ExtendedHoursInfo(APIModel):
 
 @dataclass
 class StockPrice(APIModel):
-    """Real-time stock price data.
+    """Latest stock price data, delayed 15 minutes.
 
-    ``currentPrice`` is always the regular-session price (live last trade during RTH,
-    most recent regular-session close otherwise). ``extendedHours`` is populated only
-    during pre-market or after-hours sessions.
+    ``currentPrice`` is always the regular-session price (the most recent
+    regular-session value during RTH, most recent regular-session close
+    otherwise). ``extendedHours`` is populated only during pre-market or
+    after-hours sessions.
+
+    ``priceAsOf`` is when the market data behind ``currentPrice`` is from, in
+    Unix milliseconds. Read it for freshness rather than ``timestamp``, which is
+    when the response was served and therefore always reads as now. It is
+    ``None`` outside regular hours and whenever the upstream data carries no
+    time of its own, so treat ``None`` as unknown age, not as fresh.
     """
 
     ticker: str = ""
@@ -132,19 +139,28 @@ class StockPrice(APIModel):
     volume: int = 0
     timestamp: int = 0
     extendedHours: Optional[ExtendedHoursInfo] = None
+    # Appended so that any positional construction of this dataclass keeps
+    # binding the same arguments.
+    priceAsOf: Optional[int] = None
 
 
 @dataclass
 class StockQuote(APIModel):
     """Aggregate quote snapshot from GET /api/v1/stocks/{ticker}/quote.
 
-    Combines live price, today OHLC, 52-week range, market cap, and key
-    fundamentals into a single payload. All fields except ``ticker`` may be
+    Combines the latest price (delayed 15 minutes), today OHLC, 52-week range,
+    market cap, and key fundamentals into a single payload. All fields except ``ticker`` may be
     ``None`` when the upstream data source is unavailable.
 
     ``currentPrice`` is always the regular-session price. ``extendedHours`` is
     populated only during pre-market or after-hours sessions; see
     :class:`ExtendedHoursInfo` for the nested shape.
+
+    ``priceAsOf`` is when the market data behind ``currentPrice`` is from, in
+    Unix milliseconds. Read it for freshness rather than ``timestamp``, which is
+    when the response was served and therefore always reads as now. It is
+    ``None`` outside regular hours and whenever the upstream data carries no
+    time of its own, so treat ``None`` as unknown age, not as fresh.
 
     ``reportedCurrency`` names the currency the filer reports in ("USD", "KRW",
     ...) and travels with the filing-derived fields (``epsTTM``, ``peRatio``).
@@ -175,6 +191,7 @@ class StockQuote(APIModel):
     # Appended rather than grouped with the filing-derived fields above so that any
     # positional construction of this dataclass keeps binding the same arguments.
     reportedCurrency: Optional[str] = None
+    priceAsOf: Optional[int] = None
 
 
 @dataclass
