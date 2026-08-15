@@ -900,6 +900,66 @@ class TestStockChartReturnShape:
         assert "bare list of bars" in doc
 
 
+class TestStockPriceListingStatus:
+    """The price payload carries the listing lifecycle when a stock stops trading.
+
+    The model filters unknown keys, so a field that is not declared is dropped
+    silently: a delisted price would read as an ordinary live one.
+    """
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_listing_status_is_parsed(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "ticker": "TWTR",
+                "currentPrice": 54.2,
+                "change": 0.0,
+                "changePercent": 0.0,
+                "previousClose": 54.2,
+                "volume": 0,
+                "timestamp": 1667174400,
+                "listingStatus": "DELISTED",
+                "delistedDate": "2022-10-27",
+                "delistingReason": "take_private",
+            }
+        )
+        result = client.get_stock_price("TWTR")
+        assert result.listingStatus == "DELISTED"
+        assert result.delistedDate == "2022-10-27"
+        assert result.delistingReason == "take_private"
+        assert result["listingStatus"] == "DELISTED"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_absent_listing_status_is_none(self, mock_get, client):
+        # An ordinarily listed stock omits all three keys, which is the overwhelming
+        # majority of responses. Absent must parse, not raise.
+        mock_get.return_value = _mock_response(
+            json_data={"ticker": "AAPL", "currentPrice": 313.33, "timestamp": 1754611200}
+        )
+        result = client.get_stock_price("AAPL")
+        assert result.listingStatus is None
+        assert result.delistedDate is None
+        assert result.delistingReason is None
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_batch_prices_carry_listing_status(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data=[
+                {"ticker": "AAPL", "currentPrice": 313.33},
+                {
+                    "ticker": "TWTR",
+                    "currentPrice": 54.2,
+                    "listingStatus": "DELISTED",
+                    "delistedDate": "2022-10-27",
+                },
+            ]
+        )
+        results = client.get_stock_prices(["AAPL", "TWTR"])
+        assert results[0].listingStatus is None
+        assert results[1].listingStatus == "DELISTED"
+        assert results[1].delistedDate == "2022-10-27"
+
+
 class TestStockQuoteReportedCurrency:
     """The quote carries the filer's reporting currency next to its filing-derived fields.
 

@@ -245,7 +245,12 @@ class SentiSenseClient:
         return self._parse_list(self._get("/api/v1/stocks/prices", params={"tickers": ",".join(tickers)}).json(), StockPrice)
 
     def get_stock_profile(self, ticker: str) -> Dict[str, Any]:
-        """Get company profile for a stock."""
+        """Get company profile for a stock.
+
+        A stock that has stopped trading, or is scheduled to, also carries
+        ``listingStatus``, ``delistedDate`` and ``delistingReason``; see
+        :class:`~sentisense.types.StockPrice` for what those values mean.
+        """
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 
     def get_stock_sentiment(self, ticker: str) -> PreviewResult[Dict[str, Any]]:

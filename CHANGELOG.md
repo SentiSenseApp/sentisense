@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.38.0
+
+### Added
+
+- **Listing lifecycle on `StockPrice`: `listingStatus`, `delistedDate` and `delistingReason`.**
+  `get_stock_price` and `get_stock_prices` now parse the same three fields `StockQuote`
+  already carried, so a stock that has stopped trading no longer reads as an ordinary live
+  price. They are `None` for an ordinarily listed stock, which is almost every ticker.
+  `"DELISTED"` means every price field is frozen at the last trade before `delistedDate`,
+  so do not render `changePercent` as a market move; `"PENDING_DELISTING"` means a merger
+  or take-private is scheduled while the stock still trades, so the figures are current.
+  The profile payload carries the same three keys.
+
 ## 0.37.0
 
 ### Added
