@@ -35,11 +35,15 @@ from sentisense.types import (
     KpiTypeEntry,
     MarketStatus,
     MarketSummary,
+    EtfScreenerResults,
+    FeaturedScreen,
     PoliticianDetail,
     PoliticianSummary,
     PreviewResult,
     Quarter,
     RecentEarningsEntry,
+    ScreenerFieldCatalog,
+    ScreenerResults,
     SimilarStock,
     StockDetail,
     StockPrice,
@@ -1625,3 +1629,136 @@ class SentiSenseClient:
         """
         body = self._get(f"/api/v1/trackers/{tracker_id}", params=params).json()
         return self._unwrap(body, item_cls=TrackerSnapshot)
+
+    # ── Screener ─────────────────────────────────────────────────
+
+    def get_screener_fields(self) -> ScreenerFieldCatalog:
+        """Every filterable field, with its unit, operators and description.
+
+        Build a filter UI from this rather than hardcoding the list, and you
+        inherit new fields as they ship. Returns a
+        :class:`~sentisense.types.ScreenerFieldCatalog` with a ``stock`` list
+        and an ``etf`` list; the two universes do not share a field vocabulary.
+
+        The ETF ``STRING`` fields (``ISSUER``, ``ASSET_CLASS``,
+        ``TRACKED_INDEX``) come back with their ``values`` populated from the
+        live universe, so pickers stay current without a client release.
+        """
+        return ScreenerFieldCatalog.from_dict(self._get("/api/v1/screener/fields").json())
+
+    def list_screens(self) -> List[FeaturedScreen]:
+        """The curated screens shipped in the product, each with a runnable plan.
+
+        Each screen's ``plan`` round-trips straight into :meth:`run_screen`
+        (or :meth:`run_etf_screen` when ``plan["universe"] == "ETF"``), so a
+        curated screen is both a ready-made query and a worked example of the
+        plan shape.
+
+        Two conventions in the names are load-bearing: ``+`` means both
+        conditions hold, ``vs`` means the two sides disagree.
+
+        Note the filters inside these plans identify their field with ``field``
+        rather than ``fieldName``. Both keys are accepted on the way in, so
+        read either when inspecting a plan you did not build yourself.
+        """
+        return [
+            FeaturedScreen.from_dict(s)
+            for s in (self._get("/api/v1/screener/screens").json().get("screens") or [])
+            if s is not None
+        ]
+
+    def run_screen(
+        self,
+        plan: Dict[str, Any],
+        *,
+        tickers: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+    ) -> ScreenerResults:
+        """Run a screen against the stock universe.
+
+        A plan is ``{"filters": [...], "sort": {...}}``. Every filter is
+        ``{"fieldName": "<FIELD>", "op": "<OP>", "value": <number>}``, ANDed
+        together; there is no OR, so run two screens and merge. Operators are
+        ``GTE``, ``LTE``, ``GT``, ``LT``, ``EQ``, ``NEQ``, ``IN``, ``NOT_IN``,
+        and ``sort`` is ``{"fieldName": "...", "dir": "ASC" | "DESC"}``.
+
+        Three field semantics are worth stating outright, because guessing them
+        wrong produces a screen that looks fine and means nothing:
+
+        * ``ANALYST_RATING_MEAN`` is **inverted**: it is the vendor's 1-to-5
+          scale where ``1.0`` is strong buy. Bullish is ``LTE 2.5``, not
+          ``GTE``. Prefer ``ANALYST_BUY_RATIO_PCT``, which runs the intuitive
+          direction.
+        * ``MA_CROSS_STATE`` is **ordinal**, not a percentage: ``1`` golden
+          cross (50-day above 200-day), ``-1`` death cross, ``0`` neither. Use
+          ``EQ``.
+        * ``SENTIMENT_DIRECTION`` is the sign of the 7-day SentiSense Score
+          (``1`` / ``0`` / ``-1``) with a neutral band of plus-or-minus 5.
+          Despite the name it is not sentiment polarity, and ``0`` matches only
+          an exact zero, so it returns almost nothing.
+
+        Filter the Score fields (``SENTI_SCORE_7D``, ``SENTI_SCORE_1M``,
+        ``SCORE_CHANGE_7D``) on the band edges 5 / 13 / 23, not on
+        polarity-scale values like ``0.5``, which behave as "any positive
+        score". Nulls never match in either direction, so a screen returning
+        fewer rows than expected is usually a coverage question rather than a
+        threshold one.
+
+        Args:
+            plan: The filter and sort plan. Take one from :meth:`list_screens`
+                or build your own.
+            tickers: Optional ticker subset, for screening a watchlist.
+                Omitted means the whole tracked universe.
+            limit: Rows to return. Defaults to 100 server-side, caps at 500.
+                It sits next to the plan on the request rather than inside it,
+                because a plan is a stored object and paging is a transport
+                concern.
+
+        Returns:
+            A :class:`~sentisense.types.ScreenerResults` whose ``matched``
+            counts the rows the plan matched before ``limit`` was applied.
+        """
+        body: Dict[str, Any] = {"plan": plan}
+        if tickers is not None:
+            body["tickers"] = tickers
+        if limit is not None:
+            body["limit"] = limit
+        return ScreenerResults.from_dict(
+            self._post("/api/v1/screener/execute", json=body).json()
+        )
+
+    def run_etf_screen(
+        self,
+        plan: Dict[str, Any],
+        *,
+        tickers: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+    ) -> EtfScreenerResults:
+        """Run a screen against the ETF universe.
+
+        Same request shape as :meth:`run_screen`, against a different field
+        vocabulary: take the ETF names from
+        ``get_screener_fields().etf``. ``IN`` / ``NOT_IN`` take a ``values``
+        list instead of ``value`` and are the operators for the string fields
+        (``ISSUER``, ``ASSET_CLASS``, ``TRACKED_INDEX``).
+
+        ``CONSTITUENTS_WEIGHTED_SENTISENSE`` is the holdings-weighted
+        SentiSense Score across what the fund owns, and is usually the one you
+        want; ``DIRECT_SENTISENSE`` is the Score from chatter about the fund
+        ticker itself, which on a broad index fund is mostly macro noise.
+        ``WEIGHT_COVERED_PCT`` tells you how much of the fund's weight had
+        constituent data behind the weighted number.
+
+        Args:
+            plan: The filter and sort plan.
+            tickers: Optional ETF ticker subset. Omitted means every tracked fund.
+            limit: Rows to return. Defaults to 100 server-side, caps at 500.
+        """
+        body: Dict[str, Any] = {"plan": plan}
+        if tickers is not None:
+            body["tickers"] = tickers
+        if limit is not None:
+            body["limit"] = limit
+        return EtfScreenerResults.from_dict(
+            self._post("/api/v1/screener/etfs/execute", json=body).json()
+        )

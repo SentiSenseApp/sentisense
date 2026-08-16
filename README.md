@@ -210,6 +210,56 @@ Composition data is public; the holdings-weighted aggregate views follow the sam
 | `get_etf_insider_aggregate(ticker, lookback_days=30)` | Holdings-weighted Form 4 net flow over a configurable window. Free: headline + buy/sell split. PRO: + `topContributors`. |
 | `get_etf_sentiment_aggregate(ticker)` | Two SentiSense readings side-by-side: constituent-weighted and direct (mentions of the fund itself). |
 
+### Screener
+
+Filter the tracked universe on the SentiSense Score, attention, analyst consensus, technicals and price in one query. Screening on analyst ratings alone is something a dozen free tools do; screening on analyst ratings *where the Score disagrees* is not.
+
+| Method | Description |
+|--------|-------------|
+| `get_screener_fields()` | Every filterable field, with units, operators and descriptions, for both universes |
+| `list_screens()` | The curated screens shipped in the product, each with a runnable plan |
+| `run_screen(plan, tickers=None, limit=None)` | Run a screen against the stock universe |
+| `run_etf_screen(plan, tickers=None, limit=None)` | Run a screen against the ETF universe |
+
+```python
+import os
+from sentisense import SentiSenseClient
+
+client = SentiSenseClient(os.environ["SENTISENSE_API_KEY"])
+
+# Run a curated screen as-is
+screen = next(s for s in client.list_screens() if s.id == "crowd-vs-street")
+res = client.run_screen(screen.plan, limit=25)
+print(f"{res.matched} matched, showing {len(res.results)}")
+
+# Or build your own: bullish Score, thin analyst enthusiasm
+res = client.run_screen(
+    {
+        "filters": [
+            {"fieldName": "SENTI_SCORE_7D", "op": "GTE", "value": 13},
+            {"fieldName": "ANALYST_BUY_RATIO_PCT", "op": "LTE", "value": 30},
+            {"fieldName": "ANALYST_COUNT", "op": "GTE", "value": 5},
+        ],
+        "sort": {"fieldName": "SENTI_SCORE_7D", "dir": "DESC"},
+    },
+    limit=25,
+)
+for row in res.results:
+    print(row.ticker, row.sentiSenseScore7D, row.analystBuyRatioPct)
+```
+
+`limit` rides next to the plan rather than inside it, because a plan is a stored object and paging is a transport concern. It defaults to 100 and caps at 500. `matched` is the count before `limit` was applied, so truncation is visible. `tickers` is optional: omit it to screen the whole tracked universe, pass a list to screen a watchlist.
+
+Three field semantics are worth stating outright, because guessing them wrong produces a screen that looks fine and means nothing:
+
+- **`ANALYST_RATING_MEAN` is inverted.** It is the vendor's 1-to-5 scale where **1.0 is strong buy**, so bullish is `LTE 2.5`. Prefer `ANALYST_BUY_RATIO_PCT`, which runs the intuitive direction.
+- **`MA_CROSS_STATE` is ordinal**, not a percentage: `1` golden cross, `-1` death cross, `0` neither. Use `EQ`.
+- **`SENTIMENT_DIRECTION` is the sign of the 7-day SentiSense Score** (`1` / `0` / `-1`) with a neutral band of plus-or-minus 5. Despite the name it is not sentiment polarity, and `0` matches only an exact zero.
+
+The Score fields (`SENTI_SCORE_7D`, `SENTI_SCORE_1M`, `SCORE_CHANGE_7D`) are the SentiSense Score, not polarity: unbounded, banded at 5 / 13 / 23 either side of zero. Filter on those band edges, not on values like `0.5`, which behave as "any positive score". Nulls never match in either direction, so `RETURN_1Y >= 0` and `RETURN_1Y < 0` do not partition the universe: a stock listed four months ago is in neither result. If a screen returns fewer rows than you expect, check coverage before you check your thresholds.
+
+Screens read a snapshot that refreshes every 20 minutes, so this is not a quote feed. Use `get_stock_price` for live prices.
+
 ## Error Handling
 
 The SDK raises typed exceptions for API errors:

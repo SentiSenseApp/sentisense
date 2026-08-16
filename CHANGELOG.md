@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.39.0
+
+### Added
+
+- **Screener: `get_screener_fields()`, `list_screens()`, `run_screen()` and `run_etf_screen()`.**
+  Filter the tracked universe on the SentiSense Score, attention, analyst consensus,
+  technicals and price in a single query. A plan is `{"filters": [...], "sort": {...}}` with
+  each filter `{"fieldName": ..., "op": ..., "value": ...}`, ANDed together; `limit` is passed
+  as a keyword argument and rides next to the plan on the request body, defaulting to 100 and
+  capping at 500. `tickers` is optional and omitting it screens the whole tracked universe.
+  Results carry `matched`, the pre-limit count, so truncation is visible, and every row carries
+  the full field set rather than only the fields you filtered on.
+- **`list_screens()` returns the curated screens with a runnable plan each**, so
+  `client.run_screen(screen.plan)` works with nothing to rebuild. Their filters identify the
+  field with `field` rather than `fieldName`; both keys are accepted on the way in.
+- **New types**: `ScreenerFieldCatalog`, `ScreenerField`, `ScreenerFieldOption`, `FeaturedScreen`,
+  `ScreenerResults`, `ScreenerRow`, `EtfScreenerResults`, `EtfScreenerRow`.
+
+### Notes
+
+- Three field semantics are documented on the methods because guessing them wrong produces a
+  screen that looks fine and means nothing: `ANALYST_RATING_MEAN` is inverted (1.0 is strong
+  buy, so bullish is `LTE`), `MA_CROSS_STATE` is ordinal (`1` golden cross, `-1` death cross,
+  `0` neither), and `SENTIMENT_DIRECTION` is the sign of the 7-day SentiSense Score with a
+  neutral band of plus-or-minus 5, not a polarity reading.
+- Filter the Score fields on the band edges 5 / 13 / 23. Polarity-scale values like `0.5`
+  behave as "any positive score". Nulls never match in either direction.
+
 ## 0.38.0
 
 ### Added

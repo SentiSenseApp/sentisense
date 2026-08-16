@@ -1419,3 +1419,249 @@ class IndexHistoryResponse(APIModel):
             days=data.get("days", 0),
             history=[IndexHistoryPoint.from_dict(p) for p in (data.get("history") or []) if p is not None],
         )
+
+
+# ── Screener ─────────────────────────────────────────────────
+
+
+@dataclass
+class ScreenerFieldOption(APIModel):
+    """One selectable value of an ``ENUM`` screener field.
+
+    ``value`` is the number a filter carries; ``label`` is display copy.
+    """
+
+    value: Optional[float] = None
+    label: str = ""
+
+
+@dataclass
+class ScreenerField(APIModel):
+    """One filterable field from ``client.get_screener_fields()``.
+
+    Build a filter UI from this rather than hardcoding the field list, and new
+    fields appear without a client release.
+
+    ``type`` is ``NUMBER``, ``ENUM`` or ``STRING``:
+
+    * ``NUMBER`` takes a scalar ``value`` and the comparison ops in ``ops``.
+    * ``ENUM`` is an ordinal with a fixed set of readings; ``options`` carries
+      them and ``ops`` is ``["EQ"]``.
+    * ``STRING`` (ETF universe only) takes ``IN`` / ``NOT_IN`` against a
+      ``values`` list, which is populated from the live universe rather than a
+      static list, so the pickers stay current.
+
+    ``quickValues`` are the thresholds worth offering as one-tap presets: on the
+    SentiSense Score fields those are the band edges (5, 13, 23).
+    """
+
+    name: str = ""
+    label: str = ""
+    group: str = ""
+    type: str = ""
+    unit: Optional[str] = None
+    ops: List[str] = field(default_factory=list)
+    sortable: bool = False
+    step: Optional[float] = None
+    placeholder: Optional[str] = None
+    description: str = ""
+    options: Optional[List[ScreenerFieldOption]] = None  # ENUM fields only
+    quickValues: Optional[List[str]] = None
+    values: Optional[List[str]] = None  # STRING fields only
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ScreenerField":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known and k != "options"}
+        raw = data.get("options")
+        kwargs["options"] = (
+            None if raw is None
+            else [ScreenerFieldOption.from_dict(o) for o in raw if o is not None]
+        )
+        return cls(**kwargs)
+
+
+@dataclass
+class ScreenerFieldCatalog(APIModel):
+    """Both field catalogs, returned by ``client.get_screener_fields()``.
+
+    ``stock`` backs ``run_screen()``; ``etf`` backs ``run_etf_screen()``. The two
+    universes do not share a field vocabulary, so a name from one is not valid
+    in the other.
+    """
+
+    stock: List[ScreenerField] = field(default_factory=list)
+    etf: List[ScreenerField] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ScreenerFieldCatalog":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            stock=[ScreenerField.from_dict(f) for f in (data.get("stock") or []) if f is not None],
+            etf=[ScreenerField.from_dict(f) for f in (data.get("etf") or []) if f is not None],
+        )
+
+
+@dataclass
+class FeaturedScreen(APIModel):
+    """A curated screen, returned by ``client.list_screens()``.
+
+    ``plan`` is left as a plain dict so it round-trips straight back into
+    ``run_screen(screen.plan)`` (or ``run_etf_screen`` when
+    ``plan["universe"] == "ETF"``) with nothing to rebuild.
+
+    ``id`` is stable and safe to persist. ``name`` and ``summary`` are display
+    copy and may be revised.
+    """
+
+    id: str = ""
+    name: str = ""
+    summary: str = ""
+    plan: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ScreenerRow(APIModel):
+    """One matching stock, with the full field set rather than only the fields
+    you filtered on, so you can sort or post-process without a second call.
+
+    A field with no data for that ticker is ``None``, and a row missing the
+    field you filtered on never matches: ``RETURN_1Y >= 0`` and
+    ``RETURN_1Y < 0`` do not partition the universe.
+
+    ``sentiSenseScore7D`` / ``sentiSenseScore1M`` are the SentiSense Score, not
+    sentiment polarity: unbounded, banded at 5 / 13 / 23 either side of zero.
+    ``sentimentDirection`` is that Score's side of the neutral band (``1`` /
+    ``0`` / ``-1``), and ``maCrossState`` is ordinal (``1`` golden cross, ``-1``
+    death cross, ``0`` neither), so compare both with ``EQ``.
+    ``analystRatingMean`` runs the vendor's 1-to-5 scale where **1.0 is strong
+    buy**; prefer ``analystBuyRatioPct``, which runs the intuitive direction.
+    """
+
+    ticker: str = ""
+    sentiSenseScore7D: Optional[float] = None
+    sentiSenseScore1M: Optional[float] = None
+    scoreChange7D: Optional[float] = None
+    sentimentDirection: Optional[float] = None  # 1 / 0 / -1
+    socialDominance: Optional[float] = None
+    mentionShare: Optional[float] = None
+    mentionVelocity: Optional[float] = None
+    dominanceChange: Optional[float] = None
+    marketCap: Optional[int] = None
+    currentPrice: Optional[float] = None
+    changePercent: Optional[float] = None
+    change: Optional[float] = None
+    volume: Optional[int] = None
+    week52High: Optional[float] = None
+    week52Low: Optional[float] = None
+    pctOff52wHigh: Optional[float] = None
+    pctOff52wLow: Optional[float] = None
+    analystBuyRatioPct: Optional[float] = None
+    analystTargetUpsidePct: Optional[float] = None
+    analystCount: Optional[float] = None
+    analystRatingMomentum30D: Optional[float] = None
+    analystRatingMean: Optional[float] = None  # INVERTED: 1.0 is strong buy
+    pctOff200dMa: Optional[float] = None
+    pctOff50dMa: Optional[float] = None
+    maCrossState: Optional[float] = None  # 1 golden, -1 death, 0 neither
+    return1M: Optional[float] = None
+    return3M: Optional[float] = None
+    return6M: Optional[float] = None
+    return1Y: Optional[float] = None
+    volatility30D: Optional[float] = None
+    sentisenseScoreBars7D: Optional[List[float]] = None
+    sentisenseScoreBars30D: Optional[List[float]] = None
+    priceSparkline30D: Optional[List[float]] = None
+    lastUpdated: Optional[int] = None  # epoch seconds
+
+
+@dataclass
+class EtfScreenerRow(APIModel):
+    """One matching fund, with the full ETF field set.
+
+    The two Score readings answer different questions.
+    ``constituentsWeightedSentisense`` is the holdings-weighted SentiSense Score
+    across what the fund actually owns, which is usually the one you want;
+    ``directSentisense`` is the Score from chatter about the fund ticker itself,
+    which on a broad index fund is mostly macro noise.
+
+    ``weightCoveredPct`` is how much of the fund's weight had constituent data
+    behind the weighted number, so read it before quoting that number.
+    """
+
+    ticker: str = ""
+    name: str = ""
+    issuer: Optional[str] = None
+    assetClass: Optional[str] = None
+    trackedIndex: Optional[str] = None
+    marketCap: Optional[int] = None  # AUM in USD
+    expenseRatio: Optional[float] = None  # percent points: 0.09 means 0.09%
+    currentPrice: Optional[float] = None
+    changePercent: Optional[float] = None
+    priceChange: Optional[float] = None
+    volume: Optional[int] = None
+    week52High: Optional[float] = None
+    week52Low: Optional[float] = None
+    pctOff52wHigh: Optional[float] = None
+    pctOff52wLow: Optional[float] = None
+    weightedAnalystUpside: Optional[float] = None
+    weightedConsensusLabel: Optional[str] = None
+    weightedInsiderNet30d: Optional[int] = None
+    weightedInsiderNet90d: Optional[int] = None
+    constituentsWeightedSentisense: Optional[float] = None
+    directSentisense: Optional[float] = None
+    weightCoveredPct: Optional[float] = None
+    holdingsCount: Optional[int] = None
+    totalKnownHoldings: Optional[int] = None
+    partial: Optional[bool] = None
+    lastUpdated: Optional[int] = None  # epoch seconds
+
+
+@dataclass
+class ScreenerResults(APIModel):
+    """Stock screen results, returned by ``client.run_screen()``.
+
+    ``matched`` is how many rows the plan matched *before* ``limit`` was
+    applied, so truncation is visible: when ``matched`` exceeds ``limit`` you
+    are looking at the top slice under the plan's sort, not the whole answer.
+    """
+
+    results: List[ScreenerRow] = field(default_factory=list)
+    matched: int = 0
+    limit: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ScreenerResults":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            results=[ScreenerRow.from_dict(r) for r in (data.get("results") or []) if r is not None],
+            matched=data.get("matched", 0),
+            limit=data.get("limit", 0),
+        )
+
+
+@dataclass
+class EtfScreenerResults(APIModel):
+    """ETF screen results, returned by ``client.run_etf_screen()``.
+
+    Same envelope as :class:`ScreenerResults`; ``matched`` is the pre-limit
+    count.
+    """
+
+    results: List[EtfScreenerRow] = field(default_factory=list)
+    matched: int = 0
+    limit: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EtfScreenerResults":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            results=[EtfScreenerRow.from_dict(r) for r in (data.get("results") or []) if r is not None],
+            matched=data.get("matched", 0),
+            limit=data.get("limit", 0),
+        )
