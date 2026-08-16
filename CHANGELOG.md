@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.40.0
+
+### Added
+
+- **`priceAsOf` on `StockPrice` and `StockQuote`**: when the market data behind
+  `currentPrice` is from, in Unix milliseconds. Read it for freshness rather than
+  `timestamp`, which is when the response was served and therefore always reads as now.
+  `None` means unknown age, not fresh. Appended to both dataclasses so positional
+  construction keeps binding the same arguments.
+
+### Fixed
+
+- `timestamp` is no longer documented as the price's age; it is the serve time of the
+  response.
+
 ## 0.39.0
 
 ### Added
