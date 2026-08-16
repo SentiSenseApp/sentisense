@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.41.0
+
+### Added
+
+- **`get_politician_directory(q=None, limit=50, offset=0)`**: discover tracked members of
+  Congress and the page slug identifying each, so you can find who to query without knowing
+  slugs upfront. Summary only, no trade data; use `get_politician_member(slug)` for filings.
+  Not tier-gated, so free and PRO callers get the same full response.
+
+  Unlike `get_politician_members()`, the directory includes members who have **left
+  Congress**, carrying `former` and `servedUntil`. That roster lists who currently holds
+  office, so a former member was previously reachable only if you already knew their slug.
+
 ## 0.40.0
 
 ### Added

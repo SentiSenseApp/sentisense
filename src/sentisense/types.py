@@ -552,6 +552,12 @@ class PoliticianSummary(APIModel):
     kbEntityId: Optional[str] = None
     latestTradeDate: Optional[str] = None
     sentiSenseScore: Optional[float] = None
+    #: True for a member who has left Congress. The members roster serves only sitting
+    #: members, so this reads True only on a member detail or directory response. Render
+    #: the tense accordingly ("Former Senator").
+    former: bool = False
+    #: Year the member left Congress, e.g. ``"2021"``. None for a sitting member.
+    servedUntil: Optional[str] = None
 
 
 @dataclass

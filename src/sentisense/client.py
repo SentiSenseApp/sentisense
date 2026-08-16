@@ -877,6 +877,42 @@ class SentiSenseClient:
             list_cls=CongressTrade,
         )
 
+    def get_politician_directory(
+        self,
+        *,
+        q: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """Discover tracked members of Congress and the page slug identifying each.
+
+        Lets you find who to query without knowing slugs upfront. Summary only, no
+        trade data; use :meth:`get_politician_member` for a member's filings.
+
+        Unlike :meth:`get_politician_members`, this includes members who have **left
+        Congress**. That roster lists who currently holds office; this lists everyone
+        tracked. Former members carry ``former=True`` plus the year they left, and are
+        otherwise reachable only if you already know their slug.
+
+        Not tier-gated: free and PRO callers receive the same full response.
+
+        Returns the ``data`` object::
+
+            {"totalCount", "members": [
+                {"urlSlug", "displayName", "chamber", "party", "state", "bioguideId",
+                 "imageUrl", "former", "servedUntil"}, ...]}
+
+        Args:
+            q: Case-insensitive filter across display name, state and slug.
+            limit: Page size (default 50, max 200).
+            offset: Pagination offset.
+        """
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        if q is not None:
+            params["q"] = q
+        resp = self._get("/api/v1/politicians/directory", params=params).json()
+        return resp.get("data", resp)
+
     def get_politician_members(self) -> PreviewResult[List[PoliticianSummary]]:
         """Get all tracked politicians with trading summary statistics.
 

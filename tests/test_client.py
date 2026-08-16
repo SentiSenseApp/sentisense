@@ -790,6 +790,56 @@ class TestGetStockSentiment:
         assert result.preview_reason == "PRO_REQUIRED"
 
 
+class TestPoliticianDirectory:
+    """The directory is how a caller finds member slugs, including for former members.
+
+    ``get_politician_members()`` cannot serve that purpose: it is tier-gated and it omits
+    members who have left Congress, so without this a former member is reachable only by a
+    slug that no endpoint hands out.
+    """
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_defaults_send_paging_only(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {"members": [], "totalCount": 0}})
+        client.get_politician_directory()
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/directory",
+            params={"limit": 50, "offset": 0},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_query_reaches_the_wire(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {"members": [], "totalCount": 0}})
+        client.get_politician_directory(q="pelosi", limit=5, offset=10)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/directory",
+            params={"limit": 5, "offset": 10, "q": "pelosi"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_unwraps_the_data_envelope(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={
+            "data": {
+                "members": [{"urlSlug": "Kelly-Loeffler", "displayName": "Kelly Loeffler",
+                             "former": True, "servedUntil": "2021"}],
+                "totalCount": 1,
+            },
+        })
+        result = client.get_politician_directory(q="loeffler")
+
+        assert result["totalCount"] == 1
+        assert result["members"][0]["urlSlug"] == "Kelly-Loeffler"
+        # The former flag is the reason this endpoint exists; dropping it in unwrapping
+        # would leave callers unable to tell a sitting member from one who left.
+        assert result["members"][0]["former"] is True
+        assert result["members"][0]["servedUntil"] == "2021"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_tolerates_a_response_without_the_envelope(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"members": [], "totalCount": 0})
+        assert client.get_politician_directory() == {"members": [], "totalCount": 0}
+
+
 class TestPoliticianActivityPaging:
     """The activity window holds thousands of rows but answers one page at a time.
 
