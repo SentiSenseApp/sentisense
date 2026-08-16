@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.42.0
+
+### Added
+
+- **`limit` and `offset` on `get_politician_member(slug)`**: `recentTrades` is one page of a
+  member's history, and the server now returns 200 by default rather than everything. Most
+  members have a few dozen disclosures and still arrive complete in one call; a handful have
+  thousands, and the longest is over 12,000. Read `result.total_count` for the size of the
+  whole history and page through it. Both arguments are keyword-only and optional, so calls
+  that omit them send exactly the request they sent before.
+
+  `result.profile` and `result.topTickers` describe the whole history whatever page you ask
+  for, so `profile.totalTrades` does not shrink with a small `limit`.
+
+### Fixed
+
+- `PreviewResult.total_count` is no longer documented as `None` on full responses. Paged
+  endpoints carry it on every tier: it is what tells you a page is not the whole set.
+
 ## 0.41.0
 
 ### Added

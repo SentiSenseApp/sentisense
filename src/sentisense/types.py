@@ -46,9 +46,13 @@ class PreviewResult(Generic[T]):
 
     Access the underlying data via ``.data``, or directly via attribute or item
     access for object-wrapped results. Check ``.is_preview`` and
-    ``.preview_reason`` for tier information. On preview list responses
-    ``.total_count`` is the number of items in the full PRO dataset, so you can
-    show "showing N of total_count" (``None`` on full PRO responses).
+    ``.preview_reason`` for tier information. ``.total_count`` is the number of
+    items that exist behind the response: on a preview it is the size of the full
+    dataset, so you can show "showing N of total_count"; on a paged endpoint it is
+    the size of the whole matching set on every tier, so compare it against the
+    page you were handed to decide whether to fetch the next ``offset``. It is
+    ``None`` only on endpoints that return everything and therefore have no page
+    to count past.
 
     For list-wrapped endpoints (e.g. ``get_politician_members()``), prefer
     ``result.data``, ``list(result)``, or ``for item in result`` over

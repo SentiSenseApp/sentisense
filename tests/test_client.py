@@ -917,6 +917,71 @@ class TestPoliticianActivityPaging:
         assert result[0].ticker == "MPC"
 
 
+class TestPoliticianMemberPaging:
+    """A member's history is one page, not the whole thing.
+
+    Most members arrive complete in the default page, so the arguments have to be
+    optional and omitting them has to keep producing exactly the request the SDK sent
+    before they existed. A handful of members have thousands of disclosures, so the
+    arguments also have to actually reach the wire.
+    """
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_both_sends_the_original_request(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_politician_member("Nancy-Pelosi")
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/member/Nancy-Pelosi",
+            params={},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_limit_and_offset_are_sent(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_politician_member("Ro-Khanna", limit=500, offset=500)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/member/Ro-Khanna",
+            params={"limit": 500, "offset": 500},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_offset_zero_is_sent(self, mock_get, client):
+        # offset=0 is a real value, not "unset": it must survive the None check.
+        mock_get.return_value = _mock_response(json_data={})
+        client.get_politician_member("Ro-Khanna", limit=5, offset=0)
+        mock_get.assert_called_once_with(
+            "/api/v1/politicians/member/Ro-Khanna",
+            params={"limit": 5, "offset": 0},
+        )
+
+    def test_paging_arguments_are_keyword_only(self, client):
+        with pytest.raises(TypeError):
+            client.get_politician_member("Ro-Khanna", 500)  # type: ignore[misc]
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_total_count_sizes_the_history_and_profile_does_not_shrink(
+        self, mock_get, client
+    ):
+        # The page is what moves with limit. The profile counters describe the member,
+        # so reading totalTrades off a small page must still give the whole history.
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "totalCount": 12159,
+                "data": {
+                    "profile": {"urlSlug": "Ro-Khanna", "totalTrades": 12159},
+                    "recentTrades": [{"ticker": "NVDA", "transactionType": "purchase"}],
+                    "topTickers": ["NVDA"],
+                },
+            }
+        )
+        result = client.get_politician_member("Ro-Khanna", limit=1)
+        assert result.total_count == 12159
+        assert len(result.recentTrades) == 1
+        assert result.profile.totalTrades == 12159
+
+
 class TestStockChartReturnShape:
     """The endpoint answers with a bare list of bars, not an object.
 

@@ -188,8 +188,8 @@ class SentiSenseClient:
     ) -> PreviewResult:
         """Auto-unwrap the preview envelope and parse into typed models.
 
-        PRO-gated endpoints return ``{isPreview, previewReason, data}``,
-        plus ``totalCount`` on preview list responses. This strips the
+        PRO-gated endpoints return ``{isPreview, previewReason, data}``, plus
+        ``totalCount`` on preview responses and on paged endpoints. This strips the
         envelope, parses ``data``, and returns a
         :class:`~sentisense.types.PreviewResult` with ``.is_preview``,
         ``.preview_reason`` and ``.total_count`` metadata.
@@ -924,17 +924,48 @@ class SentiSenseClient:
             list_cls=PoliticianSummary,
         )
 
-    def get_politician_member(self, slug: str) -> PreviewResult[PoliticianDetail]:
+    def get_politician_member(
+        self,
+        slug: str,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> PreviewResult[PoliticianDetail]:
         """Get detailed profile for a single politician.
 
         Auto-unwrapped. Access via ``result.profile``, ``result.recentTrades``,
         ``result.topTickers``. Check ``result.is_preview`` for tier status.
 
+        ``recentTrades`` is one page of the member's history, not all of it. Most
+        members have a few dozen disclosures and arrive complete in one call, but a
+        handful have thousands, so read ``result.total_count`` for the size of the
+        whole history and page with ``limit`` and ``offset``.
+
+        ``result.profile`` and ``result.topTickers`` always describe the whole
+        history regardless of the page requested, so ``profile.totalTrades`` does
+        not shrink when you ask for a small ``limit``.
+
         Args:
-            slug: Politician URL slug (e.g., ``"nancy-pelosi-house"``). Get slugs from ``get_politician_members()``.
+            slug: Politician URL slug (e.g., ``"Nancy-Pelosi"``). Get slugs from
+                ``get_politician_directory()`` or ``get_politician_members()``.
+            limit: Maximum trades to return. Values above the server cap are
+                clamped server-side. Omit for the server's own default page size.
+            offset: Trade offset to start from, for paging with ``limit``. Server
+                default is 0.
+
+        Example::
+
+            first = client.get_politician_member("Ro-Khanna", limit=500)
+            print(first.total_count)
+            more = client.get_politician_member("Ro-Khanna", limit=500, offset=500)
         """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
         return self._unwrap(
-            self._get(f"/api/v1/politicians/member/{slug}").json(),
+            self._get(f"/api/v1/politicians/member/{slug}", params=params).json(),
             item_cls=PoliticianDetail,
         )
 
