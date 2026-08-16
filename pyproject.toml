@@ -43,3 +43,9 @@ path = "src/sentisense/__about__.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put the working tree ahead of site-packages on sys.path, so `import sentisense`
+# under pytest always resolves to src/ even when a released copy is installed in
+# the ambient environment. Without this, an installed copy shadows the checkout and
+# the suite silently reports green against code that is not the code under review.
+# tests/test_import_provenance.py fails loudly if this ever stops working.
+pythonpath = ["src"]
