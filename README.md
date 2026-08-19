@@ -19,6 +19,14 @@ from sentisense import SentiSenseClient
 
 client = SentiSenseClient("your-api-key")
 
+# The tracked universe: every ticker SentiSense covers
+tickers = client.get_all_stocks()          # ["A", "AAL", "AAPL", ...]
+print(len(tickers), "stocks tracked")
+
+# Same universe with company names and knowledge base entity ids
+detailed = client.get_all_stocks_detailed()
+print(detailed[0].ticker, detailed[0].simpleName, detailed[0].kbEntityId)
+
 # Get a stock price
 price = client.get_stock_price("AAPL")
 print(price)
@@ -39,8 +47,12 @@ results = client.search_documents("AI earnings surprise")
 # Get mention time series for a stock (v2 metrics API)
 mentions = client.get_metrics("NVDA", metric_type="mentions")
 
-# Get sentiment time series
+# Get sentiment polarity time series, each reading in [-1, 1]
 sentiment = client.get_metrics("NVDA", metric_type="sentiment")
+
+# Get the SentiSense Score time series: sentiment weighted by attention, unbounded
+score = client.get_metrics("NVDA", metric_type="sentisense_score")
+print(score[-1]["value"])   # latest reading, e.g. 51.3
 
 # Get mentions broken down by source
 dist = client.get_metrics_distribution("NVDA", metric_type="mentions", dimension="source")
@@ -68,8 +80,8 @@ For full endpoint documentation, request/response schemas, and interactive examp
 | `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products) |
 | `get_stock_ai_summary(ticker, depth="basic")` | Curated AI research report. `depth="deep"` returns the full report and consumes one report view |
 | `get_stock_chart(ticker, timeframe="1M")` | OHLCV chart data, returned as a bare list of bars (oldest first) |
-| `get_all_stocks()` | List of available tickers |
-| `get_all_stocks_detailed()` | Tickers with company names and entity IDs |
+| `get_all_stocks()` | The tracked universe: every ticker SentiSense covers |
+| `get_all_stocks_detailed()` | The same universe with company names, entity IDs and social dominance |
 | `get_market_status()` | Market open/closed status |
 | `get_fundamentals(ticker, timeframe="quarterly")` | Financial fundamentals |
 | `get_current_fundamentals(ticker)` | Most recent fundamentals snapshot |

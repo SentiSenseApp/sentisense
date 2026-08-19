@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.43.0
+
+### Fixed
+
+- **`get_all_stocks_detailed()` now carries the company names it promised.** The API returns
+  `simpleName` ("Agilent") and `companyName` ("Agilent Technologies, Inc."), but `StockDetail`
+  only declared a `name` field that the API never sends, so every row came back with an empty
+  name. `simpleName` and `companyName` are now real fields, and `name` falls back to
+  `simpleName` so existing code reads a name instead of `""`.
+
+### Added
+
+- `StockDetail.brandColor` and `StockDetail.socialDominance` (value, rank, percentile), both
+  already present in the response and previously discarded.
+- Quick Start now opens with the tracked universe (`get_all_stocks()` /
+  `get_all_stocks_detailed()`) and shows the SentiSense Score series
+  (`get_metrics(ticker, metric_type="sentisense_score")`) alongside sentiment polarity.
+
 ## 0.42.0
 
 ### Added

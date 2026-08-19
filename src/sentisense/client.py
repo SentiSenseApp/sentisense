@@ -1554,7 +1554,8 @@ class SentiSenseClient:
                 (e.g. "Nancy-Pelosi"). Case-insensitive. Discover slugs via
                 ``GET /api/v1/kb/entities/search?q=`` or ``get_stock_entities()``.
             metric_type: Metric to retrieve: "mentions", "sentiment",
-                "sentisense", or "social_dominance".
+                "sentisense_score" (the SentiSense Score), or
+                "social_dominance".
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
             max_data_points: Maximum number of data points to return.
@@ -1593,7 +1594,8 @@ class SentiSenseClient:
         Args:
             symbol: Stock ticker symbol (e.g. "AAPL").
             metric_type: Metric to retrieve: "mentions", "sentiment",
-                "sentisense", or "social_dominance".
+                "sentisense_score" (the SentiSense Score), or
+                "social_dominance".
             dimension: Dimension to break down by (e.g. "source").
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.

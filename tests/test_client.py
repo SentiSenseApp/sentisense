@@ -90,6 +90,29 @@ class TestStockEndpoints:
         assert result == ["AAPL", "MSFT"]
 
     @patch.object(SentiSenseClient, "_get")
+    def test_get_all_stocks_detailed_carries_company_names(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data=[
+                {
+                    "ticker": "A",
+                    "simpleName": "Agilent",
+                    "companyName": "Agilent Technologies, Inc.",
+                    "kbEntityId": "kb/company/107",
+                    "urlSlug": "Agilent-Technologies-Inc",
+                    "socialDominance": {"value": 0.0005, "rank": 451},
+                }
+            ]
+        )
+        result = client.get_all_stocks_detailed()
+        mock_get.assert_called_once_with("/api/v1/stocks/detailed")
+        assert result[0].simpleName == "Agilent"
+        assert result[0].companyName == "Agilent Technologies, Inc."
+        # The API never sends "name"; the legacy alias falls back to simpleName
+        # rather than staying an empty string.
+        assert result[0].name == "Agilent"
+        assert result[0].socialDominance["rank"] == 451
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_market_status(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data={"status": "open"})
         result = client.get_market_status()

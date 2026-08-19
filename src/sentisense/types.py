@@ -237,12 +237,26 @@ class SimilarStock(APIModel):
 
 @dataclass
 class StockDetail(APIModel):
-    """Stock with company name and entity metadata."""
+    """Stock with company name and entity metadata.
+
+    The API names the company in two fields: ``simpleName`` is the short display
+    name ("Agilent") and ``companyName`` is the legal name ("Agilent
+    Technologies, Inc."). ``name`` is a legacy alias the API never sends; it is
+    filled from ``simpleName`` so older code keeps working.
+    """
 
     ticker: str = ""
     name: str = ""
+    simpleName: str = ""
+    companyName: str = ""
     kbEntityId: Optional[str] = None
     urlSlug: Optional[str] = None
+    brandColor: Optional[str] = None
+    socialDominance: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            self.name = self.simpleName or self.companyName
 
 
 @dataclass
