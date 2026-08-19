@@ -14,6 +14,10 @@
 
 - `StockDetail.brandColor` and `StockDetail.socialDominance` (value, rank, percentile), both
   already present in the response and previously discarded.
+- Mechanical gates on the new docs: every `client.x(...)` call inside a README code fence
+  must resolve, the Score keeps one spelling across the README and both metrics docstrings,
+  and `StockDetail` must keep carrying the company names the README promises. The method
+  tables were already gated; the runnable snippets were not.
 - Quick Start now opens with the tracked universe (`get_all_stocks()` /
   `get_all_stocks_detailed()`) and shows the SentiSense Score series
   (`get_metrics(ticker, metric_type="sentisense_score")`) alongside sentiment polarity.

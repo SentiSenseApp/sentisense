@@ -6,6 +6,7 @@ about method names, argument defaults, or exception coverage gated here rather t
 trusting a reviewer to notice the next time one of them moves.
 """
 
+import dataclasses
 import inspect
 import re
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from sentisense import SentiSenseClient
+from sentisense.types import StockDetail
 from sentisense.exceptions import (
     APIError,
     AuthenticationError,
@@ -60,6 +62,72 @@ class TestReadmeMethodTables:
         # Same for the report endpoint, wrapped since 0.35.0.
         assert "/api/v1/stocks/{ticker}/ai-summary" not in section
         assert hasattr(SentiSenseClient, "get_stock_ai_summary")
+
+
+class TestReadmeCodeSamples:
+    """The runnable snippets, not just the method tables.
+
+    The tables were gated from the start; the Quick Start was not, so a snippet could
+    call a method that never existed and the suite stayed green. Anything a reader can
+    paste has to resolve.
+    """
+
+    def test_every_client_call_in_a_snippet_exists(self, readme):
+        fences = re.findall(r"```python\n(.*?)```", readme, re.DOTALL)
+        assert fences, "no python fences parsed; the regex needs updating"
+        called = sorted(
+            {m for f in fences for m in re.findall(r"client\.([a-z_][a-z0-9_]*)\(", f)}
+        )
+        assert called, "no client calls parsed; the regex needs updating"
+        missing = [c for c in called if not hasattr(SentiSenseClient, c)]
+        assert not missing, "README snippets call methods that do not exist: %s" % missing
+
+    def test_quick_start_opens_on_the_tracked_universe(self, readme):
+        # A reader's first question is which tickers are covered, so the universe call
+        # leads the Quick Start rather than sitting in a table halfway down.
+        quick_start = readme.split("## Quick Start", 1)[1].split("## Authentication", 1)[0]
+        assert "get_all_stocks()" in quick_start
+        assert "get_all_stocks_detailed()" in quick_start
+
+
+class TestMetricTypeNames:
+    """One spelling of the Score, in the README and the docstrings alike.
+
+    The server accepts "sentisense" as well as "sentisense_score", so a caller copying
+    either one works and no runtime error ever reveals the disagreement. That is exactly
+    the drift a reader has to resolve by guessing, so the docs pick the canonical name
+    the API echoes back in ``metricType``.
+    """
+
+    CANONICAL = "sentisense_score"
+
+    def test_readme_documents_the_canonical_name(self, readme):
+        assert self.CANONICAL in readme
+
+    @pytest.mark.parametrize("method", ["get_metrics", "get_metrics_distribution"])
+    def test_docstring_uses_the_canonical_name(self, method):
+        doc = getattr(SentiSenseClient, method).__doc__ or ""
+        assert self.CANONICAL in doc
+        assert '"sentisense"' not in doc
+
+
+class TestStockDetailShapeDocs:
+    """The README promises company names on the detailed universe, so they must arrive.
+
+    Live shape on /api/v1/stocks/detailed: ticker, simpleName, companyName, kbEntityId,
+    urlSlug, brandColor, socialDominance. It never sends ``name``, which is why the model
+    used to hand back an empty string for every row.
+    """
+
+    def test_the_model_carries_both_name_fields(self):
+        fields = {f.name for f in dataclasses.fields(StockDetail)}
+        assert {"simpleName", "companyName"} <= fields
+
+    def test_name_falls_back_to_simple_name(self):
+        detail = StockDetail.from_dict(
+            {"ticker": "A", "simpleName": "Agilent", "companyName": "Agilent Technologies, Inc."}
+        )
+        assert detail.name == "Agilent"
 
 
 class TestReadmeArgumentDefaults:
