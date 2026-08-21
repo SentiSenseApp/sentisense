@@ -211,9 +211,9 @@ class SentiSenseClient:
     # ── Stock endpoints ─────────────────────────────────────────
 
     def get_stock_price(self, ticker: str) -> StockPrice:
-        """Get real-time stock price for a single ticker.
+        """Get the latest stock price for a single ticker, delayed 15 minutes.
 
-        ``currentPrice`` is always the regular-session price (live last trade during RTH,
+        ``currentPrice`` is always the regular-session price (last trade during RTH,
         most recent regular-session close otherwise). During pre-market and after-hours
         the response includes a nested ``extendedHours`` object with the live extended-hours
         price plus its change vs ``currentPrice``::
@@ -227,7 +227,7 @@ class SentiSenseClient:
     def get_stock_quote(self, ticker: str) -> StockQuote:
         """Get aggregate quote snapshot for a ticker.
 
-        Returns live price, today OHLC, 52-week range, market cap, P/E,
+        Returns the latest price, today OHLC, 52-week range, market cap, P/E,
         EPS TTM, and dividend yield in a single call. All fields except
         ``ticker`` may be ``None`` when upstream data is unavailable.
 
@@ -241,7 +241,7 @@ class SentiSenseClient:
         return self._parse(self._get(f"/api/v1/stocks/{ticker}/quote").json(), StockQuote)
 
     def get_stock_prices(self, tickers: List[str]) -> List[StockPrice]:
-        """Get real-time stock prices for multiple tickers.
+        """Get the latest stock prices for multiple tickers, delayed 15 minutes.
 
         See :meth:`get_stock_price` for the per-ticker payload shape including the
         nested ``extendedHours`` object during pre/post sessions.

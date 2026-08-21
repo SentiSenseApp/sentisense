@@ -9,6 +9,30 @@
   only declared a `name` field that the API never sends, so every row came back with an empty
   name. `simpleName` and `companyName` are now real fields, and `name` falls back to
   `simpleName` so existing code reads a name instead of `""`.
+- **The price methods no longer describe themselves as real-time.** `get_stock_price` and
+  `get_stock_prices` said "real-time" while the `StockPrice` model they return said
+  "delayed 15 minutes". The delay is the true one, and it is now stated in both places.
+  Read `priceAsOf` for the actual age of a reading.
+- **The insider transaction fields no longer imply that `transactionType` is enough.**
+  Filtering to `BUY`/`SELL` was documented as the way to tally open-market activity, but
+  Form 4 code `F`, shares withheld by the issuer to cover taxes at vest, arrives typed as
+  `SELL`, so that filter overstates selling. Both fields now say to read the raw
+  `transactionCode` and keep only `P` and `S`.
+- **The README documented `get_stories(expanded=...)`, which is not an argument.** The
+  method takes `limit`, `days`, `offset` and `filter_hours`.
+- **The API key link pointed at a retired path.** Keys are issued at
+  `app.sentisense.ai/get-api-key`.
+
+### Changed
+
+- **The README was reorganized.** It opens with what the SDK covers, the feature list and
+  the key and docs links, then a contents list, then Install, Quick Start, Authentication
+  and Configuration, Response Shapes, the API reference grouped by subject, and Error
+  Handling. The client's constructor options and the two response wrappers were previously
+  undocumented, and roughly half the client's methods were missing from the reference:
+  insider trading, congressional trading, insights, earnings calendar, market mood,
+  indexes, trackers, quotes, peers, headline sentiment and the market summary are all
+  documented now.
 
 ### Added
 
@@ -302,3 +326,145 @@ breaks only code that was already failing.
 - `get_institutional_flows`: `report_date` is now optional (omit it for the latest quarter);
   added quarter coverage fields.
 - `get_market_summary`: `total_mentions` / `top_active_stocks` documented as no longer populated.
+
+---
+
+The entries below cover releases that shipped before this file existed. They were
+reconstructed from the commit history, so they are terser than the ones above and record
+what changed rather than why. Only versions that reached PyPI are listed: several numbers
+were bumped locally and their work went out inside the next published release, which is
+noted where it happened.
+
+## 0.27.0
+
+- `youtube` added to the document source vocabulary.
+- Documented the metric value scalar and the transaction-type vocabulary.
+
+## 0.26.0
+
+- `sort` parameter on `get_documents_by_source`.
+
+## 0.25.0
+
+- The search, source and entity document methods return a typed `DocumentSearchResponse`
+  instead of a bare dict.
+- Structured `assetMetadata` on congressional trades (asset kind, and option type, strike
+  and expiry where the disclosure is an option).
+- `movingAverage200Day` on `StockQuote`.
+- 0.23.0 and 0.24.0 were bumped locally; their work went out in this release.
+
+## 0.22.1
+
+- Documented bare `tickers` against formatted `displayTickers` on `Story`.
+- `get_sentiment_by_source` repointed to the v2 metrics endpoint. The method was later
+  removed in 0.29.0 along with the rest of the v1 metrics family.
+- Unit tests updated to match the typed response models.
+
+## 0.22.0
+
+- Earnings calendar endpoint and its types.
+- `accessTier` on tracker listings.
+
+## 0.21.1
+
+- `list_trackers()` and `get_tracker()` for the unified trackers API.
+- Fixed the preview unwrap on `get_tracker`, and added citation fields to tracker metrics.
+
+## 0.21.0
+
+- `list_institutions()` for institution discovery.
+- `total_count` surfaced on `PreviewResult`.
+- Fundamentals, short interest, float, short volume and knowledge base entity methods.
+- `kbEntityId` on `SimilarStock` deprecated.
+- 0.20.0 was bumped locally; its work went out in this release.
+
+## 0.19.0
+
+- `get_fundamentals_periods()`.
+- `PreviewResult.data`, so list-wrapped endpoints have a payload accessor that does not
+  depend on attribute delegation.
+- Clarified the units of `weightCovered` on the ETF aggregates.
+
+## 0.18.0
+
+- ETF response cleanup: camelCase holdings keys, epoch-second timestamps, and
+  `topContributors` always populated rather than tier-dependent.
+- `StoryCluster.createdAt` renamed to `clusteredAt`, in epoch seconds.
+- `Story.brokeAt` widened to `Optional[int]`.
+- 0.16.1 and 0.17.0 were bumped locally; their work went out in this release.
+
+## 0.16.0
+
+- Typed the ETF aggregate responses.
+- `PreviewResult` falls back to dict-style access when the wrapped payload is a plain dict,
+  so the proxy stays transparent for endpoints without a typed model.
+
+## 0.15.0
+
+- ETF endpoints.
+- `ExtendedHoursInfo`, and the current `currentPrice` semantics: it is always the
+  regular-session price, with extended-hours activity in a nested object.
+- Documented the `session` field on chart bars and the full timeframe set.
+- 0.13.0 and 0.14.0 were bumped locally; their work went out in this release.
+
+## 0.12.0
+
+- Analyst ratings, company KPIs, institution detail, market mood, and the range, latest
+  and user insight methods.
+- Typed KPI models, with `list_kpi_coverage()` and `get_kpi_types()`.
+- 0.11.0 was bumped locally; its work went out in this release.
+
+## 0.10.1
+
+- `get_stock_quote()` and `get_similar_stocks()`.
+- Typed dataclasses with dict-style access preserved, and the preview envelope unwrapped
+  automatically into `PreviewResult`.
+- `avgClosePrice` and `dollarFlowUsd` on `InstitutionalFlow`.
+- 0.10.0 was bumped locally; its work went out in this release.
+
+## 0.9.0
+
+- The same code as 0.8.1, published the same day. The bump promoted the congressional
+  trading endpoints and the unified response wrapper from a patch to a minor release.
+
+## 0.8.1
+
+- Congressional trading endpoints.
+- Automatic retry with backoff on failed requests.
+- Corrected the return types and docstrings on the institutional and metrics methods.
+
+## 0.8.0
+
+- Insights endpoints.
+
+## 0.7.0
+
+- Insider trading endpoints.
+
+## 0.6.0
+
+- `get_market_summary()`.
+
+## 0.5.0
+
+- The v2 metrics methods `get_metrics()` and `get_metrics_distribution()`.
+
+## 0.4.0
+
+- Further document and story response type updates.
+
+## 0.3.0
+
+- Document and story endpoint response types updated.
+
+## 0.2.1
+
+- `get_institutional_flows()` corrected for the split inflows and outflows response shape.
+
+## 0.2.0
+
+- News, social media and sentiment endpoints.
+
+## 0.1.0
+
+- First release.

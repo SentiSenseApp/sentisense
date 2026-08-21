@@ -461,9 +461,13 @@ class InsiderTrade(APIModel):
     tenPctOwner: bool = False
     transactionDate: str = ""
     filedDate: str = ""
+    # Raw SEC Form 4 code. Only "P" and "S" are open-market trades; "F" is shares withheld
+    # by the issuer to cover taxes at vest, which is a corporate mechanic rather than a
+    # decision to sell. Tally discretionary buying and selling from this field.
     transactionCode: str = ""
-    # "BUY" | "SELL" | "EXERCISE" | "AWARD" | "GIFT" | "OTHER". For an open-market buys/sells
-    # tally filter to BUY/SELL only. Insider uses BUY/SELL, NOT the congress PURCHASE/SALE vocab.
+    # "BUY" | "SELL" | "EXERCISE" | "AWARD" | "GIFT" | "OTHER". A simplification of
+    # transactionCode, so code "F" arrives here as "SELL": filtering to BUY/SELL alone
+    # overstates selling. Insider uses BUY/SELL, NOT the congress PURCHASE/SALE vocab.
     transactionType: str = ""
     securityTitle: str = ""
     sharesTransacted: int = 0
