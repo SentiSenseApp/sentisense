@@ -821,6 +821,275 @@ class InstitutionalFlows(APIModel):
         )
 
 
+# ── Options types ───────────────────────────────────────────
+#
+# Every reading in this family is end of day, and every percentile is measured against
+# that ticker's OWN trailing history rather than against other tickers. Fields the server
+# cannot compute are omitted from the JSON entirely, so each one defaults to ``None``:
+# an omitted percentile means "not enough history yet", never zero.
+
+
+@dataclass
+class OptionsAggregate(APIModel):
+    """One session's options aggregate for a ticker.
+
+    Shared by the dossier's ``latest`` and by every element of an
+    :class:`OptionsHistory` series, so a chart built off one reads the other.
+    """
+
+    date: Optional[str] = None
+    callVol: Optional[int] = None
+    putVol: Optional[int] = None
+    callOi: Optional[int] = None
+    putOi: Optional[int] = None
+    pcVol: Optional[float] = None
+    """Put/call volume ratio. Omitted when call volume is zero."""
+    pcOi: Optional[float] = None
+    """Put/call open-interest ratio."""
+    vwIv: Optional[float] = None
+    """Volume-weighted implied volatility."""
+    atmIv: Optional[float] = None
+    """At-the-money implied volatility as a fraction, so ``0.42`` is 42%."""
+    skew25d: Optional[float] = None
+    """``iv25p - iv25c``: positive means puts are bid up relative to calls."""
+    atmIv60: Optional[float] = None
+    """Roughly 60-day at-the-money implied volatility: the term structure."""
+    atmIv90: Optional[float] = None
+    """Roughly 90-day at-the-money implied volatility."""
+    iv25c: Optional[float] = None
+    """Raw 25-delta call implied volatility."""
+    iv25p: Optional[float] = None
+    """Raw 25-delta put implied volatility."""
+    netDelta: Optional[float] = None
+    notionalVol: Optional[float] = None
+    """Premium traded this session: volume times mark times 100."""
+    contracts: Optional[int] = None
+
+
+@dataclass
+class OptionsContext(APIModel):
+    """Percentiles of an :class:`OptionsAggregate`, against the ticker's own history.
+
+    A percentile whose trailing window holds too few observations is omitted while the
+    baseline builds, which is why a covered ticker can answer with readings and no
+    percentiles at all.
+    """
+
+    pcVolPctl1y: Optional[float] = None
+    pcVolPctl5y: Optional[float] = None
+    pcOiPctl1y: Optional[float] = None
+    ivRank1y: Optional[float] = None
+    """Where today's at-the-money implied volatility sits in its own trailing year, 0-100."""
+    skewPctl1y: Optional[float] = None
+    observations1y: Optional[int] = None
+
+
+@dataclass
+class OptionsWall(APIModel):
+    """One open-interest concentration at a strike."""
+
+    strike: Optional[float] = None
+    oi: Optional[int] = None
+
+
+@dataclass
+class OptionsOiWalls(APIModel):
+    """Open-interest wall structure for the dossier's expiry, up to three walls a side."""
+
+    expiry: Optional[str] = None
+    maxPain: Optional[float] = None
+    callWalls: List[OptionsWall] = field(default_factory=list)
+    putWalls: List[OptionsWall] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsOiWalls":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            expiry=data.get("expiry"),
+            maxPain=data.get("maxPain"),
+            callWalls=[OptionsWall.from_dict(w) for w in (data.get("callWalls") or [])],
+            putWalls=[OptionsWall.from_dict(w) for w in (data.get("putWalls") or [])],
+        )
+
+
+@dataclass
+class OptionsUnusualContract(APIModel):
+    """A contract whose session volume far exceeds its open interest: fresh positioning."""
+
+    contract: Optional[str] = None
+    """Exchange-style option symbol, e.g. ``"NVDA260821C00200000"``."""
+    type: Optional[str] = None
+    """Side of the contract. Arrives lower case, so compare case-insensitively."""
+    strike: Optional[float] = None
+    expiry: Optional[str] = None
+    dte: Optional[int] = None
+    """Days to expiry."""
+    volume: Optional[int] = None
+    oi: Optional[int] = None
+    volOiRatio: Optional[float] = None
+    premium: Optional[float] = None
+
+
+@dataclass
+class OptionsSummary(APIModel):
+    """The end-of-day options dossier for one stock or ETF.
+
+    ``asOf`` is the latest completed session and the data refreshes the following
+    morning, so this is positioning rather than a quote feed.
+    """
+
+    asOf: Optional[str] = None
+    sentiment: Optional[float] = None
+    """Positioning lean for the session, roughly -1 to 1, negative for put-heavy."""
+    latest: Optional[OptionsAggregate] = None
+    context: Optional[OptionsContext] = None
+    oiWalls: Optional[OptionsOiWalls] = None
+    unusual: List[OptionsUnusualContract] = field(default_factory=list)
+    """Top contracts by premium."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsSummary":
+        if data is None:
+            return None  # type: ignore[return-value]
+        # `is not None`, never truthiness: a ticker whose baseline is still building sends
+        # `context: {}`, an empty-but-present object. Treated as falsy that becomes a None
+        # context, which reads as "the server said nothing about percentiles" when it in
+        # fact said "there are none yet". Same for the other nested objects.
+        return cls(
+            asOf=data.get("asOf"),
+            sentiment=data.get("sentiment"),
+            latest=(
+                OptionsAggregate.from_dict(data["latest"])
+                if data.get("latest") is not None
+                else None
+            ),
+            context=(
+                OptionsContext.from_dict(data["context"])
+                if data.get("context") is not None
+                else None
+            ),
+            oiWalls=(
+                OptionsOiWalls.from_dict(data["oiWalls"])
+                if data.get("oiWalls") is not None
+                else None
+            ),
+            unusual=[OptionsUnusualContract.from_dict(u) for u in (data.get("unusual") or [])],
+        )
+
+
+@dataclass
+class OptionsHistory(APIModel):
+    """The daily options aggregates for one ticker as a time series, oldest first.
+
+    Unlike the dossier, this never reports no coverage with a null payload: an uncovered
+    ticker, an unknown symbol and a covered ticker with nothing stored yet all answer with
+    this object and an empty ``series``, so check the list rather than the payload.
+
+    ``window`` echoes what the server actually served, which need not be what was asked
+    for: an unrecognised value clamps to ``"1y"``, and a free key is held at ``"1y"``
+    whatever it requests.
+    """
+
+    ticker: Optional[str] = None
+    window: Optional[str] = None
+    series: List[OptionsAggregate] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsHistory":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            ticker=data.get("ticker"),
+            window=data.get("window"),
+            series=[OptionsAggregate.from_dict(s) for s in (data.get("series") or [])],
+        )
+
+
+@dataclass
+class OptionsOverviewRow(APIModel):
+    """One ticker's row on the market-wide options radar.
+
+    A row whose baseline is still building carries its raw readings with the percentiles
+    and ``interestScore`` omitted, so missing scores mean "not enough history yet".
+    """
+
+    ticker: Optional[str] = None
+    name: Optional[str] = None
+    """Company name, or the fund name on an ETF row. Omitted when unmapped."""
+    sector: Optional[str] = None
+    """Sector on a stock row. On an ETF row this carries the fund's asset class
+    (``"Equity"``, ``"Bond"``, ``"Commodity"``, ...) rather than a sector, so the two
+    boards' values must not feed one sector breakdown."""
+    asOf: Optional[str] = None
+    sentiment: Optional[float] = None
+    """Options-implied positioning lean, roughly -1 to 1, negative for put-heavy."""
+    interestScore: Optional[float] = None
+    """Composite 0-100 blend of how extreme this row's readings are."""
+    pcVol: Optional[float] = None
+    pcVolPctl1y: Optional[float] = None
+    atmIv: Optional[float] = None
+    ivRank1y: Optional[float] = None
+    skew25d: Optional[float] = None
+    skewPctl1y: Optional[float] = None
+    notionalVol: Optional[float] = None
+    ivMove20: Optional[float] = None
+    """Signed change of ``atmIv`` against its ~20-session mean. Rank by absolute value."""
+    observations1y: Optional[int] = None
+    unusualCount: Optional[int] = None
+    maxVolOiRatio: Optional[float] = None
+    maxUnusualPremium: Optional[float] = None
+    wallSide: Optional[str] = None
+    """Side of the single heaviest open-interest wall, ``"call"`` or ``"put"``."""
+    wallStrike: Optional[float] = None
+    wallShare: Optional[float] = None
+    """That wall's share of its own side's open interest, 0 to 1."""
+
+
+@dataclass
+class OptionsOverview(APIModel):
+    """The market-wide options radar: two separately-ranked boards plus their aggregates.
+
+    ``rows`` is the covered stock universe and ``etfRows`` is the covered ETF universe,
+    each already sorted by ``interestScore`` descending with unscored building-baseline
+    rows last. Do not concatenate them. Every reading behind a row's score is a percentile
+    of that ticker's own past, so an ETF's 90th percentile and a stock's 90th percentile
+    are measured against different histories and a combined ranking means nothing.
+
+    The aggregates split the same way: ``medianIvRank``, ``marketPcVol``, ``extremeCount``
+    and ``coverageCount`` describe the stock board alone, and the ``etf``-prefixed fields
+    describe the ETF board. On a free key ``etfTotalCount`` reports the full ETF board the
+    way the envelope's ``total_count`` reports the full stock board.
+    """
+
+    asOf: Optional[str] = None
+    medianIvRank: Optional[float] = None
+    marketPcVol: Optional[float] = None
+    extremeCount: Optional[int] = None
+    coverageCount: Optional[int] = None
+    rows: List[OptionsOverviewRow] = field(default_factory=list)
+    etfRows: List[OptionsOverviewRow] = field(default_factory=list)
+    etfMedianIvRank: Optional[float] = None
+    etfMarketPcVol: Optional[float] = None
+    etfExtremeCount: Optional[int] = None
+    etfCoverageCount: Optional[int] = None
+    etfTotalCount: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsOverview":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        kwargs = {
+            k: v for k, v in data.items() if k in known and k not in ("rows", "etfRows")
+        }
+        kwargs["rows"] = [OptionsOverviewRow.from_dict(r) for r in (data.get("rows") or [])]
+        kwargs["etfRows"] = [
+            OptionsOverviewRow.from_dict(r) for r in (data.get("etfRows") or [])
+        ]
+        return cls(**kwargs)
+
+
 # ── KPI types ───────────────────────────────────────────────
 
 

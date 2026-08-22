@@ -35,6 +35,9 @@ from sentisense.types import (
     KpiTypeEntry,
     MarketStatus,
     MarketSummary,
+    OptionsHistory,
+    OptionsOverview,
+    OptionsSummary,
     EtfScreenerResults,
     FeaturedScreen,
     PoliticianDetail,
@@ -771,6 +774,97 @@ class SentiSenseClient:
         return self._unwrap(
             self._get("/api/v1/earnings/recent", params=params).json(),
             list_cls=RecentEarningsEntry,
+        )
+
+    # ── Options endpoints ───────────────────────────────────────
+
+    def get_options_overview(self) -> PreviewResult[OptionsOverview]:
+        """Get the market-wide options radar: where implied volatility, put/call flow
+        and skew are unusual today, ranked.
+
+        End of day, not live. ``asOf`` is the latest completed session and the build
+        refreshes the following morning, so this is positioning, not a quote feed.
+
+        The response carries **two separately-ranked boards**: ``result.rows`` for the
+        covered stock universe and ``result.etfRows`` for the covered ETFs. Do not merge
+        them. Every reading behind a row's ``interestScore`` is a percentile of that
+        ticker's own trailing history, so a ranking built across both boards compares
+        numbers measured against different baselines. The aggregates split the same way,
+        with the ``etf``-prefixed fields describing the ETF board alone.
+
+        Auto-unwrapped. Access via ``result.rows``, ``result.etfRows`` and the aggregate
+        fields; check ``result.is_preview`` for tier status. ``result.data`` is ``None``
+        before the first nightly build populates it, which is a cold start rather than an
+        error.
+
+        A free key receives the top 25 stock rows plus every aggregate, with
+        ``result.total_count`` reporting the full stock board and ``result.etfTotalCount``
+        the full ETF board. A PRO key receives every row.
+        """
+        return self._unwrap(
+            self._get("/api/v1/options/overview").json(),
+            item_cls=OptionsOverview,
+        )
+
+    def get_stock_options_summary(self, ticker: str) -> PreviewResult[OptionsSummary]:
+        """Get the end-of-day options dossier for one stock or ETF: the session's
+        aggregate, its percentile context, the open-interest walls with max pain, and the
+        contracts whose volume ran far ahead of their open interest.
+
+        ``result.data`` is ``None`` for a ticker outside the covered universe, which is
+        the most actively optioned US names plus the tracked ETFs, and for a covered
+        ticker with no snapshot yet. An unknown symbol behaves the same way rather than
+        raising, so read a ``None`` as "no coverage", never as an error. A covered ticker
+        still building its baseline returns its readings with the percentiles omitted.
+
+        Percentiles compare a ticker to its own past, never to another ticker.
+
+        Auto-unwrapped. Access via ``result.latest``, ``result.context``,
+        ``result.oiWalls`` and ``result.unusual``; check ``result.is_preview`` for tier
+        status. A free key receives the full dossier for the first ten calls each calendar
+        month and a headline-only preview after that; calls that return no dossier do not
+        spend that allowance.
+
+        Args:
+            ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/stocks/{ticker.upper()}/options/summary").json(),
+            item_cls=OptionsSummary,
+        )
+
+    def get_stock_options_history(
+        self, ticker: str, window: str = "1y"
+    ) -> PreviewResult[OptionsHistory]:
+        """Get the daily options aggregates for one stock or ETF as a time series,
+        oldest first. Use it to chart how a reading has trended: implied volatility,
+        put/call flow, skew.
+
+        Each element of ``result.series`` has the same shape as the dossier's ``latest``
+        aggregate, so a chart built off :meth:`get_stock_options_summary` reads this
+        series without a second mapping.
+
+        **No coverage is an empty series here, not a null payload.** Unlike
+        :meth:`get_stock_options_summary`, an uncovered ticker, an unknown symbol and a
+        covered ticker with nothing stored yet all answer with a populated object whose
+        ``series`` is empty, so check the list's length rather than the payload.
+
+        The window served is not always the window requested: an unrecognised value
+        clamps to ``"1y"`` rather than raising, and a free key always receives ``"1y"``.
+        Read ``result.window`` for what you actually got.
+
+        Args:
+            ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
+            window: Trailing window, one of ``"1y"``, ``"2y"`` or ``"5y"``. Default
+                ``"1y"``. ``"5y"`` means all stored history, currently a little over two
+                years, so it can answer with nearly the same series as ``"2y"``.
+        """
+        return self._unwrap(
+            self._get(
+                f"/api/v1/stocks/{ticker.upper()}/options/history",
+                params={"window": window},
+            ).json(),
+            item_cls=OptionsHistory,
         )
 
     # ── Insider trading endpoints ───────────────────────────────

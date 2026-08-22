@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.44.0
+
+### Added
+
+- **Options Intelligence, new to this SDK.** `get_options_overview()` returns the market-wide
+  radar, `get_stock_options_summary(ticker)` returns one name's end-of-day dossier, and
+  `get_stock_options_history(ticker, window)` returns its daily aggregates as a series over
+  `1y`, `2y` or `5y`.
+- Typed models for all of it, exported from the package root: `OptionsOverview`,
+  `OptionsOverviewRow`, `OptionsSummary`, `OptionsHistory`, `OptionsAggregate`,
+  `OptionsContext`, `OptionsOiWalls`, `OptionsWall`, `OptionsUnusualContract`.
+
+Two shapes to know before charting any of it. The radar's `rows` and `etfRows` are
+separately-ranked boards with their own aggregates and must not be merged, because every
+reading behind a row's score is a percentile of that ticker's own history rather than of the
+board. And the two per-ticker methods report no coverage differently: the dossier returns a
+`None` payload, the history returns an empty `series`.
+
 ## 0.43.0
 
 ### Fixed

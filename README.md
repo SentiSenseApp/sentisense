@@ -227,6 +227,20 @@ On a story, `tickers` holds bare symbols and `displayTickers` holds the formatte
 
 Each trade row carries both the raw SEC `transactionCode` and a simplified `transactionType`. Only codes `P` and `S` are open-market trades. Awards, gifts, exercises and code `F`, which is shares withheld by the issuer to cover taxes at vest, are corporate mechanics rather than a decision to trade, and code `F` arrives typed as `SELL`. So filtering on `transactionType` alone overstates selling: read `transactionCode` when you tally discretionary buying or selling. The market-wide activity endpoint already excludes code `F` from its sells server-side.
 
+### Options
+
+End-of-day options positioning: where implied volatility, put/call flow and skew are unusual today, and how one name's readings have trended.
+
+| Method | Description |
+|--------|-------------|
+| `get_options_overview()` | Market-wide radar, ranked, stocks and ETFs as separate boards |
+| `get_stock_options_summary(ticker)` | One name's dossier: aggregate, percentiles, walls, unusual contracts |
+| `get_stock_options_history(ticker, window="1y")` | That name's daily aggregates as a series, `1y`, `2y` or `5y` |
+
+The radar carries two separately-ranked boards, `rows` for stocks and `etfRows` for ETFs, each with its own aggregates. Keep them apart: every reading behind a row's `interestScore` is a percentile of that ticker's own trailing history, so a ranking built across both boards compares numbers measured against different baselines. A row whose baseline is still building carries its raw readings with the percentiles and `interestScore` omitted, which means "not enough history yet" rather than "nothing interesting".
+
+The two per-ticker methods report no coverage differently, which is worth knowing before you write the check. `get_stock_options_summary` returns a `None` payload for an uncovered or unknown ticker; `get_stock_options_history` returns a populated object with an empty `series` instead. The history also echoes the `window` the server actually served, which need not be the one you asked for: an unrecognised value clamps to `1y`, and so does any free key.
+
 ### Congressional trading
 
 | Method | Description |
