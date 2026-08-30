@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.45.0
+
+### Added
+
+- `EtfInfo.imageUrl`: the curated landscape card image for a fund, returned by
+  `list_etfs()`. It is a wide presentation image rather than a square logo mark, so it
+  suits a list row or a profile header. `None` when a fund has no curated image.
+- `get_stock_profile()` carries the same `imageUrl` for a tracked ETF ticker. The
+  method already returns the raw payload, so this is a documentation change only.
+
 ## 0.44.0
 
 ### Added

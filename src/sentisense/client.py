@@ -257,6 +257,11 @@ class SentiSenseClient:
         A stock that has stopped trading, or is scheduled to, also carries
         ``listingStatus``, ``delistedDate`` and ``delistingReason``; see
         :class:`~sentisense.types.StockPrice` for what those values mean.
+
+        For a tracked ETF ticker the profile may also carry ``imageUrl``, the
+        same curated landscape card returned by :meth:`list_etfs`. It is
+        separate from ``logoUrl`` and ``iconUrl``, which are square branding
+        marks, and is absent when no curated image is assigned.
         """
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 

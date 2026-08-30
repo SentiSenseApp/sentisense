@@ -1215,6 +1215,10 @@ class EtfInfo(APIModel):
     issuer: Optional[str] = None
     trackedIndex: Optional[str] = None
     assetClass: Optional[str] = None
+    # Curated landscape card image for the fund, suitable for a list row or a
+    # profile header. Distinct from a square logo mark. None when the fund has
+    # no curated image assigned.
+    imageUrl: Optional[str] = None
 
 
 @dataclass
