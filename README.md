@@ -311,6 +311,34 @@ The price target cone (mean, high, low, upside percent) and the consensus are fr
 | `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrades and downgrades. Free: the 3 most recent |
 | `get_analyst_estimates(ticker)` | Forward EPS estimates and surprise history. Free: 1 quarter |
 | `get_analyst_market_activity(lookback_days=30)` | Market-wide analyst actions across all covered tickers (PRO) |
+| `get_analyst_coverage(ticker, lookback_days=None)` | Who covers this stock, grouped by firm. Free: the 5 most recently active firms |
+| `get_analyst_profile(slug)` | One analyst: firms published under, and their coverage book. Free: 5 tickers |
+| `get_analyst_calls(slug, limit=None, offset=None)` | One analyst's price target notes, newest first, paged. Free: the first 25 |
+
+Coverage answers "who covers this stock and what did they say" in one call, and it is the entry point into the per-analyst surfaces: every named analyst carries the slug that addresses their profile and their calls.
+
+```python
+result = client.get_analyst_coverage("NVDA", lookback_days=365)
+book = result.data
+
+print(f"{book['firmCount']} firms, {book['namedAnalystCount']} named analysts")
+print(f"{book['attributedNoteCount']} of {book['noteCount']} notes name someone")
+
+for row in book["coverage"][:5]:
+    if row["noteCount"] == 0:
+        # A desk can cover a stock on rating actions alone, with no price target.
+        print(f"{row['firm']}: rating only, {row['firmRating']['rating']}")
+        continue
+    note = row["latestNote"]
+    who = note["analyst"] or "unattributed"
+    print(f"{row['firm']}: {note['priceTarget']} ({who}, {note['publishedDate']})")
+
+    for analyst in row["analysts"]:
+        calls = client.get_analyst_calls(analyst["slug"], limit=10)
+        print(f"  {analyst['name']}: {calls.total_count} notes on record")
+```
+
+Two shapes to read rather than assume. A firm can appear with `noteCount` 0, a `None` `latestNote` and a populated `firmRating`, because coverage means a price target **or** a rating action in the window. And a large, publisher-dependent share of notes name no individual, so an empty `analysts` list alongside a non-zero `noteCount` is normal: read `attributedNoteCount` and `unattributedNoteCount` on the response you received rather than hardcoding a rate. The response-level counts survive the free truncation, so they describe the whole window even when only 5 rows come back.
 
 ### Earnings
 

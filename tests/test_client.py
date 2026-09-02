@@ -1132,3 +1132,292 @@ class TestStockQuoteReportedCurrency:
         result = client.get_stock_quote("TSM")
         assert result.reportedCurrency is None
         assert result.epsTTM is None
+
+
+class TestAnalystCoverage:
+    """Who covers a ticker, grouped by firm.
+
+    The response-level counts survive the FREE truncation, so a caller reading
+    ``firmCount`` off a 5-row preview is reading the whole window. The row shapes
+    that follow are the two the docs warn about: a firm with a rating and no note,
+    and a note that names nobody.
+    """
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_lookback_leaves_the_window_to_the_server(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {}})
+        client.get_analyst_coverage("amd")
+        mock_get.assert_called_once_with("/api/v1/analyst/AMD/coverage", params={})
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_lookback_days_is_sent(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {}})
+        client.get_analyst_coverage("AMD", lookback_days=180)
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/AMD/coverage", params={"lookbackDays": 180}
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_counts_describe_the_window_not_the_returned_rows(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": True,
+                "previewReason": "PRO_REQUIRED",
+                "data": {
+                    "ticker": "AMD",
+                    "windowDays": 365,
+                    "asOf": "2026-09-01",
+                    "firmCount": 41,
+                    "ratingOnlyFirmCount": 6,
+                    "namedAnalystCount": 27,
+                    "noteCount": 97,
+                    "attributedNoteCount": 53,
+                    "unattributedNoteCount": 44,
+                    "attributionNote": "Publishers name the individual analyst on some notes and not others.",
+                    "coverage": [
+                        {
+                            "firm": "Deutsche Bank",
+                            "analysts": [],
+                            "noteCount": 1,
+                            "attributedNoteCount": 0,
+                            "unattributedNoteCount": 1,
+                            "firstNote": "2025-11-20",
+                            "lastNote": "2025-11-20",
+                            "latestNote": {
+                                "publishedDate": "2025-11-20",
+                                "analyst": None,
+                                "priceTarget": 215.0,
+                            },
+                            "firmRating": {
+                                "rating": "Buy",
+                                "priorRating": "Buy",
+                                "actionType": "REITERATE",
+                                "date": "2026-08-31",
+                            },
+                        }
+                    ],
+                },
+            }
+        )
+        result = client.get_analyst_coverage("AMD")
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"
+        # One row returned, but the counts still size the whole window.
+        assert len(result.data["coverage"]) == 1
+        assert result.firmCount == 41
+        assert result.ratingOnlyFirmCount == 6
+        # A note that names nobody is still counted and still returned.
+        assert result.data["coverage"][0]["analysts"] == []
+        assert result.data["coverage"][0]["latestNote"]["analyst"] is None
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_rating_only_firm_has_no_note(self, mock_get, client):
+        # A desk whose price target feed went quiet still covers the stock: the row
+        # carries a firmRating with noteCount 0 and a null latestNote.
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "data": {
+                    "ticker": "AMD",
+                    "firmCount": 1,
+                    "ratingOnlyFirmCount": 1,
+                    "coverage": [
+                        {
+                            "firm": "Citigroup",
+                            "analysts": [],
+                            "noteCount": 0,
+                            "firstNote": None,
+                            "lastNote": None,
+                            "latestNote": None,
+                            "firmRating": {
+                                "rating": "Buy",
+                                "priorRating": "Buy",
+                                "actionType": "REITERATE",
+                                "date": "2026-08-27",
+                            },
+                        }
+                    ],
+                },
+            }
+        )
+        row = client.get_analyst_coverage("AMD").data["coverage"][0]
+        assert row["noteCount"] == 0
+        assert row["latestNote"] is None
+        assert row["firmRating"]["rating"] == "Buy"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_named_analyst_carries_the_profile_slug(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "data": {
+                    "ticker": "NVDA",
+                    "coverage": [
+                        {
+                            "firm": "DA Davidson",
+                            "analysts": [
+                                {
+                                    "slug": "gil-luria",
+                                    "name": "Gil Luria",
+                                    "noteCount": 3,
+                                    "firstNote": "2025-09-22",
+                                    "lastNote": "2026-08-27",
+                                    "latestPriceTarget": 300.0,
+                                }
+                            ],
+                            "noteCount": 3,
+                        }
+                    ],
+                },
+            }
+        )
+        analyst = client.get_analyst_coverage("NVDA").data["coverage"][0]["analysts"][0]
+        assert analyst["slug"] == "gil-luria"
+
+    def test_unknown_ticker_raises_not_found_error(self, client):
+        with patch.object(
+            client.session, "get", return_value=_mock_response(404, {}, "Not Found")
+        ):
+            with pytest.raises(NotFoundError):
+                client.get_analyst_coverage("NOSUCHTICKER")
+
+
+class TestAnalystProfile:
+    @patch.object(SentiSenseClient, "_get")
+    def test_hits_the_people_path(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {}})
+        client.get_analyst_profile("dan-ives")
+        mock_get.assert_called_once_with("/api/v1/analyst/people/dan-ives")
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_free_book_is_truncated_and_total_count_sizes_it(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": True,
+                "previewReason": "PRO_REQUIRED",
+                "totalCount": 24,
+                "data": {
+                    "slug": "gil-luria",
+                    "name": "Gil Luria",
+                    "role": "sell_side_equity",
+                    "mostRecentFirm": "DA Davidson",
+                    "firms": [
+                        {
+                            "firm": "DA Davidson",
+                            "firstSeen": "2023-01-05",
+                            "lastSeen": "2026-08-27",
+                            "mostRecent": True,
+                        }
+                    ],
+                    "firstSeen": "2023-01-05",
+                    "lastSeen": "2026-08-27",
+                    "noteCount": 60,
+                    "tickerCount": 24,
+                    "coverage": [
+                        {
+                            "ticker": "NVDA",
+                            "noteCount": 5,
+                            "firstNote": "2024-05-23",
+                            "lastNote": "2026-08-27",
+                            "latestPriceTarget": 300.0,
+                            "latestFirm": "DA Davidson",
+                        }
+                    ],
+                },
+            }
+        )
+        result = client.get_analyst_profile("gil-luria")
+        assert result.is_preview is True
+        assert result.total_count == 24
+        assert result.slug == "gil-luria"
+        assert result.mostRecentFirm == "DA Davidson"
+        assert len(result.data["coverage"]) == 1
+
+    def test_unknown_slug_raises_not_found_error(self, client):
+        with patch.object(
+            client.session, "get", return_value=_mock_response(404, {}, "Not Found")
+        ):
+            with pytest.raises(NotFoundError):
+                client.get_analyst_profile("no-such-analyst")
+
+
+class TestAnalystCalls:
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_paging_leaves_it_to_the_server(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": []})
+        client.get_analyst_calls("dan-ives")
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/people/dan-ives/calls", params={}
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_limit_and_offset_are_sent(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": []})
+        client.get_analyst_calls("dan-ives", limit=50, offset=25)
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/people/dan-ives/calls",
+            params={"limit": 50, "offset": 25},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_offset_zero_is_sent(self, mock_get, client):
+        # offset=0 is a real value, not "unset": it must survive the None check.
+        mock_get.return_value = _mock_response(json_data={"data": []})
+        client.get_analyst_calls("dan-ives", limit=5, offset=0)
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/people/dan-ives/calls",
+            params={"limit": 5, "offset": 0},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_total_count_sizes_the_history(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "totalCount": 60,
+                "data": [
+                    {
+                        "publishedDate": "2026-08-27",
+                        "ticker": "NVDA",
+                        "firm": "DA Davidson",
+                        "priceTarget": 300.0,
+                        "adjPriceTarget": 300.0,
+                        "priceWhenPosted": 225.64,
+                        "newsTitle": "DA Davidson Reiterates Buy Rating on NVIDIA",
+                        "newsUrl": "https://example.com/note",
+                        "newsPublisher": "StreetInsider",
+                    }
+                ],
+            }
+        )
+        result = client.get_analyst_calls("gil-luria", limit=1)
+        assert result.total_count == 60
+        assert len(result) == 1
+        assert result[0]["ticker"] == "NVDA"
+        # One row of sixty: another page is available.
+        assert 0 + len(result.data) < result.total_count
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_deep_offset_previews_on_a_free_key(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": True,
+                "previewReason": "PRO_REQUIRED",
+                "totalCount": 60,
+                "data": [],
+            }
+        )
+        result = client.get_analyst_calls("gil-luria", limit=25, offset=50)
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"
+        assert result.data == []
+
+    def test_unknown_slug_raises_not_found_error(self, client):
+        with patch.object(
+            client.session, "get", return_value=_mock_response(404, {}, "Not Found")
+        ):
+            with pytest.raises(NotFoundError):
+                client.get_analyst_calls("no-such-analyst")

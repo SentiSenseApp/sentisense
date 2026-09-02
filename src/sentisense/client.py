@@ -1258,6 +1258,128 @@ class SentiSenseClient:
             ).json(),
         )
 
+    def get_analyst_coverage(
+        self,
+        ticker: str,
+        lookback_days: Optional[int] = None,
+    ) -> PreviewResult[Dict[str, Any]]:
+        """Get who covers a ticker and what they most recently said, grouped by firm.
+
+        The one-call answer to "who covers AMD and what do they say". Each row in
+        ``data["coverage"]`` is a firm, the individual analysts we can name on that
+        firm's desk, that firm's most recent price target note, and that firm's most
+        recent rating action. Rows are ordered by whichever came later, the firm's
+        last note or its last rating action.
+
+        Auto-unwrapped. A PRO key receives every firm; a FREE key receives the 5 most
+        recently active firms with every response-level count intact, so the counts
+        describe the full window even when the rows do not.
+
+        Two shapes to read rather than assume. **A firm can cover a stock without
+        publishing a price target**: the row then carries ``noteCount`` 0, a ``None``
+        ``latestNote`` and a populated ``firmRating``, so read ``noteCount`` on the row
+        instead of expecting a note. And **not every note names its analyst**: a large
+        and publisher-dependent share name nobody, so a firm can appear with an empty
+        ``analysts`` list and a non-zero ``noteCount``, and ``latestNote["analyst"]``
+        can be ``None``. Read ``attributedNoteCount`` and ``unattributedNoteCount`` on
+        the response you received rather than hardcoding a rate.
+
+        ``firmRating`` belongs to the firm, not to a person: rating actions are
+        published at firm level with no individual attached.
+
+        Each named analyst carries the ``slug`` that addresses
+        :meth:`get_analyst_profile`, so a coverage response is the natural entry point
+        into a profile.
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"AMD"``).
+            lookback_days: Coverage window in days, 1 to 1825. Omitted, the API applies
+                its own default of 365. Values above the cap are clamped rather than
+                rejected; ``data["windowDays"]`` reports the window actually applied.
+        """
+        params: Dict[str, Any] = {}
+        if lookback_days is not None:
+            params["lookbackDays"] = lookback_days
+        return self._unwrap(
+            self._get(
+                f"/api/v1/analyst/{ticker.upper()}/coverage", params=params
+            ).json(),
+        )
+
+    def get_analyst_profile(self, slug: str) -> PreviewResult[Dict[str, Any]]:
+        """Get one analyst: the firms they have published under, and their coverage book.
+
+        Auto-unwrapped. A PRO key receives the full book; a FREE key receives the
+        profile with ``data["coverage"]`` truncated to the 5 most recently covered
+        tickers, and ``result.total_count`` reporting how many there are in full.
+
+        ``firstSeen`` and ``lastSeen`` are observation windows, not employment dates:
+        they bound the notes we hold from that analyst at that firm. ``mostRecentFirm``
+        says where they last published, not where they work today. Do not render
+        either as a hire or departure date.
+
+        This is call history, not a scorecard. There is no accuracy score, hit rate or
+        ranking here, and nothing in the response should be read as a rating of the
+        person.
+
+        Args:
+            slug: Analyst slug, lowercased and hyphenated (e.g. ``"dan-ives"``). You do
+                not have to guess one: every named analyst in a
+                :meth:`get_analyst_coverage` response carries the slug that addresses
+                their profile.
+
+        Raises:
+            NotFoundError: The slug matches no analyst.
+        """
+        return self._unwrap(
+            self._get(f"/api/v1/analyst/people/{slug}").json(),
+        )
+
+    def get_analyst_calls(
+        self,
+        slug: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> PreviewResult[List[Dict[str, Any]]]:
+        """Get one analyst's price target notes, newest first, paged.
+
+        Auto-unwrapped: iterate ``result`` or read ``result.data``. Ordered by
+        published date descending with the row id as the final tie-break, a total
+        order, so walking the history with ``offset`` never drops or repeats a row.
+        That matters more than it looks: a single roundup article carries several of
+        one analyst's notes at an identical timestamp.
+
+        A FREE key receives the first 25 rows as a complete response
+        (``is_preview`` False); asking for a larger ``limit`` or an ``offset`` past row
+        25 returns the free in-allowance slice with ``preview_reason``
+        ``"PRO_REQUIRED"``. A PRO key pages the whole history.
+        ``result.total_count`` is the analyst's whole attributed history rather than
+        the page size, so ``offset + len(result.data) < result.total_count`` tells you
+        another page is available.
+
+        Dates are day granularity on purpose. Publisher timestamps are not comparable
+        across sources, so a time of day would advertise precision the data does not
+        have.
+
+        Args:
+            slug: Analyst slug (e.g. ``"dan-ives"``).
+            limit: Page size, 1 to 200. Omitted, the API applies its own default of 25.
+            offset: Rows to skip. Omitted, the API starts at 0.
+
+        Raises:
+            NotFoundError: The slug matches no analyst. An analyst we hold but who has
+                published nothing answers with an empty page instead, so the two cases
+                stay distinguishable.
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        return self._unwrap(
+            self._get(f"/api/v1/analyst/people/{slug}/calls", params=params).json(),
+        )
+
     # ── Knowledge Base (KB) endpoints ───────────────────────────
 
     def get_popular_kb_entities(self) -> List[Dict[str, Any]]:

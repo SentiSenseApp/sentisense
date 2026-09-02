@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.46.0
+
+### Added
+
+- **Analyst coverage by name, new to this SDK.** `get_analyst_coverage(ticker)` answers
+  "who covers this stock and what did they most recently say", grouped by firm and ordered
+  by most recent activity. `get_analyst_profile(slug)` returns one analyst: the firms they
+  have published under, the window of notes we hold at each, and their coverage book.
+  `get_analyst_calls(slug, limit=None, offset=None)` returns that analyst's price target
+  notes, newest first and paged.
+- The three surfaces link up: every named analyst on a coverage row carries the `slug` that
+  addresses their profile and their calls, so a ticker is one call away from a person's
+  full call history. An unknown slug raises `NotFoundError`, which keeps "we hold nothing
+  from this analyst" distinguishable from "this analyst does not exist".
+
+Two coverage shapes to read rather than assume. A firm can cover a stock on rating actions
+alone, with no price target: that row carries `noteCount` 0, a `None` `latestNote` and a
+populated `firmRating`. And a large, publisher-dependent share of notes name no individual
+analyst, so a firm can appear with an empty `analysts` list and a non-zero `noteCount`. Read
+`attributedNoteCount` and `unattributedNoteCount` off the response rather than hardcoding a
+rate. On a FREE key the rows truncate to 5 firms but every response-level count still
+describes the whole window.
+
 ## 0.45.0
 
 ### Added
