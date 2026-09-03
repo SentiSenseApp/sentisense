@@ -4,7 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/sentisense.svg)](https://pypi.org/project/sentisense/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Official Python SDK for the [SentiSense](https://sentisense.ai) market intelligence API: stock prices and fundamentals, news and social sentiment, the SentiSense Score, insider and congressional trading, institutional 13F flows, analyst ratings, earnings analysis, ETF aggregates, and a cross-signal screener.
+Official Python SDK for the [SentiSense](https://sentisense.ai) market intelligence API: stock prices and fundamentals, news and social sentiment, the SentiSense Score, the SentiSense Rating, insider and congressional trading, institutional 13F flows, analyst ratings, earnings analysis, ETF aggregates, and a cross-signal screener.
 
 - Typed dataclasses for every response, each one still readable with dict-style access
 - One flat client, so there are no resource namespaces to learn
@@ -185,9 +185,32 @@ Cash flow keys are `operatingCashFlow`, `investingCashFlow`, `financingCashFlow`
 | `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | Time series for one metric |
 | `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | A metric broken down by dimension, for example mentions by source |
 
-Metric types are `mentions`, `sentiment`, `sentisense_score`, `social_dominance` and `creators`. `start_time` and `end_time` are epoch **milliseconds**, unlike the epoch-second timestamps elsewhere in this SDK. Both metric methods accept a knowledge base entity slug as well as a ticker; slugs are case-insensitive and discoverable via `get_stock_entities`.
+Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance` and `creators`. `start_time` and `end_time` are epoch **milliseconds**, unlike the epoch-second timestamps elsewhere in this SDK. Both metric methods accept a knowledge base entity slug as well as a ticker; slugs are case-insensitive and discoverable via `get_stock_entities`. `sentisense_rating` is a time series only: it has no source breakdown, so `get_metrics_distribution` answers with an empty distribution for it.
 
 Sentiment polarity and the SentiSense Score are different readings. Polarity sits in `[-1, 1]`; the Score is sentiment weighted by attention, is unbounded, and is banded at 5, 13 and 23 either side of zero. Two fields in the headline response are in different units on purpose: `mentionShare` is a whole-number percent, rounded per source, so the per-source list sums to about 100 rather than exactly 100 and should not be used to reconstruct counts; `socialDominance` is a fraction, where `0.021` means 2.1%.
+
+### SentiSense Rating
+
+Where a stock ranks against the other stocks rated that day, as a letter and a percentile, plus the six dimensions the rank is blended from. It is a relative research signal for informational and educational purposes, not financial, investment or trading advice, and not a recommendation about any security. Every response carries the wording to display alongside a grade in `disclaimer`. [Methodology](https://sentisense.ai/methodology/#sentisense-rating).
+
+| Method | Description |
+|--------|-------------|
+| `get_rating(ticker)` | One stock's letter, percentile, dimensions and flags |
+
+```python
+rating = client.get_rating("AAPL")
+if rating.rated:
+    print(rating.letter, rating.percentile, "of", rating.ratedCount, "rated stocks")
+    for dim in rating.dimensions:
+        if dim.present:
+            print(" ", dim.label, dim.percentile)
+else:
+    print("no grade today:", rating.reason)
+```
+
+**Branch on `rated`, not on the presence of a field.** A rated stock carries `letter`, `percentile`, `composite`, `ratedCount` and `methodologyVersion`; an unrated one leaves all five `None` and carries `reason`, `dimensionsPresent` and `presentDimensions` instead. Not being rated is a normal `200`, not an error: ETFs and tickers outside the swept universe answer that way. `reason` is one of `stale`, `not_rated_today`, `insufficient_dimensions` or `insufficient_coverage_weight`.
+
+`dimensions` always holds all six rows in a fixed order, including the ones with no data, which arrive with `present` false and a `None` percentile. Read `present` first and never substitute zero for a missing percentile: zero is the bottom of the cross-section, absence is not a position on it. Only the smart-money dimension carries `subLegs`. `letter` is served as stored rather than derived from `percentile`, so read it instead of computing your own bucket edges. For the daily history of a stock's percentile, ask `get_metrics` for the `sentisense_rating` metric.
 
 ### News and documents
 

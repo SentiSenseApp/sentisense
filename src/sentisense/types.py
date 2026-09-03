@@ -1090,6 +1090,158 @@ class OptionsOverview(APIModel):
         return cls(**kwargs)
 
 
+# ── SentiSense Rating types ─────────────────────────────────
+#
+# The SentiSense Rating is an informational, relative rank: it places a stock against the
+# other stocks rated on the same day, across six dimensions. It is a research signal, not a
+# recommendation, and it carries no directive meaning about any security. Methodology:
+# https://sentisense.ai/methodology/#sentisense-rating
+
+
+@dataclass
+class RatingSubLeg(APIModel):
+    """One constituent leg behind a dimension's percentile.
+
+    Only the smart-money dimension carries legs today; every other dimension omits the
+    field entirely, so an empty list means "this dimension has no legs", never "the legs
+    were all zero".
+    """
+
+    key: Optional[str] = None
+    """Stable snake_case identifier, e.g. ``"inst_13f"``."""
+    label: Optional[str] = None
+    raw: Optional[float] = None
+    """The leg's natural-scale reading. ``None`` when the leg had no data."""
+    unit: Optional[str] = None
+    """``"%"`` for a percentage, ``"ratio"`` for a scale-free balance."""
+
+
+@dataclass
+class RatingDimension(APIModel):
+    """One of the six dimensions the composite is blended from.
+
+    **All six always arrive, in a fixed order, whether or not they had data.** An absent
+    dimension is a full row with ``present`` false and ``percentile`` ``None``; the server
+    never drops it, precisely so a client cannot mistake a gap for a five-dimension
+    rating. Read ``present`` before reading ``percentile``, and never substitute zero for
+    a ``None``: zero is the bottom of the cross-section, absence is not a position on it.
+    """
+
+    key: Optional[str] = None
+    """Stable snake_case identifier: ``crowd``, ``smart_money``, ``options``,
+    ``analysts``, ``fundamentals`` or ``earnings``."""
+    label: Optional[str] = None
+    """Display label, owned by the API so every surface agrees on the wording."""
+    percentile: Optional[float] = None
+    """The dimension's cross-sectional rank, 0 to 100. ``None`` when absent."""
+    raw: Optional[float] = None
+    """The natural-scale reading behind the percentile, when the dimension has one."""
+    rawLabel: Optional[str] = None
+    """What ``raw`` means and in what unit, e.g. ``"Operating margin, percent"``."""
+    present: bool = False
+    """Whether this dimension had data for this stock."""
+    subLegs: List[RatingSubLeg] = field(default_factory=list)
+    """Constituent legs, currently smart-money only. Empty for every other dimension."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RatingDimension":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known and k != "subLegs"}
+        kwargs["subLegs"] = [RatingSubLeg.from_dict(s) for s in (data.get("subLegs") or [])]
+        return cls(**kwargs)
+
+
+@dataclass
+class RatingFlag(APIModel):
+    """One anomaly flag evaluated alongside the rating.
+
+    Flags are informational and never move the composite. A flag the run could not
+    evaluate is absent from the list rather than reported inactive.
+    """
+
+    key: Optional[str] = None
+    """Stable snake_case identifier, e.g. ``"unusual_options_flow"``."""
+    label: Optional[str] = None
+    active: bool = False
+
+
+@dataclass
+class StockRating(APIModel):
+    """The SentiSense Rating for one stock: where it ranks against the day's rated set.
+
+    **One model, two shapes, and ``rated`` is the field to branch on.** A rated stock
+    carries ``letter``, ``percentile``, ``composite``, ``ratedCount`` and
+    ``methodologyVersion``; an unrated one carries ``reason``, ``dimensionsPresent`` and
+    ``presentDimensions`` instead, and leaves the first group ``None``. ``dimensions``,
+    ``flags``, ``asOf`` and ``disclaimer`` arrive either way, so a card can render the
+    composition of a stock that has no grade.
+
+    The rating is a *relative* research signal, informational and educational only. It
+    ranks a stock against the others rated that day; it is not financial, investment or
+    trading advice and it is not a recommendation about any security. Carry
+    ``disclaimer`` wherever you display a grade. Methodology:
+    https://sentisense.ai/methodology/#sentisense-rating
+
+    For the daily history of ``percentile``, ask the metrics time series for the
+    ``"sentisense_rating"`` metric with this ``kbEntityId`` or the ticker; see
+    :meth:`~sentisense.client.SentiSenseClient.get_metrics`.
+    """
+
+    ticker: Optional[str] = None
+    kbEntityId: Optional[str] = None
+    """The stock's knowledge base id, e.g. ``"kb/company/1"``. Addresses the metrics
+    time series without a second lookup."""
+    rated: bool = False
+    """Whether a grade exists for this stock on ``asOf``. Branch on this."""
+    letter: Optional[str] = None
+    """``"A"``, ``"B"``, ``"C"``, ``"D"`` or ``"F"``. ``None`` when not rated. Served as
+    stored, never re-derived from ``percentile``, so do not compute your own bucket."""
+    percentile: Optional[float] = None
+    """Rank of ``composite`` among the day's rated stocks, 0 to 100. ``None`` when not
+    rated."""
+    composite: Optional[float] = None
+    """The weighted blend before ranking, in [-1, +1]. ``None`` when not rated."""
+    ratedCount: Optional[int] = None
+    """How many stocks were rated that day: the rank's denominator."""
+    asOf: Optional[str] = None
+    """The New York calendar day this answer describes, ``"YYYY-MM-DD"``."""
+    methodologyVersion: Optional[str] = None
+    """The weights and floors in force when the row was written, e.g.
+    ``"2026.09-v1"``. ``None`` when not rated."""
+    reason: Optional[str] = None
+    """Why the stock has no grade. ``None`` when rated. One of ``"stale"`` (a row exists
+    but the nightly has not written recently, an operational gap rather than a coverage
+    one), ``"not_rated_today"`` (no row and no refusal on record: an ETF, a ticker outside
+    the swept universe, or one that entered coverage after the last run),
+    ``"insufficient_dimensions"`` or ``"insufficient_coverage_weight"`` (the run looked and
+    declined to grade)."""
+    dimensionsPresent: Optional[int] = None
+    """How many of the six dimensions had data. ``None`` when rated."""
+    presentDimensions: List[str] = field(default_factory=list)
+    """Which dimensions had data, by ``key``. Empty when rated."""
+    dimensions: List[RatingDimension] = field(default_factory=list)
+    """Always all six, in a fixed order, absent ones with ``present`` false."""
+    flags: List[RatingFlag] = field(default_factory=list)
+    disclaimer: Optional[str] = None
+    """The standard financial disclaimer. Display it alongside the grade."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StockRating":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        nested = {"dimensions", "flags", "presentDimensions"}
+        kwargs = {k: v for k, v in data.items() if k in known and k not in nested}
+        kwargs["presentDimensions"] = list(data.get("presentDimensions") or [])
+        kwargs["dimensions"] = [
+            RatingDimension.from_dict(d) for d in (data.get("dimensions") or [])
+        ]
+        kwargs["flags"] = [RatingFlag.from_dict(f) for f in (data.get("flags") or [])]
+        return cls(**kwargs)
+
+
 # ── KPI types ───────────────────────────────────────────────
 
 

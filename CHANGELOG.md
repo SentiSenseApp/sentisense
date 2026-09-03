@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.47.0
+
+### Added
+
+- **The SentiSense Rating, new to this SDK.** `get_rating(ticker)` returns where a stock
+  ranks against the other stocks rated that day: a letter, a percentile, the composite
+  behind it, and the six dimensions the composite is blended from. It is a relative
+  research signal for informational and educational purposes, not financial, investment or
+  trading advice and not a recommendation about any security. Every response carries the
+  wording to display alongside a grade in `disclaimer`.
+  [Methodology](https://sentisense.ai/methodology/#sentisense-rating).
+- Typed models exported from the package root: `StockRating`, `RatingDimension`,
+  `RatingSubLeg` and `RatingFlag`.
+- `sentisense_rating` is documented as a metric type on `get_metrics()`, which serves the
+  daily history of a stock's percentile. It is a time series only: there is no source
+  breakdown, so `get_metrics_distribution()` answers with an empty distribution for it.
+
+Two shapes to read rather than assume, both gated by tests. **Branch on `rated`.** A rated
+stock carries `letter`, `percentile`, `composite`, `ratedCount` and `methodologyVersion`;
+an unrated one leaves all five `None` and carries `reason`, `dimensionsPresent` and
+`presentDimensions` instead. Not being rated is a normal `200`, not a `404`: ETFs and
+tickers outside the swept universe answer that way, and `reason` says which case it is.
+And `dimensions` always holds all six rows in a fixed order, including the ones with no
+data, which arrive with `present` false and a `None` percentile. Read `present` first and
+never substitute zero for a missing percentile: zero is the bottom of the cross-section,
+absence is not a position on it.
+
 ## 0.46.0
 
 ### Added

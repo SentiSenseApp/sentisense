@@ -51,6 +51,7 @@ from sentisense.types import (
     StockDetail,
     StockPrice,
     StockQuote,
+    StockRating,
     Story,
     IndexHistoryResponse,
     IndexListResponse,
@@ -871,6 +872,45 @@ class SentiSenseClient:
             ).json(),
             item_cls=OptionsHistory,
         )
+
+    # ── SentiSense Rating endpoint ──────────────────────────────
+
+    def get_rating(self, ticker: str) -> StockRating:
+        """Get the SentiSense Rating for one stock: where it ranks against the other
+        stocks rated that day, and the six dimensions the rank is blended from.
+
+        The Rating is a *relative*, automatically generated research signal, for
+        informational and educational purposes only. It ranks a stock against its
+        cross-section; it is not financial, investment or trading advice and it is not a
+        recommendation about any security. ``result.disclaimer`` carries the wording to
+        display alongside a grade. Methodology:
+        https://sentisense.ai/methodology/#sentisense-rating
+
+        **Two shapes, one model, and ``result.rated`` is the field to branch on.** A
+        rated stock carries ``letter``, ``percentile``, ``composite``, ``ratedCount`` and
+        ``methodologyVersion``. An unrated one leaves all five ``None`` and carries
+        ``reason``, ``dimensionsPresent`` and ``presentDimensions`` instead. Not being
+        rated is a normal answer, not an error: ETFs and tickers outside the swept
+        universe answer ``200`` with ``rated`` false.
+
+        ``result.dimensions`` always holds all six rows in a fixed order, including the
+        ones with no data, which arrive with ``present`` false and ``percentile``
+        ``None``. Read ``present`` first, and never read a missing percentile as zero.
+
+        ``letter`` is served as stored rather than derived from ``percentile``, so read
+        it instead of computing your own bucket edges.
+
+        For the daily history of ``percentile``, ask :meth:`get_metrics` for the
+        ``"sentisense_rating"`` metric.
+
+        Raises:
+            NotFoundError: the ticker does not resolve to a stock or ETF we track.
+            AuthenticationError: no API key, or one the API rejected.
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"AAPL"``).
+        """
+        return self._parse(self._get(f"/api/v1/rating/{ticker.upper()}").json(), StockRating)
 
     # ── Insider trading endpoints ───────────────────────────────
 
@@ -1775,7 +1815,8 @@ class SentiSenseClient:
                 (e.g. "Nancy-Pelosi"). Case-insensitive. Discover slugs via
                 ``GET /api/v1/kb/entities/search?q=`` or ``get_stock_entities()``.
             metric_type: Metric to retrieve: "mentions", "sentiment",
-                "sentisense_score" (the SentiSense Score), or
+                "sentisense_score" (the SentiSense Score),
+                "sentisense_rating" (the SentiSense Rating percentile, 0-100), or
                 "social_dominance".
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
@@ -1816,7 +1857,8 @@ class SentiSenseClient:
             symbol: Stock ticker symbol (e.g. "AAPL").
             metric_type: Metric to retrieve: "mentions", "sentiment",
                 "sentisense_score" (the SentiSense Score), or
-                "social_dominance".
+                "social_dominance". "sentisense_rating" has no source breakdown
+                and answers with an empty distribution.
             dimension: Dimension to break down by (e.g. "source").
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
