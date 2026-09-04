@@ -16,6 +16,13 @@
 - `sentisense_rating` is documented as a metric type on `get_metrics()`, which serves the
   daily history of a stock's percentile. It is a time series only: there is no source
   breakdown, so `get_metrics_distribution()` answers with an empty distribution for it.
+- `get_analyst_coverage()` now returns `ratingBuckets` next to `firmCount`: how many
+  covering firms sit in each rating tier, as `buy`, `hold`, `sell`, `unrated` and `total`.
+  Counted over the whole book before the free truncation, so `buy + hold + sell +
+  unrated == total` and a free key reads the same numbers as a PRO one. `unrated` is a
+  desk with no current rating on record, such as a price-target-only firm. It counts the
+  firms in the coverage book, which is a different population from the `strongBuy`
+  through `strongSell` survey figures on `get_analyst_consensus()`.
 
 Two shapes to read rather than assume, both gated by tests. **Branch on `rated`.** A rated
 stock carries `letter`, `percentile`, `composite`, `ratedCount` and `methodologyVersion`;

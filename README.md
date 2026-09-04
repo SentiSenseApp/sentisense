@@ -347,6 +347,10 @@ book = result.data
 print(f"{book['firmCount']} firms, {book['namedAnalystCount']} named analysts")
 print(f"{book['attributedNoteCount']} of {book['noteCount']} notes name someone")
 
+buckets = book["ratingBuckets"]
+print(f"{buckets['buy']} buy, {buckets['hold']} hold, {buckets['sell']} sell, "
+      f"{buckets['unrated']} unrated of {buckets['total']}")
+
 for row in book["coverage"][:5]:
     if row["noteCount"] == 0:
         # A desk can cover a stock on rating actions alone, with no price target.
@@ -362,6 +366,8 @@ for row in book["coverage"][:5]:
 ```
 
 Two shapes to read rather than assume. A firm can appear with `noteCount` 0, a `None` `latestNote` and a populated `firmRating`, because coverage means a price target **or** a rating action in the window. And a large, publisher-dependent share of notes name no individual, so an empty `analysts` list alongside a non-zero `noteCount` is normal: read `attributedNoteCount` and `unattributedNoteCount` on the response you received rather than hardcoding a rate. The response-level counts survive the free truncation, so they describe the whole window even when only 5 rows come back.
+
+`ratingBuckets` sizes the same book by rating tier: `buy`, `hold`, `sell`, `unrated` and `total`, counted over every covering firm before the free truncation, so `buy + hold + sell + unrated == total` and a free key reads the same numbers as a PRO one. `unrated` is a desk with no current rating on record, such as a price-target-only firm. These count the firms in this coverage book, a different population from the `strongBuy` through `strongSell` figures on `get_analyst_consensus`, which come from the provider's analyst survey. Read one or the other, do not reconcile them.
 
 ### Earnings
 

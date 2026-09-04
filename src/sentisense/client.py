@@ -1327,6 +1327,15 @@ class SentiSenseClient:
         ``firmRating`` belongs to the firm, not to a person: rating actions are
         published at firm level with no individual attached.
 
+        ``data["ratingBuckets"]`` sizes the book by rating tier: ``buy``, ``hold``,
+        ``sell``, ``unrated`` and ``total``, counted over every covering firm before the
+        free truncation, so ``buy + hold + sell + unrated == total`` on any key and a FREE
+        key reads the same numbers as a PRO one. ``unrated`` counts desks carrying no
+        current rating, such as price-target-only firms, plus any grade string we do not
+        recognise. These are a different population from the consensus endpoint's
+        ``strongBuy`` through ``strongSell``, which report the provider's analyst survey
+        rather than the firms in this coverage book, so do not mix or reconcile the two.
+
         Each named analyst carries the ``slug`` that addresses
         :meth:`get_analyst_profile`, so a coverage response is the natural entry point
         into a profile.

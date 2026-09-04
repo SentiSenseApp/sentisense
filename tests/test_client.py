@@ -1211,6 +1211,51 @@ class TestAnalystCoverage:
         assert result.data["coverage"][0]["latestNote"]["analyst"] is None
 
     @patch.object(SentiSenseClient, "_get")
+    def test_rating_buckets_size_the_whole_book_on_a_preview(self, mock_get, client):
+        # The buckets are counted before the FREE truncation, so a 1-row preview
+        # still reports every covering firm, and the four parts sum to total.
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": True,
+                "previewReason": "PRO_REQUIRED",
+                "data": {
+                    "ticker": "NVDA",
+                    "firmCount": 41,
+                    "ratingOnlyFirmCount": 6,
+                    "ratingBuckets": {
+                        "buy": 30,
+                        "hold": 1,
+                        "sell": 0,
+                        "unrated": 10,
+                        "total": 41,
+                    },
+                    "coverage": [
+                        {
+                            "firm": "DA Davidson",
+                            "analysts": [],
+                            "noteCount": 1,
+                            "latestNote": None,
+                            "firmRating": {"rating": "Buy"},
+                        }
+                    ],
+                },
+            }
+        )
+        result = client.get_analyst_coverage("NVDA")
+        buckets = result.data["ratingBuckets"]
+        assert set(buckets) == {"buy", "hold", "sell", "unrated", "total"}
+        assert buckets["buy"] == 30
+        # A desk with no current rating lands in unrated, not in hold.
+        assert buckets["unrated"] == 10
+        # The parts partition the book, and the book is the whole window.
+        assert (
+            buckets["buy"] + buckets["hold"] + buckets["sell"] + buckets["unrated"]
+            == buckets["total"]
+        )
+        assert buckets["total"] == result.firmCount
+        assert len(result.data["coverage"]) == 1
+
+    @patch.object(SentiSenseClient, "_get")
     def test_rating_only_firm_has_no_note(self, mock_get, client):
         # A desk whose price target feed went quiet still covers the stock: the row
         # carries a firmRating with noteCount 0 and a null latestNote.
