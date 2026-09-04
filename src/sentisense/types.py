@@ -1168,15 +1168,40 @@ class RatingFlag(APIModel):
 
 
 @dataclass
+class RiskAdjustment(APIModel):
+    """One graded deduction applied to a rated stock's score.
+
+    Each condition is graded rather than binary, so ``points`` is the share of the
+    12-point maximum this one actually cost. The list carries only the conditions that
+    were active, and ``penaltyPoints`` is the sum of these.
+    """
+
+    condition: Optional[str] = None
+    """Which condition, by the same stable key ``riskConditions`` reports."""
+    points: Optional[float] = None
+    """Points deducted, to one decimal, up to 12 for a single condition."""
+
+
+@dataclass
 class StockRating(APIModel):
     """The SentiSense Rating for one stock: where it ranks against the day's rated set.
 
     **One model, two shapes, and ``rated`` is the field to branch on.** A rated stock
-    carries ``letter``, ``percentile``, ``composite``, ``ratedCount`` and
+    carries ``score``, ``letter``, ``percentile``, ``composite``, ``ratedCount`` and
     ``methodologyVersion``; an unrated one carries ``reason``, ``dimensionsPresent`` and
     ``presentDimensions`` instead, and leaves the first group ``None``. ``dimensions``,
     ``flags``, ``asOf`` and ``disclaimer`` arrive either way, so a card can render the
     composition of a stock that has no grade.
+
+    **Three numbers on a rated stock, answering different questions.** ``percentile`` is
+    the rank of the blended signals against the day's rated set. ``score`` is
+    ``percentile - sum(a.points for a in riskAdjustments)``, floored at 10 when fewer
+    than five dimensions are available and at 0 otherwise, and it is the number
+    ``letter`` is the band of. ``bucketLetter`` is the band the percentile alone would
+    fall in, so comparing the two letters shows what the conditions cost;
+    ``riskAdjustments`` itemises that cost and ``penaltyPoints`` totals it. All five are
+    absent on a response served before they shipped, which is why they are optional
+    here.
 
     The rating is a *relative* research signal, informational and educational only. It
     ranks a stock against the others rated that day; it is not financial, investment or
@@ -1184,7 +1209,7 @@ class StockRating(APIModel):
     ``disclaimer`` wherever you display a grade. Methodology:
     https://sentisense.ai/methodology/#sentisense-rating
 
-    For the daily history of ``percentile``, ask the metrics time series for the
+    For the daily history of ``score``, ask the metrics time series for the
     ``"sentisense_rating"`` metric with this ``kbEntityId`` or the ticker; see
     :meth:`~sentisense.client.SentiSenseClient.get_metrics`.
     """
@@ -1195,14 +1220,40 @@ class StockRating(APIModel):
     time series without a second lookup."""
     rated: bool = False
     """Whether a grade exists for this stock on ``asOf``. Branch on this."""
+    score: Optional[float] = None
+    """The headline number, 0 to 100 with one decimal, and the number ``letter`` is the
+    band of. ``score = percentile - sum(a.points for a in riskAdjustments)``, floored at
+    10 when fewer than five dimensions are available and at 0 otherwise. ``None`` when
+    not rated, and also on a response served before this field shipped."""
     letter: Optional[str] = None
-    """``"A"``, ``"B"``, ``"C"``, ``"D"`` or ``"F"``. ``None`` when not rated. Served as
-    stored, never re-derived from ``percentile``, so do not compute your own bucket."""
+    """``"A"``, ``"B"``, ``"C"``, ``"D"`` or ``"F"``: the band ``score`` falls in, at
+    edges 90, 70, 30 and 10. ``None`` when not rated. Served as stored, so read it rather
+    than deriving your own edges."""
+    bucketLetter: Optional[str] = None
+    """The band ``percentile`` alone would fall in, so a difference from ``letter`` is
+    exactly what the risk conditions cost. ``None`` when not rated, and also on a
+    response served before this field shipped."""
     percentile: Optional[float] = None
     """Rank of ``composite`` among the day's rated stocks, 0 to 100. ``None`` when not
-    rated."""
+    rated. This stays the true rank of the blended signals: the risk conditions are
+    subtracted from ``score``, never from here."""
     composite: Optional[float] = None
     """The weighted blend before ranking, in [-1, +1]. ``None`` when not rated."""
+    riskConditions: List[str] = field(default_factory=list)
+    """Which risk conditions were active, by stable snake_case key. The vocabulary is
+    ``thin_coverage``, ``weak_dimension``, ``unprofitable``, ``no_fundamentals``,
+    ``high_leverage``, ``unseasoned_listing``, ``small_market_cap``,
+    ``thin_liquidity``, ``extended_price``, ``insider_selling`` and
+    ``institutional_outflow``. Empty when none were active, and also on a response
+    served before this field shipped."""
+    riskAdjustments: List[RiskAdjustment] = field(default_factory=list)
+    """The same conditions with the points each one actually cost, since a condition is
+    graded rather than binary and can cost anything up to 12. Empty when none were
+    active, and also on a response served before this field shipped."""
+    penaltyPoints: Optional[float] = None
+    """The sum of ``riskAdjustments`` points, to one decimal: how far ``score`` sits
+    below ``percentile`` before the floor applies. ``None`` when not rated, and also on a
+    response served before this field shipped."""
     ratedCount: Optional[int] = None
     """How many stocks were rated that day: the rank's denominator."""
     asOf: Optional[str] = None
@@ -1232,9 +1283,19 @@ class StockRating(APIModel):
         if data is None:
             return None  # type: ignore[return-value]
         known = {f.name for f in dataclasses.fields(cls)}
-        nested = {"dimensions", "flags", "presentDimensions"}
+        nested = {
+            "dimensions",
+            "flags",
+            "presentDimensions",
+            "riskConditions",
+            "riskAdjustments",
+        }
         kwargs = {k: v for k, v in data.items() if k in known and k not in nested}
         kwargs["presentDimensions"] = list(data.get("presentDimensions") or [])
+        kwargs["riskConditions"] = list(data.get("riskConditions") or [])
+        kwargs["riskAdjustments"] = [
+            RiskAdjustment.from_dict(a) for a in (data.get("riskAdjustments") or [])
+        ]
         kwargs["dimensions"] = [
             RatingDimension.from_dict(d) for d in (data.get("dimensions") or [])
         ]

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.49.0
+
+- `StockRating` gains `score`, `bucketLetter`, `riskConditions`, `riskAdjustments` and
+  `penaltyPoints` on a rated stock, all optional. `score = percentile - sum(a.points for
+  a in riskAdjustments)` and is what `letter` bands; `percentile` is unchanged. New
+  `RiskAdjustment` model; `penaltyPoints` is a float.
+- The `sentisense_rating` metric series carries the score rather than the percentile.
+  Use 0.49.0 instead of 0.48.0.
+
 ## 0.47.0
 
 ### Added

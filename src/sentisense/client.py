@@ -887,20 +887,29 @@ class SentiSenseClient:
         https://sentisense.ai/methodology/#sentisense-rating
 
         **Two shapes, one model, and ``result.rated`` is the field to branch on.** A
-        rated stock carries ``letter``, ``percentile``, ``composite``, ``ratedCount`` and
-        ``methodologyVersion``. An unrated one leaves all five ``None`` and carries
-        ``reason``, ``dimensionsPresent`` and ``presentDimensions`` instead. Not being
-        rated is a normal answer, not an error: ETFs and tickers outside the swept
-        universe answer ``200`` with ``rated`` false.
+        rated stock carries ``score``, ``letter``, ``percentile``, ``composite``,
+        ``ratedCount`` and ``methodologyVersion``. An unrated one leaves them ``None``
+        and carries ``reason``, ``dimensionsPresent`` and ``presentDimensions`` instead.
+        Not being rated is a normal answer, not an error: ETFs and tickers outside the
+        swept universe answer ``200`` with ``rated`` false.
 
         ``result.dimensions`` always holds all six rows in a fixed order, including the
         ones with no data, which arrive with ``present`` false and ``percentile``
         ``None``. Read ``present`` first, and never read a missing percentile as zero.
 
-        ``letter`` is served as stored rather than derived from ``percentile``, so read
-        it instead of computing your own bucket edges.
+        **``score`` and ``percentile`` are different numbers.** ``percentile`` is the
+        rank of the blended signals against the day's rated set, and
+        ``score = percentile - sum(a.points for a in riskAdjustments)``, floored at 10
+        when fewer than five dimensions are available and at 0 otherwise. ``letter`` is
+        the band ``score`` falls in, at edges 90, 70, 30 and 10, while ``bucketLetter``
+        is the band the percentile alone would fall in, so a difference between the two
+        letters is exactly what the conditions cost. ``riskConditions`` names the active
+        ones, ``riskAdjustments`` gives the points each cost (graded, up to 12 apiece),
+        and ``penaltyPoints`` is their sum. ``letter`` is served as stored, so read it
+        instead of computing your own bucket edges. The five fields are ``None`` or
+        empty on a response served before they shipped, so treat them as optional.
 
-        For the daily history of ``percentile``, ask :meth:`get_metrics` for the
+        For the daily history of ``score``, ask :meth:`get_metrics` for the
         ``"sentisense_rating"`` metric.
 
         Raises:
@@ -1825,7 +1834,7 @@ class SentiSenseClient:
                 ``GET /api/v1/kb/entities/search?q=`` or ``get_stock_entities()``.
             metric_type: Metric to retrieve: "mentions", "sentiment",
                 "sentisense_score" (the SentiSense Score),
-                "sentisense_rating" (the SentiSense Rating percentile, 0-100), or
+                "sentisense_rating" (the SentiSense Rating score, 0-100), or
                 "social_dominance".
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.

@@ -7,8 +7,15 @@ Four contracts are gated here because each one fails quietly rather than loudly:
 * An absent dimension is a full row with ``present`` false and a ``None`` percentile.
   Read as zero, the dimension we know nothing about reads as the worst one in the
   cross-section.
-* ``letter`` is served as stored, never re-derived from ``percentile``, so the model
-  must carry the server's letter rather than let a client recompute bucket edges.
+* ``letter`` is the band of ``score``, not of ``percentile``, and it is served as
+  stored. A client that recomputes it from the percentile disagrees with the API for
+  every stock carrying a risk condition.
+* ``score`` is ``percentile`` less the summed ``riskAdjustments`` points, and a
+  condition is graded rather than binary, so the points are read off the response
+  instead of multiplied out from how many conditions are listed.
+* ``score``, ``bucketLetter``, ``riskConditions``, ``riskAdjustments`` and
+  ``penaltyPoints`` are optional: a response served before they shipped omits them and
+  must still parse.
 * Only the smart-money dimension carries ``subLegs``. Every other dimension omits the
   field, which must parse as "no legs" rather than raising.
 
@@ -21,7 +28,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sentisense import NotFoundError, SentiSenseClient
-from sentisense.types import RatingDimension, RatingFlag, RatingSubLeg, StockRating
+from sentisense.types import (
+    RatingDimension,
+    RatingFlag,
+    RatingSubLeg,
+    RiskAdjustment,
+    StockRating,
+)
 
 
 @pytest.fixture
@@ -48,9 +61,17 @@ RATED_PAYLOAD = {
     "ticker": "AAPL",
     "kbEntityId": "kb/company/1",
     "rated": True,
-    "letter": "B",
+    "score": 59.5,
+    "letter": "C",
+    "bucketLetter": "B",
     "percentile": 79.96146435452793,
     "composite": 0.21454864250697855,
+    "riskConditions": ["unprofitable", "high_leverage"],
+    "riskAdjustments": [
+        {"condition": "unprofitable", "points": 12.0},
+        {"condition": "high_leverage", "points": 8.5},
+    ],
+    "penaltyPoints": 20.5,
     "ratedCount": 1038,
     "asOf": "2026-09-03",
     "methodologyVersion": "2026.09-v1",
@@ -91,6 +112,22 @@ RATED_PAYLOAD = {
     ],
     "disclaimer": DISCLAIMER,
 }
+
+# The same stock as served before the score fields shipped. Every one of the four is
+# absent rather than null, which is the shape the optional typing exists for.
+LEGACY_RATED_PAYLOAD = {
+    k: v
+    for k, v in RATED_PAYLOAD.items()
+    if k
+    not in (
+        "score",
+        "bucketLetter",
+        "riskConditions",
+        "riskAdjustments",
+        "penaltyPoints",
+    )
+}
+LEGACY_RATED_PAYLOAD["letter"] = "B"
 
 NOT_RATED_PAYLOAD = {
     "ticker": "SPY",
@@ -134,7 +171,8 @@ class TestRatedShape:
         with patch.object(client.session, "get", return_value=_mock_response(RATED_PAYLOAD)):
             result = client.get_rating("AAPL")
         assert result.rated is True
-        assert result.letter == "B"
+        assert result.letter == "C"
+        assert result.score == pytest.approx(59.5)
         assert result.percentile == pytest.approx(79.96146435452793)
         assert result.composite == pytest.approx(0.21454864250697855)
         # The rank's denominator. Without it a percentile is a number with no cohort.
@@ -161,6 +199,83 @@ class TestRatedShape:
         with patch.object(client.session, "get", return_value=_mock_response(RATED_PAYLOAD)):
             result = client.get_rating("AAPL")
         assert result.disclaimer == DISCLAIMER
+
+
+class TestScoreAndRiskConditions:
+    """The headline number, and the three fields that explain the gap under it.
+
+    ``percentile`` is the rank of the blended signals. ``score`` is that rank less 12
+    points per active risk condition, and ``letter`` is the band of ``score``. Reading
+    the letter off the percentile therefore disagrees with the API for every stock that
+    carries a condition, which is the mistake this class exists to catch.
+    """
+
+    def test_the_score_is_the_percentile_less_the_summed_adjustments(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(RATED_PAYLOAD)):
+            result = client.get_rating("AAPL")
+        assert result.score == pytest.approx(59.5)
+        assert result.penaltyPoints == pytest.approx(20.5)
+        # The total is the sum of the graded rows, not 12 times how many there are: a
+        # condition can cost anything up to 12, and the second one here costs 8.5.
+        assert result.penaltyPoints == pytest.approx(
+            sum(a.points for a in result.riskAdjustments)
+        )
+        assert result.penaltyPoints != 12 * len(result.riskConditions)
+        assert result.score == pytest.approx(result.percentile - result.penaltyPoints, abs=0.1)
+
+    def test_each_adjustment_names_its_condition_and_its_cost(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(RATED_PAYLOAD)):
+            result = client.get_rating("AAPL")
+        assert all(isinstance(a, RiskAdjustment) for a in result.riskAdjustments)
+        assert [(a.condition, a.points) for a in result.riskAdjustments] == [
+            ("unprofitable", 12.0),
+            ("high_leverage", 8.5),
+        ]
+        # Every graded row names a condition that is also listed as active.
+        assert [a.condition for a in result.riskAdjustments] == result.riskConditions
+
+    def test_the_letter_bands_the_score_not_the_percentile(self, client):
+        # 79.9 would band as B. The two conditions take the score to 59.5, which bands as
+        # C, and ``bucketLetter`` keeps the pre-penalty band visible next to it.
+        with patch.object(client.session, "get", return_value=_mock_response(RATED_PAYLOAD)):
+            result = client.get_rating("AAPL")
+        assert result.letter == "C"
+        assert result.bucketLetter == "B"
+        assert result.letter != result.bucketLetter
+
+    def test_the_active_conditions_are_named(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(RATED_PAYLOAD)):
+            result = client.get_rating("AAPL")
+        assert result.riskConditions == ["unprofitable", "high_leverage"]
+
+    def test_an_older_response_still_parses(self, client):
+        # The four fields are absent, not null, on anything served before they shipped.
+        # Absent has to read as "not reported": None for the scalars, an empty list for
+        # the conditions, never a zero that would look like a clean stock.
+        with patch.object(
+            client.session, "get", return_value=_mock_response(LEGACY_RATED_PAYLOAD)
+        ):
+            result = client.get_rating("AAPL")
+        assert result.rated is True
+        assert result.score is None
+        assert result.bucketLetter is None
+        assert result.penaltyPoints is None
+        assert result.riskConditions == []
+        assert result.riskAdjustments == []
+        # Everything that was there before is untouched.
+        assert result.letter == "B"
+        assert result.percentile == pytest.approx(79.96146435452793)
+        assert result.ratedCount == 1038
+        assert len(result.dimensions) == 3
+
+    def test_an_unrated_response_carries_none_of_them(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(NOT_RATED_PAYLOAD)):
+            result = client.get_rating("SPY")
+        assert result.score is None
+        assert result.bucketLetter is None
+        assert result.penaltyPoints is None
+        assert result.riskConditions == []
+        assert result.riskAdjustments == []
 
 
 class TestDimensions:
