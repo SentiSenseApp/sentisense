@@ -702,6 +702,14 @@ class StoryCluster(APIModel):
     clusterSize: int = 0
     averageSentiment: float = 0.0
     clusteredAt: int = 0  # epoch seconds when our pipeline assembled the cluster
+    #: How the story was authored: ``"ORIGINAL"`` for an editorially authored
+    #: SentiSense Original, ``"AI"`` for a pipeline-generated story. ``None`` only
+    #: when the field is absent, which is what an older API build answers.
+    storySource: Optional[str] = None
+    #: True while a story is still being revised as the event develops. ``None``
+    #: when the field is absent, which is what an older API build answers, so treat
+    #: ``None`` as "not known" rather than as False.
+    isLive: Optional[bool] = None
 
 
 @dataclass

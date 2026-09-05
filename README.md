@@ -235,6 +235,12 @@ Sources are `news`, `reddit`, `x`, `substack` and `youtube`. Documents carry der
 
 On a story, `tickers` holds bare symbols and `displayTickers` holds the formatted ones, so pick the field that matches what you are doing rather than reformatting either.
 
+The story cluster also tells you where the story came from and whether it has settled.
+`cluster.storySource` is `"ORIGINAL"` for an editorially authored SentiSense Original and
+`"AI"` for a pipeline-generated story, and `cluster.isLive` is true while the story is
+still being revised as the event develops. Both read `None` against an API build that
+predates them, so treat `None` as "not known" rather than as `"AI"` or `False`.
+
 ### Insights
 
 | Method | Description |

@@ -1781,6 +1781,11 @@ class SentiSenseClient:
         Each story includes a ``brokeAt`` field (epoch seconds, nullable when
         no representative document timestamp is available).
 
+        ``story.cluster.storySource`` says how the story was authored
+        (``"ORIGINAL"`` or ``"AI"``) and ``story.cluster.isLive`` is true while
+        it is still being revised. Both read ``None`` against an API build that
+        predates them.
+
         Args:
             limit: Maximum number of stories.
             days: Look back N days.

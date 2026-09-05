@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.50.0
+
+- `StoryCluster` gains `storySource` and `isLive`, both optional. `storySource` is
+  `"ORIGINAL"` for an editorially authored SentiSense Original and `"AI"` for a
+  pipeline-generated story; `isLive` is true while the story is still being revised as
+  the event develops. Both read `None` against an API build that predates them, so treat
+  `None` as "not known" rather than as `"AI"` or `False`.
+
 ## 0.49.0
 
 - `StockRating` gains `score`, `bucketLetter`, `riskConditions`, `riskAdjustments` and
