@@ -54,6 +54,12 @@ class PreviewResult(Generic[T]):
     ``None`` only on endpoints that return everything and therefore have no page
     to count past.
 
+    ``.upgrade`` is set only on a preview and tells you how to lift the gate:
+    a dict with ``plan``, ``message``, ``price``, ``url`` and ``relay``. Show
+    ``message`` and ``url`` to your user rather than hard-coding a price, since
+    the copy and the offer are set server-side. It is ``None`` on a full
+    response, and every key inside it should be read with ``.get()``.
+
     For list-wrapped endpoints (e.g. ``get_politician_members()``), prefer
     ``result.data``, ``list(result)``, or ``for item in result`` over
     attribute access, since a list has no named fields to delegate to.
@@ -65,11 +71,13 @@ class PreviewResult(Generic[T]):
         is_preview: bool,
         preview_reason: Optional[str],
         total_count: Optional[int] = None,
+        upgrade: Optional[dict] = None,
     ):
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "is_preview", is_preview)
         object.__setattr__(self, "preview_reason", preview_reason)
         object.__setattr__(self, "total_count", total_count)
+        object.__setattr__(self, "upgrade", upgrade)
 
     @property
     def data(self) -> T:
@@ -470,6 +478,10 @@ class InsiderTrade(APIModel):
     # overstates selling. Insider uses BUY/SELL, NOT the congress PURCHASE/SALE vocab.
     transactionType: str = ""
     securityTitle: str = ""
+    # Set when the row was filed in a security other than the US listing `ticker` names,
+    # e.g. "Common Shares (2330.TW)". None on the ordinary case. When it is set,
+    # pricePerShare is None because the filed price is per foreign ordinary share.
+    securityBasis: Optional[str] = None
     sharesTransacted: int = 0
     pricePerShare: Optional[float] = None
     totalValue: Optional[int] = None
@@ -868,6 +880,20 @@ class OptionsAggregate(APIModel):
     """Raw 25-delta call implied volatility."""
     iv25p: Optional[float] = None
     """Raw 25-delta put implied volatility."""
+    expectedMove1d: Optional[float] = None
+    """Calibrated 90% expected move over 1 trading session, as a fraction of price,
+    so ``0.0407`` is 4.07%. ``k * atmIv * sqrt(h / 252)`` with an empirical ``k``."""
+    expectedMove5d: Optional[float] = None
+    """The same calibrated 90% range over 5 trading sessions."""
+    expectedMove20d: Optional[float] = None
+    """The same calibrated 90% range over 20 trading sessions."""
+    expectedMove1s1d: Optional[float] = None
+    """One-sigma expected move over 1 trading session, ``atmIv * sqrt(h / 252)``:
+    the industry convention, with no calibration applied."""
+    expectedMove1s5d: Optional[float] = None
+    """One-sigma expected move over 5 trading sessions."""
+    expectedMove1s20d: Optional[float] = None
+    """One-sigma expected move over 20 trading sessions."""
     netDelta: Optional[float] = None
     notionalVol: Optional[float] = None
     """Premium traded this session: volume times mark times 100."""
@@ -1043,6 +1069,18 @@ class OptionsOverviewRow(APIModel):
     notionalVol: Optional[float] = None
     ivMove20: Optional[float] = None
     """Signed change of ``atmIv`` against its ~20-session mean. Rank by absolute value."""
+    expectedMove1d: Optional[float] = None
+    """Calibrated 90% expected move over 1 trading session, as a fraction of price."""
+    expectedMove5d: Optional[float] = None
+    """The same calibrated 90% range over 5 trading sessions."""
+    expectedMove20d: Optional[float] = None
+    """The same calibrated 90% range over 20 trading sessions."""
+    expectedMove1s1d: Optional[float] = None
+    """One-sigma expected move over 1 trading session: the industry convention."""
+    expectedMove1s5d: Optional[float] = None
+    """One-sigma expected move over 5 trading sessions."""
+    expectedMove1s20d: Optional[float] = None
+    """One-sigma expected move over 20 trading sessions."""
     observations1y: Optional[int] = None
     unusualCount: Optional[int] = None
     maxVolOiRatio: Optional[float] = None
@@ -1446,10 +1484,19 @@ class EtfInfo(APIModel):
 class EtfHolding(APIModel):
     """One per-stock holding inside an ETF composition."""
 
+    # The symbol as the issuer filed it. For an international fund this is the local
+    # exchange code, not a US ticker, so resolve stocks with linkedTicker instead.
     ticker: str = ""
     name: Optional[str] = None
     weightPct: float = 0.0  # holding weight in the fund as a percentage (0-100)
     firstSeen: Optional[str] = None  # ISO date 'YYYY-MM-DD' when this holding first appeared
+    # Listing venue the issuer reported, verbatim (e.g. 'NYSE', 'SIX Swiss Exchange').
+    exchange: Optional[str] = None
+    # The symbol as listed on `exchange`. Same value as ticker, named to make it clear
+    # the symbol is venue-local and may not identify a US company.
+    localTicker: Optional[str] = None
+    # The US stock symbol this holding resolves to, or None when it cannot be resolved.
+    linkedTicker: Optional[str] = None
 
 
 @dataclass

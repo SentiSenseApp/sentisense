@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.51.0
+
+- `OptionsAggregate` and `OptionsOverviewRow` gain six expected-move fields, all optional and
+  all fractions of price over 1, 5 and 20 trading sessions (252 per year). `expectedMove1s1d`,
+  `expectedMove1s5d` and `expectedMove1s20d` are the one-sigma industry convention,
+  `atmIv * sqrt(h / 252)`, with no calibration applied. `expectedMove1d`, `expectedMove5d` and
+  `expectedMove20d` apply the same formula with an empirical scale (1.48 at one session, 1.56 at
+  five and twenty), fit on SentiSense's own stored option history, giving a 90% range whose
+  measured out-of-sample coverage runs 90.4% to 91.4%. That coverage is a measured historical
+  rate, not a guarantee: these fields describe what the option chain implies today against the
+  ticker's own past, and carry no direction and no price target.
+- They ride on the daily aggregate, so they read the same from `get_stock_options_summary()`'s
+  `latest`, from every row of `get_stock_options_history()`, and from both boards of
+  `get_options_overview()`. Like every other field in this family they are omitted when the
+  server cannot compute them, so they read `None` rather than zero.
+- `InsiderTrade` gains `securityBasis`, set when a Form 4 was filed in a security other than
+  the listed US share (for example a foreign issuer's ordinary shares). On those rows
+  `pricePerShare` is `None` rather than a converted number.
+- `EtfHolding` gains `exchange`, `localTicker` and `linkedTicker`. For holdings listed outside
+  the US, `ticker` is the local symbol on `exchange`; resolve to a SentiSense stock only through
+  `linkedTicker`, which is `None` when there is no US listing.
+- `PreviewResult` gains `.upgrade`, set only on a preview, describing how to lift the gate.
+
 ## 0.50.0
 
 - `StoryCluster` gains `storySource` and `isLive`, both optional. `storySource` is
