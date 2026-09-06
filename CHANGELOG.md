@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.52.0
+
+- The SentiSense Rating gains a seventh dimension, ``technicals``: where the price sits versus
+  its own history, from its distance to its 200-day and 50-day averages, its twelve-month path,
+  and how calm or violent its recent sessions have been, with calmer ranking higher. Its ``raw``
+  is the distance from the 200-day average in percent. It reads the current trend state and
+  forecasts nothing. ``dimensions`` therefore carries seven rows rather than six, in the same
+  fixed order with the new one last, and the dimension weights become 20 percent each for crowd
+  sentiment and smart money and 12 percent for each of the other five. Both coverage counts move
+  up by one so they keep their meaning: a stock is rated at four of seven dimensions, and thin
+  coverage is charged below six of seven. ``methodologyVersion`` on rows computed under the new
+  method reads ``2026.09-v2``; earlier rows keep the version they were computed under.
+
 ## 0.51.0
 
 - `OptionsAggregate` and `OptionsOverviewRow` gain six expected-move fields, all optional and

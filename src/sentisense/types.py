@@ -1139,7 +1139,7 @@ class OptionsOverview(APIModel):
 # ── SentiSense Rating types ─────────────────────────────────
 #
 # The SentiSense Rating is an informational, relative rank: it places a stock against the
-# other stocks rated on the same day, across six dimensions. It is a research signal, not a
+# other stocks rated on the same day, across seven dimensions. It is a research signal, not a
 # recommendation, and it carries no directive meaning about any security. Methodology:
 # https://sentisense.ai/methodology/#sentisense-rating
 
@@ -1164,18 +1164,24 @@ class RatingSubLeg(APIModel):
 
 @dataclass
 class RatingDimension(APIModel):
-    """One of the six dimensions the composite is blended from.
+    """One of the seven dimensions the composite is blended from.
 
-    **All six always arrive, in a fixed order, whether or not they had data.** An absent
+    **All seven always arrive, in a fixed order, whether or not they had data.** An absent
     dimension is a full row with ``present`` false and ``percentile`` ``None``; the server
-    never drops it, precisely so a client cannot mistake a gap for a five-dimension
-    rating. Read ``present`` before reading ``percentile``, and never substitute zero for
+    never drops it, precisely so a client cannot mistake a gap for a rating built on fewer
+    dimensions. Read ``present`` before reading ``percentile``, and never substitute zero for
     a ``None``: zero is the bottom of the cross-section, absence is not a position on it.
     """
 
     key: Optional[str] = None
     """Stable snake_case identifier: ``crowd``, ``smart_money``, ``options``,
-    ``analysts``, ``fundamentals`` or ``earnings``."""
+    ``analysts``, ``fundamentals``, ``earnings`` or ``technicals``.
+
+    ``technicals`` reads where the price sits versus its own history: its distance from
+    its 200-day and 50-day averages, its twelve-month path, and how calm or violent its
+    recent sessions have been, with calmer ranking higher. Its ``raw`` is the distance
+    from the 200-day average in percent. It describes the current trend state and
+    forecasts nothing."""
     label: Optional[str] = None
     """Display label, owned by the API so every surface agrees on the wording."""
     percentile: Optional[float] = None
@@ -1315,11 +1321,11 @@ class StockRating(APIModel):
     ``"insufficient_dimensions"`` or ``"insufficient_coverage_weight"`` (the run looked and
     declined to grade)."""
     dimensionsPresent: Optional[int] = None
-    """How many of the six dimensions had data. ``None`` when rated."""
+    """How many of the seven dimensions had data. ``None`` when rated."""
     presentDimensions: List[str] = field(default_factory=list)
     """Which dimensions had data, by ``key``. Empty when rated."""
     dimensions: List[RatingDimension] = field(default_factory=list)
-    """Always all six, in a fixed order, absent ones with ``present`` false."""
+    """Always all seven, in a fixed order, absent ones with ``present`` false."""
     flags: List[RatingFlag] = field(default_factory=list)
     disclaimer: Optional[str] = None
     """The standard financial disclaimer. Display it alongside the grade."""
