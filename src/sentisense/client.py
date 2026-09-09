@@ -21,6 +21,8 @@ from sentisense.types import (
     CongressTrade,
     Document,
     EarningsCalendar,
+    EarningsReactions,
+    EarningsStatistics,
     EarningsQuarter,
     DocumentSearchResponse,
     FundamentalsPeriod,
@@ -49,6 +51,7 @@ from sentisense.types import (
     PoliticianSummary,
     PreviewResult,
     Quarter,
+    RankedEarnings,
     RecentEarningsEntry,
     ScreenerFieldCatalog,
     ScreenerResults,
@@ -805,6 +808,96 @@ class SentiSenseClient:
         return self._unwrap(
             self._get("/api/v1/earnings/recent", params=params).json(),
             list_cls=RecentEarningsEntry,
+        )
+
+    def get_earnings_reactions(self, ticker: str) -> EarningsReactions:
+        """Get the measured price reactions to a ticker's last earnings reports.
+
+        Use this after :meth:`get_recent_earnings` when you need one company's
+        realized post-report history. :meth:`get_earnings_calendar` is the
+        forward-looking schedule instead. This endpoint returns its payload
+        directly, without a preview envelope, and every API key receives the
+        full series.
+
+        ``timing`` is always present on each row and can be ``None`` when the
+        reacting session was inferred rather than observed.
+
+        Args:
+            ticker: Stock ticker symbol.
+        """
+        return self._parse(
+            self._get(
+                f"/api/v1/stocks/{ticker.upper()}/earnings/reactions", params={}
+            ).json(),
+            EarningsReactions,
+        )
+
+    def get_earnings_statistics(
+        self,
+        window: Optional[
+            Literal["last_completed_week", "week_to_date", "trailing_52w", "all_time"]
+        ] = None,
+    ) -> PreviewResult[EarningsStatistics]:
+        """Get market-wide earnings outcomes and realized reaction statistics.
+
+        Use this for aggregate beat, miss, inline, and post-report move rates.
+        :meth:`get_recent_earnings` returns the individual recent reports, while
+        :meth:`get_earnings_calendar` covers upcoming dates. The response uses
+        the preview envelope, but every API key receives the full body and
+        ``result.is_preview`` is always ``False``.
+
+        ``baseline`` and ``deviation`` are omitted for long-span windows, and
+        rates can be ``None`` when their denominator is zero.
+
+        Args:
+            window: ``"last_completed_week"``, ``"week_to_date"``,
+                ``"trailing_52w"``, or ``"all_time"``. Omitted, the API uses
+                ``"last_completed_week"``.
+        """
+        params: Dict[str, Any] = {}
+        if window is not None:
+            params["window"] = window
+        return self._unwrap(
+            self._get("/api/v1/earnings/statistics", params=params).json(),
+            item_cls=EarningsStatistics,
+        )
+
+    def get_ranked_earnings(
+        self,
+        reported_days: Optional[int] = None,
+        reported_limit: Optional[int] = None,
+        upcoming_days: Optional[int] = None,
+        upcoming_limit: Optional[int] = None,
+    ) -> PreviewResult[RankedEarnings]:
+        """Get important recently reported and upcoming earnings in one ranking.
+
+        Use this to prioritize a cross-ticker earnings sweep. Follow reported
+        rows with :meth:`get_earnings_reactions` for realized history; use
+        :meth:`get_recent_earnings` for an unranked recent feed or
+        :meth:`get_earnings_calendar` for the broader forward schedule.
+
+        A PRO key receives the full ranking. A FREE key receives the first
+        three rows in each section with ``totalInWindow`` left intact. Optional
+        row fields are omitted when null and parse as ``None``.
+
+        Args:
+            reported_days: Reported look-back window, 1 to 31. API default: 14.
+            reported_limit: Maximum reported rows, 1 to 50. API default: 12.
+            upcoming_days: Upcoming window, 1 to 31. API default: 7.
+            upcoming_limit: Maximum upcoming rows, 1 to 50. API default: 12.
+        """
+        params: Dict[str, Any] = {}
+        if reported_days is not None:
+            params["reportedDays"] = reported_days
+        if reported_limit is not None:
+            params["reportedLimit"] = reported_limit
+        if upcoming_days is not None:
+            params["upcomingDays"] = upcoming_days
+        if upcoming_limit is not None:
+            params["upcomingLimit"] = upcoming_limit
+        return self._unwrap(
+            self._get("/api/v1/earnings/ranked", params=params).json(),
+            item_cls=RankedEarnings,
         )
 
     # ── Options endpoints ───────────────────────────────────────

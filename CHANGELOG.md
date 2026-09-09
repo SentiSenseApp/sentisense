@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.53.0
+
+- `get_earnings_reactions(ticker)` returns up to twelve measured post-report session moves
+  as a direct `EarningsReactions` payload. Each `EarningsReaction` keeps its required,
+  nullable `timing` field so inferred sessions remain distinguishable.
+- `get_earnings_statistics(window=None)` returns typed market-wide outcome counts, reaction
+  rates, coverage, trailing baseline, deviations, and calculation thresholds. It uses the
+  preview envelope, while every API key receives the full `EarningsStatistics` body.
+- `get_ranked_earnings(...)` returns `RankedEarnings`, with separate recently reported and
+  upcoming sections. PRO keys receive the full ranking; FREE keys receive the first three
+  rows in each section with `totalInWindow` intact. Optional row fields tolerate omission.
+
 ## 0.52.0
 
 - The SentiSense Rating gains a seventh dimension, ``technicals``: where the price sits versus

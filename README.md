@@ -390,6 +390,9 @@ The earnings analysis report is the assembled version of a quarter: one object p
 | `get_earnings_calendar(ticker=None, week=None, date_from=None, date_to=None)` | Scheduled dates and consensus EPS. Free: the current week. PRO: the full forward window |
 | `get_earnings_summaries(ticker, limit=None)` | Per-quarter analysis, newest first. Free: the latest quarter, shaped. PRO: every hydrated quarter in full |
 | `get_recent_earnings(days=None, limit=None)` | Which covered companies reported in a recent window. Full window on every key |
+| `get_earnings_reactions(ticker)` | Up to twelve measured post-report session moves for one ticker. Full series on every key |
+| `get_earnings_statistics(window=None)` | Market-wide outcome and reaction rates, with baseline, deviation, thresholds, and coverage |
+| `get_ranked_earnings(reported_days=None, reported_limit=None, upcoming_days=None, upcoming_limit=None)` | Important recent reporters and upcoming events. Free: first 3 rows per section. PRO: full ranking |
 
 ```python
 result = client.get_earnings_summaries("AAPL", limit=1)
@@ -405,6 +408,17 @@ if result.data:
         print("Summary covers:", ", ".join(quarter.summaryTopics))
     else:
         print(quarter.summaryMd)
+```
+
+```python
+ranking = client.get_ranked_earnings(reported_days=14, upcoming_days=7)
+for row in ranking.reported.rows:
+    history = client.get_earnings_reactions(row.ticker)
+    latest_move = history.reactions[0].movePct if history.reactions else None
+    print(row.ticker, row.outcome, latest_move)
+
+statistics = client.get_earnings_statistics(window="last_completed_week")
+print(statistics.beat.rate, statistics.coverageRatio)
 ```
 
 A ticker with no stored quarter answers with an empty list rather than a 404. A quarter can gain its call summary on a later read, so branch on `hasTranscript` and compare `transcriptGeneratedAt` against `generatedAt` rather than assuming a fixed lag. The calendar is the forward-looking half of this family and the recent-reporters feed the backward-looking one; the window there is bounded by report date, so a quarter reported inside it appears even when its call summary lands later.

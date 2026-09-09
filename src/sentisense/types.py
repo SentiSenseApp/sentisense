@@ -422,6 +422,257 @@ class RecentEarningsEntry(APIModel):
     generatedAt: Optional[int] = None  # epoch seconds
 
 
+@dataclass
+class EarningsReaction(APIModel):
+    """The measured session move following one earnings announcement."""
+
+    reportDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    timing: Optional[str] = None  # "AMC" | "BMO" | None; always present
+    priorClose: float = 0.0
+    nextClose: float = 0.0
+    movePct: float = 0.0  # signed percent
+
+
+@dataclass
+class EarningsReactions(APIModel):
+    """Up to twelve measured earnings reactions for one ticker, newest first."""
+
+    ticker: str = ""
+    asOf: str = ""  # ISO calendar day "YYYY-MM-DD"
+    reactions: List[EarningsReaction] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EarningsReactions":
+        return cls(
+            ticker=data.get("ticker", ""),
+            asOf=data.get("asOf", ""),
+            reactions=[
+                EarningsReaction.from_dict(row) for row in data.get("reactions", [])
+            ],
+        )
+
+
+@dataclass
+class EarningsStatisticsWindow(APIModel):
+    """The calendar span covered by an earnings-statistics block."""
+
+    key: str = ""
+    kind: str = ""
+    startDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    endDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+
+
+@dataclass
+class EarningsOutcomeStatistics(APIModel):
+    """Counts, rates, and measured moves for one earnings outcome."""
+
+    count: int = 0
+    rate: Optional[float] = None
+    withReaction: int = 0
+    fell: int = 0
+    rose: int = 0
+    flat: int = 0
+    fellRate: Optional[float] = None
+    averageMovePct: Optional[float] = None  # signed percent
+
+
+@dataclass
+class EarningsStatisticsBaseline(APIModel):
+    """Trailing comparison span for an earnings-statistics window."""
+
+    window: EarningsStatisticsWindow = field(default_factory=EarningsStatisticsWindow)
+    classifiedEvents: int = 0
+    completedReactions: int = 0
+    distinctTickers: int = 0
+    beatRate: Optional[float] = None
+    beatsFellRate: Optional[float] = None
+    coverageRatio: Optional[float] = None
+    sufficientData: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EarningsStatisticsBaseline":
+        known = {f.name for f in dataclasses.fields(cls)}
+        base = {k: v for k, v in data.items() if k in known and k != "window"}
+        return cls(
+            **base,
+            window=EarningsStatisticsWindow.from_dict(data.get("window") or {}),
+        )
+
+
+@dataclass
+class EarningsStatisticsDeviation(APIModel):
+    """Signed differences from the trailing baseline."""
+
+    beatRate: Optional[float] = None
+    beatsFellRate: Optional[float] = None
+    beatRateIsMaterial: bool = False
+    beatsFellRateIsMaterial: bool = False
+
+
+@dataclass
+class EarningsStatisticsThresholds(APIModel):
+    """Publication and materiality thresholds used for the statistics."""
+
+    minClassifiedEvents: int = 0
+    minCoverageRatio: float = 0.0
+    baselineWeeks: int = 0
+    beatRateDeviation: float = 0.0
+    reactionDivergence: float = 0.0
+
+
+@dataclass
+class EarningsStatistics(APIModel):
+    """Market-wide earnings outcomes and their realized price reactions."""
+
+    calculationVersion: str = ""
+    asOf: int = 0  # epoch seconds
+    window: EarningsStatisticsWindow = field(default_factory=EarningsStatisticsWindow)
+    eventsInWindow: int = 0
+    classifiedEvents: int = 0
+    unclassifiedEvents: int = 0
+    distinctTickers: int = 0
+    completedReactions: int = 0
+    pendingReactions: int = 0
+    coverageRatio: Optional[float] = None
+    sufficientData: bool = False
+    insufficientDataReason: Optional[str] = None
+    beat: EarningsOutcomeStatistics = field(default_factory=EarningsOutcomeStatistics)
+    miss: EarningsOutcomeStatistics = field(default_factory=EarningsOutcomeStatistics)
+    inline: EarningsOutcomeStatistics = field(default_factory=EarningsOutcomeStatistics)
+    averageMovePct: Optional[float] = None  # signed percent
+    baseline: Optional[EarningsStatisticsBaseline] = None
+    deviation: Optional[EarningsStatisticsDeviation] = None
+    thresholds: EarningsStatisticsThresholds = field(
+        default_factory=EarningsStatisticsThresholds
+    )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EarningsStatistics":
+        nested = {
+            "window",
+            "beat",
+            "miss",
+            "inline",
+            "baseline",
+            "deviation",
+            "thresholds",
+        }
+        known = {f.name for f in dataclasses.fields(cls)}
+        base = {k: v for k, v in data.items() if k in known and k not in nested}
+        baseline = data.get("baseline")
+        deviation = data.get("deviation")
+        return cls(
+            **base,
+            window=EarningsStatisticsWindow.from_dict(data.get("window") or {}),
+            beat=EarningsOutcomeStatistics.from_dict(data.get("beat") or {}),
+            miss=EarningsOutcomeStatistics.from_dict(data.get("miss") or {}),
+            inline=EarningsOutcomeStatistics.from_dict(data.get("inline") or {}),
+            baseline=(
+                EarningsStatisticsBaseline.from_dict(baseline)
+                if baseline is not None
+                else None
+            ),
+            deviation=(
+                EarningsStatisticsDeviation.from_dict(deviation)
+                if deviation is not None
+                else None
+            ),
+            thresholds=EarningsStatisticsThresholds.from_dict(
+                data.get("thresholds") or {}
+            ),
+        )
+
+
+@dataclass
+class RankedReportedEarnings(APIModel):
+    """One recently reported company in the earnings ranking."""
+
+    ticker: str = ""
+    reportDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    fiscalPeriod: Optional[str] = None
+    headline: Optional[str] = None
+    hasTranscriptSummary: Optional[bool] = None
+    estimateEps: Optional[float] = None
+    actualEps: Optional[float] = None
+    surprisePct: Optional[float] = None  # signed percent
+    outcome: str = ""  # BEAT | MISS | INLINE | UNCLASSIFIED
+    movePct: Optional[float] = None  # signed percent
+    reactionPending: Optional[bool] = None
+    liveReactionPct: Optional[float] = None  # signed percent while the session is open
+    awaitingConsensus: Optional[bool] = None
+    marketCap: Optional[float] = None  # dollars
+    sentisenseScore7d: Optional[float] = None  # signed and unbounded
+    scoreChange7d: Optional[float] = None
+    importance: float = 0.0  # 0 to 1
+
+
+@dataclass
+class RankedUpcomingEarnings(APIModel):
+    """One upcoming company in the earnings ranking."""
+
+    ticker: str = ""
+    companyName: str = ""
+    earningsDate: str = ""  # ISO calendar day "YYYY-MM-DD"
+    earningsTime: str = ""  # before_open | after_close | during_market | unknown
+    confirmed: bool = False
+    estimatedEps: Optional[float] = None
+    marketCap: Optional[float] = None  # dollars
+    sentisenseScore7d: Optional[float] = None  # signed and unbounded
+    scoreChange7d: Optional[float] = None
+    importance: float = 0.0  # 0 to 1
+
+
+@dataclass
+class RankedEarningsSection(APIModel, Generic[T]):
+    """A ranked earnings window and the rows returned for it."""
+
+    windowStart: str = ""  # ISO calendar day "YYYY-MM-DD"
+    windowEnd: str = ""  # ISO calendar day "YYYY-MM-DD"
+    totalInWindow: int = 0
+    rows: List[T] = field(default_factory=list)
+
+
+@dataclass
+class RankedEarnings(APIModel):
+    """Recently reported and upcoming earnings ranked by importance."""
+
+    asOf: int = 0  # epoch seconds
+    rankingVersion: str = ""
+    reported: RankedEarningsSection[RankedReportedEarnings] = field(
+        default_factory=RankedEarningsSection
+    )
+    upcoming: RankedEarningsSection[RankedUpcomingEarnings] = field(
+        default_factory=RankedEarningsSection
+    )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RankedEarnings":
+        reported = data.get("reported") or {}
+        upcoming = data.get("upcoming") or {}
+        return cls(
+            asOf=data.get("asOf", 0),
+            rankingVersion=data.get("rankingVersion", ""),
+            reported=RankedEarningsSection(
+                windowStart=reported.get("windowStart", ""),
+                windowEnd=reported.get("windowEnd", ""),
+                totalInWindow=reported.get("totalInWindow", 0),
+                rows=[
+                    RankedReportedEarnings.from_dict(row)
+                    for row in reported.get("rows", [])
+                ],
+            ),
+            upcoming=RankedEarningsSection(
+                windowStart=upcoming.get("windowStart", ""),
+                windowEnd=upcoming.get("windowEnd", ""),
+                totalInWindow=upcoming.get("totalInWindow", 0),
+                rows=[
+                    RankedUpcomingEarnings.from_dict(row)
+                    for row in upcoming.get("rows", [])
+                ],
+            ),
+        )
+
+
 # ── Insider types ───────────────────────────────────────────
 
 
