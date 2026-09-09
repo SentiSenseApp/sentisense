@@ -52,6 +52,28 @@ class RateLimitError(SentiSenseError):
         self.retry_after = retry_after
 
 
+class TemporarilyUnavailable(SentiSenseError):
+    """Raised when the server is briefly out of upstream capacity.
+
+    The API answers ``503`` with a ``Retry-After`` header saying when it expects to be
+    ready. The client honours that header automatically, so you normally never see this;
+    it is raised only when the requested wait is longer than the client is willing to
+    sleep for. ``retry_after`` carries the server's figure in seconds, so a batch job can
+    keep the results it already has and resume later rather than retrying into a server
+    that has told you it is not ready.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        response: Optional[requests.Response] = None,
+        retry_after: Optional[float] = None,
+    ):
+        super().__init__(message, status_code, response)
+        self.retry_after = retry_after
+
+
 class APIError(SentiSenseError):
     """Raised on other non-2xx responses."""
 

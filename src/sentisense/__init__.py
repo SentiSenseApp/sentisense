@@ -9,6 +9,7 @@ from sentisense.exceptions import (
     DeepHistoryUnavailable,
     RateLimitError,
     SentiSenseError,
+    TemporarilyUnavailable,
 )
 from sentisense.types import (
     AssetMetadata,
@@ -167,6 +168,7 @@ __all__ = [
     "RateLimitError",
     "SentiSenseClient",
     "SentiSenseError",
+    "TemporarilyUnavailable",
     "SentimentEntry",
     "SimilarStock",
     "StockDetail",

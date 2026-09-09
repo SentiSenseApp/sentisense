@@ -8,7 +8,12 @@ from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
 import requests
 
 from sentisense.__about__ import __version__
-from sentisense.exceptions import DeepHistoryUnavailable, SentiSenseError, _raise_for_status
+from sentisense.exceptions import (
+    DeepHistoryUnavailable,
+    SentiSenseError,
+    TemporarilyUnavailable,
+    _raise_for_status,
+)
 from sentisense.types import (
     APIModel,
     ClusterBuy,
@@ -77,15 +82,19 @@ _MAX_DEEP_HISTORY_WAIT = 30.0
 _MAX_RATE_LIMIT_WAIT = 120.0
 _RATE_LIMIT_FALLBACK_WAIT = 60.0
 
+# Statuses whose Retry-After the server sets deliberately, and we honour verbatim.
+_RETRY_AFTER_STATUSES = frozenset({429, 503})
+
 
 def _retry_after_seconds(
     response: "requests.Response",
     default: float = _DEEP_HISTORY_FALLBACK_WAIT,
-    max_wait: float = _MAX_DEEP_HISTORY_WAIT,
+    max_wait: Optional[float] = _MAX_DEEP_HISTORY_WAIT,
 ) -> float:
     """Seconds to wait before retrying, from ``Retry-After`` when present.
 
-    The result is clamped to ``[0.5, max_wait]``. ``Retry-After`` may legally carry an
+    The result is clamped to ``[0.5, max_wait]``, or only floored when ``max_wait`` is
+    ``None``, which callers use when they need the server's real figure to decide with. ``Retry-After`` may legally carry an
     HTTP-date instead of a number of seconds, and ``float()`` also accepts ``"nan"`` and
     ``"inf"``, so anything that is not a finite number falls back to ``default`` rather
     than raising or producing a nonsense sleep.
@@ -99,7 +108,8 @@ def _retry_after_seconds(
         return default
     if not math.isfinite(seconds):
         return default
-    return min(max(0.5, seconds), max_wait)
+    floored = max(0.5, seconds)
+    return floored if max_wait is None else min(floored, max_wait)
 
 
 class SentiSenseClient:
@@ -148,12 +158,26 @@ class SentiSenseClient:
                 return resp
             is_retryable = resp.status_code == 429 or resp.status_code >= 500
             if is_retryable and attempt < self.max_retries:
-                if resp.status_code == 429:
-                    delay = _retry_after_seconds(
+                if resp.status_code in _RETRY_AFTER_STATUSES:
+                    # 503 carries Retry-After for the same reason 429 does: the server knows
+                    # when it will have capacity and we do not. Backing off on our own guess
+                    # instead would retry into a server that is still saturated.
+                    raw_delay = _retry_after_seconds(
                         resp,
                         default=_RATE_LIMIT_FALLBACK_WAIT,
-                        max_wait=_MAX_RATE_LIMIT_WAIT,
+                        max_wait=None,
                     )
+                    if raw_delay > _MAX_RATE_LIMIT_WAIT:
+                        # Retrying early would just spend another request against a server
+                        # that told us it is not ready. Hand the caller the delay so a batch
+                        # job can keep what it already fetched and resume later.
+                        raise TemporarilyUnavailable(
+                            "Server asked for a "
+                            f"{raw_delay:.0f}s wait, longer than this client's "
+                            f"{_MAX_RATE_LIMIT_WAIT:.0f}s budget",
+                            retry_after=raw_delay,
+                        )
+                    delay = raw_delay
                 else:
                     delay = min(1.0 * (2 ** attempt), 60.0) + random.random()
                 time.sleep(delay)

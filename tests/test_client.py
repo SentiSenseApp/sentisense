@@ -723,6 +723,81 @@ class TestCalendarEndpoints:
         )
 
 
+class TestServiceUnavailableRetry:
+    """A 503 carries `Retry-After` for the same reason a 429 does.
+
+    The server knows when it expects capacity back and the client does not, so guessing
+    with exponential backoff retries into a server that is still saturated and spends
+    another of the caller's requests doing it. Two shapes matter: a wait we will sit
+    through, and one longer than we are willing to sleep for, which has to reach the
+    caller carrying the server's own figure so a batch job can resume later instead of
+    hammering.
+    """
+
+    def _client_returning(self, responses):
+        import types as _types
+
+        client = SentiSenseClient(api_key="k")
+        pending = iter(responses)
+        client.session = _types.SimpleNamespace(get=lambda url, **kw: next(pending))
+        return client
+
+    def _response(self, status, headers=None):
+        resp = MagicMock()
+        resp.status_code = status
+        resp.headers = headers or {}
+        resp.ok = 200 <= status < 300
+        return resp
+
+    def test_503_waits_exactly_as_long_as_the_server_asked(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client = self._client_returning(
+            [self._response(503, {"Retry-After": "7"}), self._response(200)]
+        )
+
+        assert client._request("get", "/x").status_code == 200
+        assert slept == [7.0]
+
+    def test_503_without_a_header_falls_back_rather_than_failing(self, monkeypatch):
+        import sentisense.client as client_module
+        from sentisense.client import _RATE_LIMIT_FALLBACK_WAIT
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client = self._client_returning([self._response(503), self._response(200)])
+
+        assert client._request("get", "/x").status_code == 200
+        assert slept == [_RATE_LIMIT_FALLBACK_WAIT]
+
+    def test_503_beyond_the_budget_raises_with_the_servers_figure(self, monkeypatch):
+        import sentisense.client as client_module
+        from sentisense.exceptions import TemporarilyUnavailable
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client = self._client_returning([self._response(503, {"Retry-After": "600"})])
+
+        with pytest.raises(TemporarilyUnavailable) as excinfo:
+            client._request("get", "/x")
+
+        # The caller gets the real figure, not the clamp, and we never slept on it.
+        assert excinfo.value.retry_after == 600.0
+        assert slept == []
+
+    def test_500_keeps_its_exponential_backoff(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client = self._client_returning([self._response(500), self._response(200)])
+
+        assert client._request("get", "/x").status_code == 200
+        assert len(slept) == 1 and 1.0 <= slept[0] < 2.0
+
+
 class TestRetryAfterParsing:
     """`Retry-After` is attacker- and vendor-controlled input, not a trusted number.
 
