@@ -1374,6 +1374,47 @@ class SentiSenseClient:
             self._get(f"/api/v1/analyst/{ticker.upper()}/consensus").json(),
         )
 
+    def get_analyst_consensus_history(
+        self,
+        ticker: str,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> PreviewResult[Dict[str, Any]]:
+        """Get daily analyst consensus observations for a ticker.
+
+        Rows are ordered by ``snapshotDate`` and describe the consensus as observed
+        on that date. When ``countsObserved`` is ``False``, the vendor panel did not
+        come back that day and its distribution counts are carried forward.
+
+        A PRO key receives the requested window. A FREE key receives the last 30 days
+        ending at ``to_date``; ``targetMedian``, ``recommendationMean``, and the five
+        distribution count fields are ``None`` in that preview. The remaining row
+        fields stay populated, and ``result.total_count`` still sizes the full window.
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"AAPL"``).
+            from_date: First snapshot date, inclusive, as ``"YYYY-MM-DD"``. Omitted,
+                the API uses 90 days before the end date.
+            to_date: Last snapshot date, inclusive, as ``"YYYY-MM-DD"``. Omitted,
+                the API uses the current date in the market calendar.
+            limit: Maximum rows to return, 1 to 366. Omitted, the API uses 90;
+                values above 366 are clamped.
+        """
+        params: Dict[str, Any] = {}
+        if from_date is not None:
+            params["from"] = from_date
+        if to_date is not None:
+            params["to"] = to_date
+        if limit is not None:
+            params["limit"] = limit
+        return self._unwrap(
+            self._get(
+                f"/api/v1/analyst/{ticker.upper()}/consensus/history",
+                params=params,
+            ).json(),
+        )
+
     def get_analyst_actions(
         self,
         ticker: str,
@@ -1661,7 +1702,7 @@ class SentiSenseClient:
         404 for tickers that do not yet have curated coverage.
 
         Coverage today: near-complete for the S&P 500 plus extended universe
-        (~500 tickers). Use :meth:`list_kpi_coverage` to enumerate.
+        (900+ tickers). Use :meth:`list_kpi_coverage` to enumerate.
 
         Args:
             ticker: Stock ticker symbol.
