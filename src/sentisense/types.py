@@ -601,8 +601,8 @@ class RankedReportedEarnings(APIModel):
     liveReactionPct: Optional[float] = None  # signed percent while the session is open
     awaitingConsensus: Optional[bool] = None
     marketCap: Optional[float] = None  # dollars
-    sentisenseScore7d: Optional[float] = None  # signed and unbounded
-    scoreChange7d: Optional[float] = None
+    sentisenseScore7d: Optional[float] = None  # 7-day average Score, signed and unbounded
+    scoreChange7d: Optional[float] = None  # 7-day average minus 30-day average, score units
     importance: float = 0.0  # 0 to 1
 
 
@@ -617,8 +617,8 @@ class RankedUpcomingEarnings(APIModel):
     confirmed: bool = False
     estimatedEps: Optional[float] = None
     marketCap: Optional[float] = None  # dollars
-    sentisenseScore7d: Optional[float] = None  # signed and unbounded
-    scoreChange7d: Optional[float] = None
+    sentisenseScore7d: Optional[float] = None  # 7-day average Score, signed and unbounded
+    scoreChange7d: Optional[float] = None  # 7-day average minus 30-day average, score units
     importance: float = 0.0  # 0 to 1
 
 
