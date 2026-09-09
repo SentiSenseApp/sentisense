@@ -344,6 +344,7 @@ The price target cone (mean, high, low, upside percent) and the consensus are fr
 |--------|-------------|
 | `get_analyst_consensus(ticker)` | Price target band, analyst count, upside percent. Free for everyone, full data |
 | `get_analyst_consensus_history(ticker, from_date=None, to_date=None, limit=None)` | Daily consensus observations. Free: last 30 days with distribution fields null |
+| `get_analyst_called_it(ticker, limit=None)` | Recorded call history for moves of 20% or more over five sessions. Free: newest move, up to 5 calls, move counts intact |
 | `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrades and downgrades. Free: the 3 most recent |
 | `get_analyst_estimates(ticker)` | Forward EPS estimates and surprise history. Free: 1 quarter |
 | `get_analyst_market_activity(lookback_days=30)` | Market-wide analyst actions across all covered tickers (PRO) |

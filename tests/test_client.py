@@ -1266,6 +1266,83 @@ class TestAnalystConsensusHistory:
         assert row["strongBuy"] is None
 
 
+class TestAnalystCalledIt:
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_limit_and_empty_moves(self, mock_get, client):
+        payload = {"ticker": "AAPL", "count": 0, "moves": []}
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": False,
+                "previewReason": None,
+                "totalCount": 0,
+                "data": payload,
+            }
+        )
+        result = client.get_analyst_called_it("aapl")
+        mock_get.assert_called_once_with("/api/v1/analyst/AAPL/called-it", params={})
+        assert result.data == payload
+        assert result.total_count == 0
+        assert result.is_preview is False
+
+    @pytest.mark.parametrize("limit", [3, 0, 75])
+    @patch.object(SentiSenseClient, "_get")
+    def test_forwards_limit_for_server_validation(self, mock_get, client, limit):
+        mock_get.return_value = _mock_response(json_data={"data": {"moves": []}})
+        client.get_analyst_called_it("AAPL", limit=limit)
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/AAPL/called-it", params={"limit": limit}
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_preview_unwrap_keeps_move_counts_and_null_analyst_name(self, mock_get, client):
+        move = {
+            "insightId": "move-example",
+            "generatedAt": 1788228000,
+            "moveStartDate": "2026-08-24",
+            "moveEndDate": "2026-08-31",
+            "movePct": 22.5,
+            "moveWindowSessions": 5,
+            "lookbackDays": 90,
+            "coveringFirms": 12,
+            "revisedWithMove": 7,
+            "revisedAgainstMove": 2,
+            "leftUnchanged": 3,
+            "calls": [
+                {
+                    "firm": "Example Research",
+                    "analystName": None,
+                    "attribution": "firm",
+                    "priceTarget": 250.0,
+                    "priorPriceTarget": None,
+                    "publishedOn": "2026-08-21",
+                    "daysBeforeMove": 3,
+                }
+            ],
+        }
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": True,
+                "previewReason": "PRO_REQUIRED",
+                "totalCount": 4,
+                "data": {"ticker": "AAPL", "count": 1, "moves": [move]},
+            }
+        )
+        result = client.get_analyst_called_it("AAPL")
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"
+        assert result.total_count == 4
+        assert result.count == 1
+        assert len(result.data["moves"]) == 1
+        returned = result.data["moves"][0]
+        assert returned == move
+        assert returned["coveringFirms"] == 12
+        assert returned["revisedWithMove"] == 7
+        assert returned["revisedAgainstMove"] == 2
+        assert returned["leftUnchanged"] == 3
+        assert len(returned["calls"]) == 1
+        assert returned["calls"][0]["analystName"] is None
+
+
 class TestAnalystCoverage:
     """Who covers a ticker, grouped by firm.
 

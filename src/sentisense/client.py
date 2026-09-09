@@ -1415,6 +1415,39 @@ class SentiSenseClient:
             ).json(),
         )
 
+    def get_analyst_called_it(
+        self,
+        ticker: str,
+        limit: Optional[int] = None,
+    ) -> PreviewResult[Dict[str, Any]]:
+        """Get factual call history as recorded when a stock moved 20% or more
+        over five sessions, newest move first by ``moveEndDate``.
+
+        Auto-unwrapped. The payload contains ``ticker``, ``count``, and ``moves``.
+        PRO receives full moves and calls; FREE receives the newest move with up to
+        five calls, keeping ``coveringFirms``, ``revisedWithMove``,
+        ``revisedAgainstMove``, and ``leftUnchanged`` intact. ``result.total_count``
+        counts all available moves before the limit.
+
+        Each call includes ``analystName``: it is null (``None``), never absent,
+        when the publisher named nobody. ``generatedAt`` is in epoch seconds;
+        ``moveStartDate``, ``moveEndDate``, and ``publishedOn`` are ``YYYY-MM-DD``.
+        A known stock with no qualifying move returns an empty ``moves`` list.
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"AAPL"``).
+            limit: Maximum moves to return, 1 to 50. Omitted, the API uses 10.
+                Values below 1 are rejected; values above 50 are clamped.
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        return self._unwrap(
+            self._get(
+                f"/api/v1/analyst/{ticker.upper()}/called-it", params=params
+            ).json(),
+        )
+
     def get_analyst_actions(
         self,
         ticker: str,
