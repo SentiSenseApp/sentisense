@@ -1209,6 +1209,63 @@ class TestStockQuoteReportedCurrency:
         assert result.epsTTM is None
 
 
+class TestAnalystConsensusHistory:
+    @patch.object(SentiSenseClient, "_get")
+    def test_omitting_filters_leaves_defaults_to_the_server(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {"history": []}})
+        client.get_analyst_consensus_history("aapl")
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/AAPL/consensus/history", params={}
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_forwards_date_range_and_limit(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"data": {"history": []}})
+        client.get_analyst_consensus_history(
+            "AAPL", from_date="2026-06-01", to_date="2026-08-31", limit=60
+        )
+        mock_get.assert_called_once_with(
+            "/api/v1/analyst/AAPL/consensus/history",
+            params={"from": "2026-06-01", "to": "2026-08-31", "limit": 60},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_unwraps_preview_metadata_and_preserves_null_distribution(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data={
+                "isPreview": True,
+                "previewReason": "PRO_REQUIRED",
+                "totalCount": 90,
+                "data": {
+                    "ticker": "AAPL",
+                    "from": "2026-08-02",
+                    "to": "2026-08-31",
+                    "count": 1,
+                    "history": [
+                        {
+                            "snapshotDate": "2026-08-31",
+                            "countsObserved": False,
+                            "targetMedian": None,
+                            "recommendationMean": None,
+                            "strongBuy": None,
+                            "buy": None,
+                            "hold": None,
+                            "sell": None,
+                            "strongSell": None,
+                        }
+                    ],
+                },
+            }
+        )
+        result = client.get_analyst_consensus_history("AAPL")
+        row = result.data["history"][0]
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"
+        assert result.total_count == 90
+        assert row["countsObserved"] is False
+        assert row["strongBuy"] is None
+
+
 class TestAnalystCoverage:
     """Who covers a ticker, grouped by firm.
 
