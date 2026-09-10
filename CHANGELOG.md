@@ -12,6 +12,15 @@
   upcoming sections. PRO keys receive the full ranking; FREE keys receive the first three
   rows in each section with `totalInWindow` intact. Optional row fields tolerate omission.
 
+- `get_analyst_consensus_history(ticker, from_date=None, to_date=None, limit=None)` returns
+  daily observations of the analyst consensus, ordered by `snapshotDate`. Each row is the
+  target band and rating counts as observed on that date; `countsObserved` is `False` when
+  the rating panel did not come back that day and the counts are carried. FREE keys receive
+  the last 30 days with the distribution fields `None`; PRO keys receive the requested window.
+- `get_analyst_called_it(ticker, limit=None)` returns recorded large moves and the covering
+  firms that had revised their price targets in that direction beforehand, newest first, with
+  `analystName` `None` when the publisher named nobody. FREE keys receive the newest move.
+
 ## 0.52.0
 
 - The SentiSense Rating gains a seventh dimension, ``technicals``: where the price sits versus
