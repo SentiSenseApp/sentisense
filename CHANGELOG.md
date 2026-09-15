@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.54.0
+
+- Earnings and share-count field semantics are now documented on `get_fundamentals`: these
+  fields are reported independently by the data provider and are not expected to reconcile
+  arithmetically, so dividing an income figure by a share count does not reproduce a reported
+  EPS. `epsBasic` and `epsDiluted` name their basis explicitly; `eps` does not.
+  `bottomLineNetIncome` is a different line from `netIncome` and can differ from it in sign.
+- Both share-count fields are averages across the period, not counts at period end, so neither
+  is a correct input to a market capitalisation or a book value per share.
+- `sharesOutstanding` is deprecated and stops being populated on 2026-12-15. It is not a
+  period-end share count despite its name. Use `weightedAverageSharesDiluted` or
+  `weightedAverageSharesBasic` and handle `None`.
+
+
 ## 0.53.0
 
 - `get_earnings_reactions(ticker)` returns up to twelve measured post-report session moves
