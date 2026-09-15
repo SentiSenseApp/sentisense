@@ -489,9 +489,27 @@ class SentiSenseClient:
             fiscal_period: Filter by fiscal period (e.g. "Q1", "Q2").
             fiscal_year: Filter by fiscal year (e.g. 2025).
 
+        Earnings and share-count fields are reported independently by the data provider and are
+        NOT expected to reconcile arithmetically. ``netIncome / weightedAverageSharesDiluted``
+        will not generally reproduce any EPS field, because the provider computes EPS from its
+        own numerator on its own share basis. ``epsBasic`` and ``epsDiluted`` name their basis
+        explicitly; ``eps`` does not. ``bottomLineNetIncome`` is a different line from
+        ``netIncome`` and can differ from it in sign.
+
+        Both share-count fields are averages ACROSS the period, not counts at period end, so
+        neither is a correct input to a market capitalisation or a book value per share.
+
+        .. deprecated:: 2026-12-15
+            ``sharesOutstanding`` stops being populated on 2026-12-15. It is not a period-end
+            shares-outstanding count despite the name, and it means different things on
+            different rows. Use ``weightedAverageSharesDiluted`` or
+            ``weightedAverageSharesBasic`` and handle ``None``, which now means the provider did
+            not report that count rather than silently substituting the other one.
+
         Example:
             >>> q = client.get_fundamentals("AAPL")
             >>> abs(q["capitalExpenditure"]), q["freeCashFlow"]
+            >>> q.get("weightedAverageSharesDiluted")  # not q["sharesOutstanding"]
         """
         params: Dict[str, Any] = {"ticker": ticker, "timeframe": timeframe}
         if fiscal_period:
