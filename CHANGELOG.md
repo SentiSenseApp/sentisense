@@ -12,6 +12,11 @@
 - `sharesOutstanding` is deprecated and stops being populated on 2026-12-15. It is not a
   period-end share count despite its name. Use `weightedAverageSharesDiluted` or
   `weightedAverageSharesBasic` and handle `None`.
+- Server-side, `epsDiluted` now carries a value on statement-history rows where it was
+  previously `None` on most tickers (a binding defect, not missing provider data). Where the
+  latest-period response derives trailing EPS and P/E from it, those can now populate where
+  they were `None`, and a valuation that picks its EPS basis from the newest quarter can now
+  select the diluted series.
 
 
 ## 0.53.0
