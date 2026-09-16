@@ -730,7 +730,9 @@ class SentiSenseClient:
             week: Shorthand window: ``"this"`` or ``"next"``.
             date_from: Inclusive lower bound, ISO ``YYYY-MM-DD`` (overrides ``week``).
             date_to: Inclusive upper bound, ISO ``YYYY-MM-DD``.
-            confirmed: When ``True``, only company-confirmed dates.
+            confirmed: Two-sided. ``True`` returns only company-confirmed dates,
+                ``False`` returns only the still-estimated ones. Leave it unset
+                to get both.
             time: Session filter: ``before_open``, ``after_close``,
                 ``during_market``, or ``unknown``.
         """
