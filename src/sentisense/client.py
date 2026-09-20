@@ -415,12 +415,10 @@ class SentiSenseClient:
 
         ``adjusted`` is always ``True``: every bar is restated to the stock's current
         share count rather than served as it printed at the time. It matters most for
-        ``volume``. On a stock that has split several times, older bars report share
+        ``volume``. On a stock that has split several times, older bars can report share
         counts many times the raw prints of the day, because each share of the day has
         since become several, and that restatement is why an old bar can dwarf a recent
-        one with no bug involved. Volume is split-restated in every range, including the
-        ranges whose prices are split-adjusted only, because a dividend changes the price
-        basis but not the number of shares that changed hands.
+        one with no bug involved.
 
         The deep ranges ("10Y", "MAX") answer ``202`` while a rarely-requested stock's
         history is still being assembled. This method retries that automatically,
