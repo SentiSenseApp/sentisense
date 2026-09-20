@@ -548,6 +548,24 @@ class TestDocumentEndpoints:
         )
 
     @patch.object(SentiSenseClient, "_get")
+    def test_search_stories(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[{"cluster": {"id": "c1"}}])
+        client.search_stories("fed decision", days=30, limit=5)
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/stories/search",
+            params={"query": "fed decision", "days": 30, "limit": 5},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_search_stories_defaults(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.search_stories("value menu traffic")
+        mock_get.assert_called_once_with(
+            "/api/v1/documents/stories/search",
+            params={"query": "value menu traffic"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_stories_by_ticker(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[])
         client.get_stories_by_ticker("TSLA", limit=3)

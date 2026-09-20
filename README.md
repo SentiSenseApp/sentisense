@@ -228,6 +228,7 @@ All five are optional: a response served before they shipped omits them. For the
 | `search_documents(query, source=None, days=None, limit=None)` | Natural language search across news and social |
 | `get_documents_by_source(source, days=None, hours=None, limit=None, sort=None)` | Latest from one source |
 | `get_stories(limit=None, days=None, offset=None, filter_hours=None)` | AI-curated news story clusters |
+| `search_stories(query, days=7, limit=20)` | Free-text search across AI-curated stories, newest first |
 | `get_stories_by_ticker(ticker, limit=None)` | Story clusters for one stock |
 | `get_market_summary()` | The AI-generated market summary |
 

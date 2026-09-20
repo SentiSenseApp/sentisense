@@ -2015,6 +2015,35 @@ class SentiSenseClient:
             params["filterHours"] = filter_hours
         return self._parse_list(self._get("/api/v1/documents/stories", params=params).json(), Story)
 
+    def search_stories(
+        self,
+        query: str,
+        days: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> List[Story]:
+        """Search AI-curated news stories with a free-text query.
+
+        The query is parsed the same way as :meth:`search_documents`: explicit
+        entity ids (``kb/company/1``) first, then entities recognised in the
+        text (tickers, company names, people, organizations, products, topics),
+        then the remaining words as keywords that must all appear in the
+        story's own title or summary. Results are newest first, and the Story
+        objects are the same shape :meth:`get_stories` returns.
+
+        Args:
+            query: Free text, e.g. "fed decision" or "kb/company/1 guidance".
+                A blank query is rejected with a 400.
+            days: Look back N days, 1 to 30 (default 7). Stories older than 30 days are
+                archived and are not searchable.
+            limit: Maximum number of stories (default 20, capped at 50).
+        """
+        params: Dict[str, Any] = {"query": query}
+        if days is not None:
+            params["days"] = days
+        if limit is not None:
+            params["limit"] = limit
+        return self._parse_list(self._get("/api/v1/documents/stories/search", params=params).json(), Story)
+
     def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Story]:
         """Get news stories for a specific stock.
 

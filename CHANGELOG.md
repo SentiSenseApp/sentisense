@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.55.0
+
+- New `search_stories(query, days=7, limit=20)`, a free-text search across the AI-curated
+  stories. The query is parsed like `search_documents`: explicit entity ids, then entities
+  recognised in the text, then the remaining words as keywords that must appear in the
+  story's own title or summary. Results are newest first and carry the same `Story` shape
+  `get_stories` returns, so a story `id` can be passed straight to the story detail endpoint.
+  `days` accepts 1 to 30 (stories older than 30 days are archived), `limit` is capped at 50,
+  and a blank query is rejected with a 400.
+
 ## 0.54.0
 
 - Earnings and share-count field semantics are now documented on `get_fundamentals`: these
