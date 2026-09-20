@@ -11,7 +11,12 @@
 - `Story` gains `id` and `clusterId`. The API returns both, and both carry the same value
   as the existing `cluster.id`, which was previously the only way to reach it.
 
-## 0.55.0
+## 0.55.0 (yanked)
+
+Yanked on PyPI on 2026-09-20: the note below said a story id could be passed straight to the
+story detail endpoint, and the Python client had no method for that endpoint until 0.56.0. The
+`search_stories` call itself works, so a pinned install is fine; everyone else resolves to
+0.56.0.
 
 - New `search_stories(query, days=7, limit=20)`, a free-text search across the AI-curated
   stories. The query is parsed like `search_documents`: explicit entity ids, then entities
