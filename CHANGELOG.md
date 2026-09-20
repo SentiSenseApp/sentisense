@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.56.0
+
+- New `get_story_detail(story_id)`, which reads one story in full: its title, summary,
+  narrative body and the bullish and bearish views. It returns a dict rather than a typed
+  model because the shape is editorial and varies by story. The Node client has had
+  `getStoryDetail` since its own story support landed; this closes the gap, and 0.55.0's
+  note that a story id "can be passed straight to the story detail endpoint" is now true
+  in Python too.
+- `Story` gains `id` and `clusterId`. The API returns both, and both carry the same value
+  as the existing `cluster.id`, which was previously the only way to reach it.
+
 ## 0.55.0
 
 - New `search_stories(query, days=7, limit=20)`, a free-text search across the AI-curated

@@ -566,6 +566,23 @@ class TestDocumentEndpoints:
         )
 
     @patch.object(SentiSenseClient, "_get")
+    def test_search_stories_parses_top_level_id(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data=[{"id": "boj-lifts-rates-09182026", "clusterId": "boj-lifts-rates-09182026", "cluster": {"id": "boj-lifts-rates-09182026"}}]
+        )
+        stories = client.search_stories("boj")
+        assert stories[0].id == "boj-lifts-rates-09182026"
+        assert stories[0].clusterId == "boj-lifts-rates-09182026"
+        assert stories[0].cluster.id == "boj-lifts-rates-09182026"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_story_detail(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data={"id": "boj-lifts-rates-09182026", "title": "BOJ lifts rates"})
+        result = client.get_story_detail("boj-lifts-rates-09182026")
+        mock_get.assert_called_once_with("/api/v1/documents/stories/boj-lifts-rates-09182026")
+        assert result["title"] == "BOJ lifts rates"
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_stories_by_ticker(self, mock_get, client):
         mock_get.return_value = _mock_response(json_data=[])
         client.get_stories_by_ticker("TSLA", limit=3)

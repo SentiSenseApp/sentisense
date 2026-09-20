@@ -980,6 +980,11 @@ class Story(APIModel):
     """AI-curated news story with impact score and tickers."""
 
     cluster: Optional[StoryCluster] = None
+    #: Stable story id, the same value as ``cluster.id`` and as ``clusterId``. Pass
+    #: it to :meth:`SentiSenseClient.get_story_detail` for the full narrative.
+    id: Optional[str] = None
+    #: Alias of :attr:`id`, kept because the API returns both names.
+    clusterId: Optional[str] = None
     #: Human-formatted labels for display, e.g. ``"Apple Inc (AAPL)"``. For display
     #: only; do not parse symbols out of these. Use ``tickers`` programmatically.
     displayTickers: List[str] = field(default_factory=list)

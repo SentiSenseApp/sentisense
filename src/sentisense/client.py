@@ -2044,6 +2044,22 @@ class SentiSenseClient:
             params["limit"] = limit
         return self._parse_list(self._get("/api/v1/documents/stories/search", params=params).json(), Story)
 
+    def get_story_detail(self, story_id: str) -> Dict[str, Any]:
+        """Get the full detail of one AI-curated story.
+
+        Args:
+            story_id: The story's id, as returned on :attr:`Story.id` (the same
+                value as ``story.clusterId`` and ``story.cluster.id``) by
+                :meth:`get_stories`, :meth:`search_stories` and
+                :meth:`get_stories_by_ticker`.
+
+        Returns:
+            The story's full record, including its title, summary, narrative body
+            and the bullish and bearish views. Returned as a dict rather than a
+            typed model because the shape is editorial and varies by story.
+        """
+        return self._get(f"/api/v1/documents/stories/{story_id}").json()
+
     def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Story]:
         """Get news stories for a specific stock.
 
