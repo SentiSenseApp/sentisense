@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.57.0
+
+- Fundamentals rows can now carry an `epsBasisRepair` object. For a small list of named
+  issuers whose provider restated share counts for a split but left older rows' EPS on the
+  pre-split basis, the EPS on those rows is divided by the split ratio so it agrees with the
+  share count beside it, and the row says so: `fields` names what changed, `multiplier` is
+  the factor applied (divide by it to recover the provider's figure), and
+  `splitExecutionDates` lists the splits involved. Share counts and net income are never
+  changed. `None` means no repair was applied to that row, not that the row is known to be
+  on one basis. The marker describes per-period EPS only; trailing figures such as `epsTTM`
+  are untouched. See the `get_fundamentals` and `get_fundamentals_periods` docstrings.
+- Chart bars from `get_stock_chart` now carry `adjusted`, always `True`: every bar is
+  restated to the stock's current share basis, so volume on old bars of a heavily split
+  stock can read many times the raw prints of the day. Prices through `5Y` are
+  split-adjusted; `10Y` and `MAX` are split- and dividend-adjusted.
+
 ## 0.56.0
 
 - New `get_story_detail(story_id)`, which reads one story in full: its title, summary,
