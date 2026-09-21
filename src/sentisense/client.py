@@ -507,6 +507,16 @@ class SentiSenseClient:
         Both share-count fields are averages ACROSS the period, not counts at period end, so
         neither is a correct input to a market capitalisation or a book value per share.
 
+        Per-period EPS is served on the data provider's current share basis. Where a provider
+        restated a company's share counts for a split but left some older rows' EPS on the
+        pre-split basis, and that has been confirmed against the company's own filing, the EPS
+        on those rows is divided by the split ratio so it agrees with the share count beside it,
+        and the row carries an ``epsBasisRepair`` object naming the fields changed, the
+        ``multiplier`` applied and the ``splitExecutionDates`` involved. Share counts and net
+        income are never changed. ``epsBasisRepair`` is ``None`` on a row served exactly as the
+        provider reports it, which is the usual case. Divide by ``multiplier`` to recover the
+        provider's original figure.
+
         .. deprecated:: 2026-12-15
             ``sharesOutstanding`` stops being populated on 2026-12-15. It is not a period-end
             shares-outstanding count despite the name, and it means different things on
