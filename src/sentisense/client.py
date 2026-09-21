@@ -520,8 +520,12 @@ class SentiSenseClient:
         applied to that row. It does NOT mean the row's EPS and share count are known to be on
         the same basis: an issuer that is not on the list, a row whose figures did not qualify,
         and a row whose split history could not be read all carry ``None`` and have their EPS
-        served exactly as the provider reports it. The trailing-twelve-month figures
-        (``epsTTM`` and friends) are summed from the provider's own rows and are never restated.
+        served exactly as the provider reports it.
+
+        The marker describes per-period EPS only. This repair never changes ``epsTTM`` or the
+        other trailing-twelve-month figures, and the marker never describes a trailing
+        adjustment: those are assembled separately, and whether they carry a split adjustment of
+        their own depends on which source served them.
 
         .. deprecated:: 2026-12-15
             ``sharesOutstanding`` stops being populated on 2026-12-15. It is not a period-end
