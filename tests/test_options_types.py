@@ -21,6 +21,7 @@ import pytest
 from sentisense import SentiSenseClient
 from sentisense.types import (
     OptionsHistory,
+    OptionsHighlight,
     OptionsOverview,
     OptionsSummary,
 )
@@ -146,6 +147,36 @@ class TestOptionsOverview:
             result = client.get_options_overview()
         assert result.data is None
 
+    def test_parses_both_session_highlight_lists(self, client):
+        stock = {
+            "ticker": "NVDA", "contract": "NVDA260821C00217500", "type": "call",
+            "strike": 217.5, "expiry": "2026-08-21", "dte": 1, "volume": 900,
+            "oi": 100, "volOiRatio": 9.0, "premium": 19321974.0,
+            "premiumPctl1y": 98.5, "oiPrior": 100, "oiNext": 650,
+            "oiChange": 550, "oiConfirmation": "opened", "oiObservedAt": 1787335200,
+            "oiVintage": "next_session", "asOf": "2026-08-20",
+            "publishedAt": "2026-08-21T01:00:00Z", "session": "completed",
+        }
+        etf = {**stock, "ticker": "SPY", "contract": "SPY260821P00600000"}
+        payload = {"highlights": [stock], "etfHighlights": [etf]}
+        result = OptionsOverview.from_dict(payload)
+        for highlight, expected in zip((result.highlights[0], result.etfHighlights[0]),
+                                       (stock, etf)):
+            assert isinstance(highlight, OptionsHighlight)
+            for key, value in expected.items():
+                assert getattr(highlight, key) == value
+
+    def test_omitted_highlight_fields_and_lists_default_to_none_and_empty(self):
+        result = OptionsOverview.from_dict({"highlights": [{}]})
+        assert result.etfHighlights == []
+        assert all(getattr(result.highlights[0], field) is None for field in (
+            "ticker", "contract", "type", "strike", "expiry", "dte", "volume", "oi",
+            "volOiRatio", "premium", "premiumPctl1y", "oiPrior", "oiNext",
+            "oiChange", "oiConfirmation", "oiObservedAt", "oiVintage", "asOf",
+            "publishedAt", "session",
+        ))
+        assert OptionsOverview.from_dict({}).highlights == []
+
 
 class TestOptionsSummary:
     def test_parses_the_dossier_and_upper_cases_the_symbol(self, client):
@@ -200,6 +231,32 @@ class TestOptionsSummary:
         assert result.latest.pcVol is None
         assert result.context.ivRank1y is None
         assert result.unusual == []
+        assert result.latest.maxUnusualPremium is None
+        assert result.context.unusualPremiumPctl1y is None
+
+    def test_parses_open_interest_follow_up_and_premium_context(self, client):
+        follow_up = {
+            "oiPrior": 100, "oiNext": 650, "oiChange": 550,
+            "oiConfirmation": "opened", "oiObservedAt": 1787335200,
+            "oiVintage": "next_session",
+        }
+        payload = {"isPreview": False, "previewReason": None, "data": {
+            "latest": {"maxUnusualPremium": 19321974.0},
+            "context": {"unusualPremiumPctl1y": 98.5},
+            "unusual": [{"contract": "NVDA260821C00217500", **follow_up}],
+        }}
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_summary("NVDA")
+        assert result.latest.maxUnusualPremium == 19321974.0
+        assert result.context.unusualPremiumPctl1y == 98.5
+        for key, value in follow_up.items():
+            assert getattr(result.unusual[0], key) == value
+
+    def test_omitted_open_interest_follow_up_defaults_to_none(self):
+        result = OptionsSummary.from_dict({"unusual": [{}]})
+        for field in ("oiPrior", "oiNext", "oiChange", "oiConfirmation",
+                      "oiObservedAt", "oiVintage"):
+            assert getattr(result.unusual[0], field) is None
 
 
 class TestOptionsHistory:
@@ -255,6 +312,14 @@ class TestOptionsHistory:
         with patch.object(client.session, "get", return_value=_mock_response(payload)):
             result = client.get_stock_options_history("NVDA", window="5y")
         assert result.window == "1y"
+
+    def test_parses_max_unusual_premium_in_history_and_defaults_when_omitted(self):
+        result = OptionsHistory.from_dict({"series": [
+            {"date": "2026-08-20", "maxUnusualPremium": 19321974.0},
+            {"date": "2026-08-19"},
+        ]})
+        assert result.series[0].maxUnusualPremium == 19321974.0
+        assert result.series[1].maxUnusualPremium is None
 
 
 def test_no_response_model_declares_a_field_named_data():

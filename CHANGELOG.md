@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.58.0
+
+- Options dossiers now retain open-interest follow-up fields on unusual contracts,
+  `maxUnusualPremium` on daily aggregates, and `unusualPremiumPctl1y` in context.
+- Options overviews now parse stock and ETF session highlights as typed
+  `OptionsHighlight` entries. Omitted highlight arrays default to empty lists.
+
 ## 0.57.0
 
 - Fundamentals rows can now carry an `epsBasisRepair` object. For a small list of named

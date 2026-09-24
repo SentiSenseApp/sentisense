@@ -1154,6 +1154,8 @@ class OptionsAggregate(APIModel):
     notionalVol: Optional[float] = None
     """Premium traded this session: volume times mark times 100."""
     contracts: Optional[int] = None
+    maxUnusualPremium: Optional[float] = None
+    """Largest unusual-contract premium this session; zero when none qualified."""
 
 
 @dataclass
@@ -1171,6 +1173,8 @@ class OptionsContext(APIModel):
     ivRank1y: Optional[float] = None
     """Where today's at-the-money implied volatility sits in its own trailing year, 0-100."""
     skewPctl1y: Optional[float] = None
+    unusualPremiumPctl1y: Optional[float] = None
+    """Percentile of the session's largest unusual premium in the trailing year, 0-100."""
     observations1y: Optional[int] = None
 
 
@@ -1219,6 +1223,15 @@ class OptionsUnusualContract(APIModel):
     oi: Optional[int] = None
     volOiRatio: Optional[float] = None
     premium: Optional[float] = None
+    oiPrior: Optional[int] = None
+    oiNext: Optional[int] = None
+    oiChange: Optional[int] = None
+    oiConfirmation: Optional[str] = None
+    """``opened``, ``closed``, ``mixed``, ``pending`` or ``unmatched``."""
+    oiObservedAt: Optional[int] = None
+    """Open-interest observation time in UTC epoch seconds."""
+    oiVintage: Optional[str] = None
+    """``prior_settle``, ``settled`` or ``next_session``."""
 
 
 @dataclass
@@ -1349,6 +1362,36 @@ class OptionsOverviewRow(APIModel):
 
 
 @dataclass
+class OptionsHighlight(APIModel):
+    """One ticker's highest-premium unusual contract in the completed session."""
+
+    ticker: Optional[str] = None
+    contract: Optional[str] = None
+    type: Optional[str] = None
+    strike: Optional[float] = None
+    expiry: Optional[str] = None
+    dte: Optional[int] = None
+    volume: Optional[int] = None
+    oi: Optional[int] = None
+    volOiRatio: Optional[float] = None
+    premium: Optional[float] = None
+    premiumPctl1y: Optional[float] = None
+    """Percentile against this ticker's trailing-year largest daily unusual premiums."""
+    oiPrior: Optional[int] = None
+    oiNext: Optional[int] = None
+    oiChange: Optional[int] = None
+    oiConfirmation: Optional[str] = None
+    oiObservedAt: Optional[int] = None
+    """Open-interest observation time in UTC epoch seconds."""
+    oiVintage: Optional[str] = None
+    asOf: Optional[str] = None
+    publishedAt: Optional[str] = None
+    """UTC ISO timestamp when the build published this highlight."""
+    session: Optional[str] = None
+    """``completed`` for an end-of-day session."""
+
+
+@dataclass
 class OptionsOverview(APIModel):
     """The market-wide options radar: two separately-ranked boards plus their aggregates.
 
@@ -1371,6 +1414,8 @@ class OptionsOverview(APIModel):
     coverageCount: Optional[int] = None
     rows: List[OptionsOverviewRow] = field(default_factory=list)
     etfRows: List[OptionsOverviewRow] = field(default_factory=list)
+    highlights: List[OptionsHighlight] = field(default_factory=list)
+    etfHighlights: List[OptionsHighlight] = field(default_factory=list)
     etfMedianIvRank: Optional[float] = None
     etfMarketPcVol: Optional[float] = None
     etfExtremeCount: Optional[int] = None
@@ -1383,11 +1428,18 @@ class OptionsOverview(APIModel):
             return None  # type: ignore[return-value]
         known = {f.name for f in dataclasses.fields(cls)}
         kwargs = {
-            k: v for k, v in data.items() if k in known and k not in ("rows", "etfRows")
+            k: v for k, v in data.items()
+            if k in known and k not in ("rows", "etfRows", "highlights", "etfHighlights")
         }
         kwargs["rows"] = [OptionsOverviewRow.from_dict(r) for r in (data.get("rows") or [])]
         kwargs["etfRows"] = [
             OptionsOverviewRow.from_dict(r) for r in (data.get("etfRows") or [])
+        ]
+        kwargs["highlights"] = [
+            OptionsHighlight.from_dict(h) for h in (data.get("highlights") or [])
+        ]
+        kwargs["etfHighlights"] = [
+            OptionsHighlight.from_dict(h) for h in (data.get("etfHighlights") or [])
         ]
         return cls(**kwargs)
 
