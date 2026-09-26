@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.59.0
 
 - `PreviewResult` truthiness follows its payload and no longer raises. A `None` payload
   (for example `get_stock_options_summary` on an uncovered or unknown ticker) is falsy,
