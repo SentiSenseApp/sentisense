@@ -219,6 +219,15 @@ class TestOptionsSummary:
         with patch.object(client.session, "get", return_value=_mock_response(payload)):
             result = client.get_stock_options_summary("ZZZZ")
         assert result.data is None
+        # The plain truthiness check a caller writes first must not raise.
+        assert not result
+        assert len(result) == 0
+
+    def test_a_covered_dossier_is_truthy(self, client):
+        payload = {"isPreview": False, "previewReason": None, "data": {"asOf": "2026-08-20"}}
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_summary("NVDA")
+        assert result
 
     def test_leaves_omitted_readings_as_none_rather_than_zero(self, client):
         payload = {

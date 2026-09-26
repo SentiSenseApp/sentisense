@@ -1,5 +1,7 @@
 """Round-trip tests for the typed ETF dataclasses and PreviewResult fallback."""
 
+import pytest
+
 from sentisense import (
     EtfAggregateCoverage,
     EtfAnalystAggregate,
@@ -210,3 +212,55 @@ class TestPreviewResultFallback:
     def test_item_access_still_works_on_dict(self):
         pr = PreviewResult({"ticker": "SPY"}, is_preview=False, preview_reason=None)
         assert pr["ticker"] == "SPY"
+
+
+class TestPreviewResultTruthiness:
+    """``if result:`` must not raise, whatever the payload; ``len()`` and iteration must
+    not raise on a None payload or on the list and dict payloads the API returns."""
+
+    def test_none_payload_is_falsy_with_zero_length(self):
+        # An uncovered or unknown ticker comes back as a None payload.
+        pr = PreviewResult(None, is_preview=False, preview_reason=None)
+        assert not pr
+        assert bool(pr) is False
+        assert len(pr) == 0
+        assert list(pr) == []
+        assert pr.data is None
+
+    def test_object_payload_is_truthy(self):
+        agg = EtfAnalystAggregate(ticker="QQQ", asOfDate="2026-05-15", computedAt="...")
+        pr = PreviewResult(agg, is_preview=False, preview_reason=None)
+        assert pr
+        assert bool(pr) is True
+
+    def test_object_payload_still_has_no_length(self):
+        # A dataclass has no length; that stays a TypeError rather than a made-up number.
+        agg = EtfAnalystAggregate(ticker="QQQ", asOfDate="2026-05-15", computedAt="...")
+        pr = PreviewResult(agg, is_preview=False, preview_reason=None)
+        with pytest.raises(TypeError):
+            len(pr)
+
+    def test_list_payload_truthiness_and_length_unchanged(self):
+        empty = PreviewResult([], is_preview=True, preview_reason="PRO_REQUIRED", total_count=0)
+        full = PreviewResult([1, 2], is_preview=False, preview_reason=None, total_count=2)
+        assert not empty and len(empty) == 0 and list(empty) == []
+        assert full and len(full) == 2 and list(full) == [1, 2]
+
+    def test_dict_payload_truthiness_and_length_unchanged(self):
+        assert not PreviewResult({}, is_preview=False, preview_reason=None)
+        pr = PreviewResult({"ticker": "SPY"}, is_preview=False, preview_reason=None)
+        assert pr and len(pr) == 1 and list(pr) == ["ticker"]
+
+    def test_scalar_and_string_payloads_follow_python_truthiness(self):
+        assert not PreviewResult("", is_preview=False, preview_reason=None)
+        assert PreviewResult("x", is_preview=False, preview_reason=None)
+        zero = PreviewResult(0, is_preview=False, preview_reason=None)
+        assert not zero
+        with pytest.raises(TypeError):
+            len(zero)
+
+    def test_metadata_readable_on_none_payload(self):
+        pr = PreviewResult(None, is_preview=True, preview_reason="PRO_REQUIRED", total_count=5)
+        assert pr.is_preview is True
+        assert pr.preview_reason == "PRO_REQUIRED"
+        assert pr.total_count == 5

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `PreviewResult` truthiness follows its payload and no longer raises. A `None` payload
+  (for example `get_stock_options_summary` on an uncovered or unknown ticker) is falsy,
+  has `len()` 0 and iterates as empty, so `if not result:` is safe. An object payload is
+  truthy; `if result:` used to raise `TypeError` on one because truthiness fell through to
+  `len()`. List and dict payloads behave as before.
+
 ## 0.58.0
 
 - Options dossiers now retain open-interest follow-up fields on unusual contracts,

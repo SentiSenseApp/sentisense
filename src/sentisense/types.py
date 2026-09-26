@@ -100,10 +100,19 @@ class PreviewResult(Generic[T]):
         return self._data[key]  # type: ignore[index]
 
     def __iter__(self) -> Iterator:
-        return iter(self._data)  # type: ignore[arg-type]
+        data = self._data
+        # A None payload (e.g. an uncovered or unknown ticker) iterates as empty.
+        return iter(()) if data is None else iter(data)  # type: ignore[arg-type]
 
     def __len__(self) -> int:
-        return len(self._data)  # type: ignore[arg-type]
+        data = self._data
+        return 0 if data is None else len(data)  # type: ignore[arg-type]
+
+    def __bool__(self) -> bool:
+        # Truthiness follows the payload: a None payload or an empty list/dict is
+        # falsy, an object payload is truthy. Defined explicitly so ``if result:``
+        # never falls through to ``__len__`` on a payload that has no length.
+        return bool(self._data)
 
     def __repr__(self) -> str:
         return f"PreviewResult(is_preview={self.is_preview}, data={self._data!r})"

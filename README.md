@@ -276,7 +276,7 @@ End-of-day options positioning: where implied volatility, put/call flow and skew
 
 The radar carries two separately-ranked boards, `rows` for stocks and `etfRows` for ETFs, each with its own aggregates. Keep them apart: every reading behind a row's `interestScore` is a percentile of that ticker's own trailing history, so a ranking built across both boards compares numbers measured against different baselines. A row whose baseline is still building carries its raw readings with the percentiles and `interestScore` omitted, which means "not enough history yet" rather than "nothing interesting".
 
-The two per-ticker methods report no coverage differently, which is worth knowing before you write the check. `get_stock_options_summary` returns a `None` payload for an uncovered or unknown ticker; `get_stock_options_history` returns a populated object with an empty `series` instead. The history also echoes the `window` the server actually served, which need not be the one you asked for: an unrecognised value clamps to `1y`, and so does any free key.
+The two per-ticker methods report no coverage differently, which is worth knowing before you write the check. `get_stock_options_summary` returns a `None` payload for an uncovered or unknown ticker, so `result.data is None` is the explicit check; the wrapper itself is falsy in that case and has a length of 0, so `if not result:` works too. `get_stock_options_history` returns a populated object with an empty `series` instead. The history also echoes the `window` the server actually served, which need not be the one you asked for: an unrecognised value clamps to `1y`, and so does any free key.
 
 ### Congressional trading
 
