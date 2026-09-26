@@ -652,6 +652,19 @@ class TestMetricsV2Endpoints:
             params={"dimension": "source", "startTime": 1700000000000, "endTime": 1700100000000},
         )
 
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_metrics_distribution_returns_value_type(self, mock_get, client):
+        payload = {
+            "metricType": "sentiment",
+            "dimension": "source",
+            "distribution": {"News": 0.38, "Reddit": -0.07},
+            "valueType": "MEAN",
+        }
+        mock_get.return_value = _mock_response(json_data=payload)
+        result = client.get_metrics_distribution("NVDA", metric_type="sentiment")
+        assert result["valueType"] == "MEAN"
+        assert result["distribution"] == {"News": 0.38, "Reddit": -0.07}
+
 
 class TestErrorHandling:
     def test_401_raises_authentication_error(self, client):

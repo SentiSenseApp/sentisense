@@ -68,8 +68,11 @@ sentiment = client.get_metrics("NVDA", metric_type="sentiment")
 score = client.get_metrics("NVDA", metric_type="sentisense_score")
 print(score[-1]["value"])   # latest reading, e.g. 51.3
 
-# Mentions broken down by source
+# Share of mentions by source (valueType "SHARE_PERCENT")
 dist = client.get_metrics_distribution("NVDA", metric_type="mentions", dimension="source")
+
+# Mean sentiment by source, in [-1, 1] (valueType "MEAN")
+tone = client.get_metrics_distribution("NVDA", metric_type="sentiment", dimension="source")
 ```
 
 ## Authentication and Configuration
@@ -183,9 +186,9 @@ Cash flow keys are `operatingCashFlow`, `investingCashFlow`, `financingCashFlow`
 |--------|-------------|
 | `get_stock_sentiment(ticker)` | The headline sentiment picture in one call: Score, 30-day regime, mention volume, per-source tone, drivers and narrative |
 | `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | Time series for one metric |
-| `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | A metric broken down by dimension, for example mentions by source |
+| `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | A metric broken down by dimension, for example mentions or sentiment by source |
 
-Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance` and `creators`. `sentisense` is an alias for `sentisense_score`; either spelling returns the same series, and keys are case-insensitive. Responses always name the canonical type, so a `sentisense` request answers with `SENTISENSE_SCORE`. `start_time` and `end_time` are epoch **milliseconds**, unlike the epoch-second timestamps elsewhere in this SDK. Both metric methods accept a knowledge base entity slug as well as a ticker; slugs are case-insensitive and discoverable via `get_stock_entities`. `sentisense_rating` carries the SentiSense Rating score and is a time series only: it has no source breakdown, so `get_metrics_distribution` answers with an empty distribution for it.
+Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance` and `creators`. `sentisense` is an alias for `sentisense_score`; either spelling returns the same series, and keys are case-insensitive. Responses always name the canonical type, so a `sentisense` request answers with `SENTISENSE_SCORE`. `start_time` and `end_time` are epoch **milliseconds**, unlike the epoch-second timestamps elsewhere in this SDK. Both metric methods accept a knowledge base entity slug as well as a ticker; slugs are case-insensitive and discoverable via `get_stock_entities`. `sentisense_rating` carries the SentiSense Rating score and is a time series only: it has no source breakdown, so `get_metrics_distribution` answers with an empty distribution for it. In a distribution, `valueType` says what each number is. For a count metric such as `mentions` or `creators` it is `"SHARE_PERCENT"`: each value is that source's percentage share of the total, summing to about 100. For `sentiment` it is `"MEAN"`: each value is that source's mean polarity over the window, in [-1, 1]. `sentisense_score` has no per-source split and answers with an empty distribution.
 
 Sentiment polarity and the SentiSense Score are different readings. Polarity sits in `[-1, 1]`; the Score is sentiment weighted by attention, is unbounded, and is banded at 5, 13 and 23 either side of zero. Two fields in the headline response are in different units on purpose: `mentionShare` is a whole-number percent, rounded per source, so the per-source list sums to about 100 rather than exactly 100 and should not be used to reconstruct counts; `socialDominance` is a fraction, where `0.021` means 2.1%.
 

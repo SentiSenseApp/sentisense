@@ -2159,14 +2159,22 @@ class SentiSenseClient:
         start_time: Optional[int] = None,
         end_time: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Get metric distribution by dimension (e.g., mentions by source).
+        """Get a metric broken down by dimension (e.g., mentions or sentiment by source).
+
+        ``distribution`` maps each dimension value to a number, and ``valueType``
+        says what the number is. For a count metric such as "mentions" or
+        "creators" it is ``"SHARE_PERCENT"``: each value is that source's
+        percentage share of the total, summing to about 100. For "sentiment" it
+        is ``"MEAN"``: each value is that source's mean polarity over the window,
+        in [-1, 1], the same numbers as the API's
+        ``/api/v2/metrics/entity/{symbol}/metric/sentiment/mean-by/source``.
 
         Args:
             symbol: Stock ticker symbol (e.g. "AAPL").
-            metric_type: Metric to retrieve: "mentions", "sentiment",
-                "sentisense_score" (the SentiSense Score), or
-                "social_dominance". "sentisense_rating" has no source breakdown
-                and answers with an empty distribution.
+            metric_type: Metric to break down, e.g. "mentions" (default),
+                "creators" or "sentiment". "sentisense_score" has no per-source
+                split, and "sentisense_rating" has no source breakdown; both
+                answer with an empty distribution.
             dimension: Dimension to break down by (e.g. "source").
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
