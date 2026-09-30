@@ -1,0 +1,114 @@
+{
+  "isPreview": false,
+  "previewReason": null,
+  "data": {
+    "ticker": "NVDA",
+    "window": "1y",
+    "series": [
+      {
+        "date": "2026-09-23",
+        "callVol": 1469421,
+        "putVol": 918180,
+        "callOi": 7784347,
+        "putOi": 6752413,
+        "pcVol": 0.6249,
+        "pcOi": 0.8674,
+        "vwIv": 0.2511,
+        "atmIv": 0.3124,
+        "skew25d": 0.0195,
+        "atmIv60": 0.3612,
+        "atmIv90": 0.3563,
+        "iv25c": 0.2978,
+        "iv25p": 0.3173,
+        "expectedMove1s1d": 0.0197,
+        "expectedMove1s5d": 0.044,
+        "expectedMove1s20d": 0.088,
+        "expectedMove1d": 0.0291,
+        "expectedMove5d": 0.0686,
+        "expectedMove20d": 0.1373,
+        "netDelta": 297282395.7459994,
+        "notionalVol": 516962262.0,
+        "contracts": 3838
+      },
+      {
+        "date": "2026-09-28",
+        "callVol": 2940954,
+        "putVol": 1259474,
+        "callOi": 7535509,
+        "putOi": 6589779,
+        "pcVol": 0.4283,
+        "pcOi": 0.8745,
+        "vwIv": 0.2494,
+        "atmIv": 0.3173,
+        "skew25d": 0.0293,
+        "atmIv60": 0.3661,
+        "atmIv90": 0.3563,
+        "iv25c": 0.3076,
+        "iv25p": 0.3368,
+        "expectedMove1s1d": 0.02,
+        "expectedMove1s5d": 0.0447,
+        "expectedMove1s20d": 0.0894,
+        "expectedMove1d": 0.0296,
+        "expectedMove5d": 0.0697,
+        "expectedMove20d": 0.1394,
+        "netDelta": 315800615.5360005,
+        "notionalVol": 951165671.0,
+        "contracts": 3840,
+        "maxUnusualPremium": 33673248.00000001,
+        "maxUnusualPremiumEx0dte": 11105665.999999998,
+        "unusualOi": [
+          {
+            "contract": "NVDA260928P00230000",
+            "oiPrior": 351,
+            "oiConfirmation": "unmatched",
+            "oiObservedAt": 1790731734,
+            "oiVintage": "next_session"
+          },
+          {
+            "contract": "NVDA260928P00232500",
+            "oiPrior": 270,
+            "oiConfirmation": "unmatched",
+            "oiObservedAt": 1790731734,
+            "oiVintage": "next_session"
+          },
+          {
+            "contract": "NVDA261106C00240000",
+            "oiPrior": 368,
+            "oiNext": 1707,
+            "oiChange": 1339,
+            "oiConfirmation": "opened",
+            "oiObservedAt": 1790731734,
+            "oiVintage": "next_session"
+          },
+          {
+            "contract": "NVDA261009P00232500",
+            "oiPrior": 145,
+            "oiNext": 508,
+            "oiChange": 363,
+            "oiConfirmation": "mixed",
+            "oiObservedAt": 1790731734,
+            "oiVintage": "next_session"
+          },
+          {
+            "contract": "NVDA261009P00227500",
+            "oiPrior": 541,
+            "oiNext": 873,
+            "oiChange": 332,
+            "oiConfirmation": "mixed",
+            "oiObservedAt": 1790731734,
+            "oiVintage": "next_session"
+          },
+          {
+            "contract": "NVDA260930P00230000",
+            "oiPrior": 325,
+            "oiNext": 5112,
+            "oiChange": 4787,
+            "oiConfirmation": "mixed",
+            "oiObservedAt": 1790731734,
+            "oiVintage": "next_session"
+          }
+        ]
+      }
+    ]
+  }
+}

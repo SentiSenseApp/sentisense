@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.60.0
+
+- Options dossiers and the options radar now keep the intraday session fields. On
+  `OptionsSummary`: `intradayFlow` (typed `OptionsIntradayFlow`: `unusualCount`,
+  `firstSeenEt`, `firstSeenAt`, `flowPctl1y`, `asOfEt`, `asOf`, `live`, `delayMinutes`),
+  `largePrintCount`, `largestPrintPctl` and `capabilities`. On `OptionsOverview`:
+  `intradayActiveCount`, `intradayRanking` and `capabilities`, plus `builtAt`,
+  `highlightPolicy` and `etfHighlightPolicy`. `capabilities.intradayBoard` is typed
+  `OptionsIntradayBoardCapability`. These were sent by the server but dropped by the
+  parser. All are `None` when the server omits them.
+- Daily aggregates (the dossier's `latest` and each history row) now keep
+  `maxUnusualPremiumEx0dte` and `unusualOi`, a list of typed `OptionsOiFollowUp` entries.
+
 ## 0.59.0
 
 - `PreviewResult` truthiness follows its payload and no longer raises. A `None` payload

@@ -14,17 +14,27 @@ Four contracts are gated here because each one fails quietly rather than loudly:
   requested: an unrecognised value clamps to ``1y``, and so does any free key.
 """
 
+import dataclasses
+import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from sentisense import SentiSenseClient
 from sentisense.types import (
+    APIModel,
+    OptionsCapabilities,
     OptionsHistory,
     OptionsHighlight,
+    OptionsIntradayBoardCapability,
+    OptionsIntradayFlow,
+    OptionsOiFollowUp,
     OptionsOverview,
     OptionsSummary,
 )
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 @pytest.fixture
@@ -329,6 +339,124 @@ class TestOptionsHistory:
         ]})
         assert result.series[0].maxUnusualPremium == 19321974.0
         assert result.series[1].maxUnusualPremium is None
+
+
+def _load(name):
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def _assert_every_wire_key_survives(wire, model, path="data"):
+    """Walk a captured response and the model parsed from it side by side.
+
+    Every key the server sent must be a declared field holding the same value, nested
+    objects must arrive as typed models, and lists of objects must keep their length.
+    A field the parser drops fails here by name instead of reading as ``None`` downstream.
+    """
+    declared = {f.name for f in dataclasses.fields(model)}
+    for key, value in wire.items():
+        where = "%s.%s" % (path, key)
+        assert key in declared, "%s is on the wire but %s does not declare it" % (
+            where, type(model).__name__)
+        parsed = getattr(model, key)
+        if isinstance(value, dict):
+            assert isinstance(parsed, APIModel), "%s parsed as %r" % (where, type(parsed))
+            _assert_every_wire_key_survives(value, parsed, where)
+        elif isinstance(value, list) and value and isinstance(value[0], dict):
+            assert len(parsed) == len(value), where
+            for i, (w, m) in enumerate(zip(value, parsed)):
+                assert isinstance(m, APIModel), "%s[%d] parsed as %r" % (where, i, type(m))
+                _assert_every_wire_key_survives(w, m, "%s[%d]" % (where, i))
+        else:
+            assert parsed == value, "%s: parsed %r, wire %r" % (where, parsed, value)
+
+
+class TestIntradaySessionFields:
+    """The intraday session fields ride the dossier and the radar on every tier.
+
+    The fixtures are real responses captured during a trading session and trimmed to a
+    few rows. Before these fields were declared, both parsers dropped them silently, so
+    a caller saw ``None`` where the server had sent a value.
+    """
+
+    def test_summary_keeps_every_field_the_server_sends(self, client):
+        payload = _load("options_summary_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_summary("NVDA")
+        _assert_every_wire_key_survives(payload["data"], result.data)
+
+    def test_summary_types_the_intraday_flow_and_capabilities(self, client):
+        payload = _load("options_summary_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_summary("NVDA")
+        flow = result.intradayFlow
+        assert isinstance(flow, OptionsIntradayFlow)
+        assert flow.unusualCount == 5
+        assert flow.firstSeenEt == "10:14 ET"
+        assert isinstance(flow.firstSeenAt, int)
+        # The board's asOf is epoch seconds; the dossier's own asOf stays an ISO date.
+        assert isinstance(flow.asOf, int)
+        assert isinstance(result.asOf, str)
+        assert flow.live is True
+        assert flow.delayMinutes == 15
+        # No highlight percentile yet, so it stays None rather than reading as zero.
+        assert flow.flowPctl1y is None
+        assert result.largePrintCount == 25
+        assert result.largestPrintPctl is None
+        board = result.capabilities.intradayBoard
+        assert isinstance(result.capabilities, OptionsCapabilities)
+        assert isinstance(board, OptionsIntradayBoardCapability)
+        assert board.apiData is False
+        assert board.access == "signed_in_pro"
+        assert board.url == "https://app.sentisense.ai/options"
+
+    def test_overview_keeps_every_field_the_server_sends(self, client):
+        payload = _load("options_overview_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_options_overview()
+        _assert_every_wire_key_survives(payload["data"], result.data)
+        assert result.intradayActiveCount == 107
+        assert len(result.intradayRanking) == 25
+        assert all(isinstance(t, str) for t in result.intradayRanking)
+        assert result.highlightPolicy == "ex0dte-v1"
+        assert result.etfHighlightPolicy == "ex0dte-v1"
+        assert isinstance(result.builtAt, int)
+        assert result.capabilities.intradayBoard.apiData is False
+
+    def test_history_rows_keep_the_ex0dte_premium_and_open_interest_follow_up(self, client):
+        payload = _load("options_history_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_history("NVDA")
+        _assert_every_wire_key_survives(payload["data"], result.data)
+        older, newer = result.series
+        assert older.unusualOi is None
+        assert older.maxUnusualPremiumEx0dte is None
+        assert newer.maxUnusualPremiumEx0dte > 0
+        assert newer.unusualOi and all(isinstance(u, OptionsOiFollowUp) for u in newer.unusualOi)
+
+    def test_absent_intraday_fields_stay_none(self):
+        summary = OptionsSummary.from_dict({"asOf": "2026-09-29"})
+        for name in ("intradayFlow", "largePrintCount", "largestPrintPctl", "capabilities"):
+            assert getattr(summary, name) is None
+        overview = OptionsOverview.from_dict({"asOf": "2026-09-29"})
+        for name in ("builtAt", "highlightPolicy", "etfHighlightPolicy",
+                     "intradayActiveCount", "intradayRanking", "capabilities"):
+            assert getattr(overview, name) is None
+
+    def test_an_empty_ranking_is_kept_apart_from_an_absent_one(self):
+        # A board with no active stocks sends an empty list and a zero count; before the
+        # day's first board both are omitted. The two must not collapse into one value.
+        quiet = OptionsOverview.from_dict({"intradayActiveCount": 0, "intradayRanking": []})
+        assert quiet.intradayActiveCount == 0
+        assert quiet.intradayRanking == []
+
+    def test_unknown_keys_inside_the_new_objects_are_ignored(self):
+        summary = OptionsSummary.from_dict({
+            "intradayFlow": {"unusualCount": 1, "someFutureField": 1},
+            "capabilities": {"intradayBoard": {"access": "power_user", "other": True},
+                             "someFutureCapability": {}},
+        })
+        assert summary.intradayFlow.unusualCount == 1
+        assert summary.capabilities.intradayBoard.access == "power_user"
 
 
 def test_no_response_model_declares_a_field_named_data():

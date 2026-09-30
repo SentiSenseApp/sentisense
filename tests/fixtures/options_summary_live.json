@@ -1,0 +1,171 @@
+{
+  "isPreview": false,
+  "previewReason": null,
+  "data": {
+    "asOf": "2026-09-29",
+    "sentiment": 0.11349206349206353,
+    "latest": {
+      "date": "2026-09-29",
+      "callVol": 1436325,
+      "putVol": 736215,
+      "callOi": 7650989,
+      "putOi": 6631620,
+      "pcVol": 0.5126,
+      "pcOi": 0.8668,
+      "vwIv": 0.3694,
+      "atmIv": 0.3124,
+      "skew25d": 0.0293,
+      "atmIv60": 0.3612,
+      "atmIv90": 0.3563,
+      "iv25c": 0.2978,
+      "iv25p": 0.3271,
+      "expectedMove1s1d": 0.0197,
+      "expectedMove1s5d": 0.044,
+      "expectedMove1s20d": 0.088,
+      "expectedMove1d": 0.0291,
+      "expectedMove5d": 0.0686,
+      "expectedMove20d": 0.1373,
+      "netDelta": 296831177.53499967,
+      "notionalVol": 730397061.0,
+      "contracts": 3844,
+      "maxUnusualPremium": 34333975.0,
+      "maxUnusualPremiumEx0dte": 34333975.0
+    },
+    "context": {
+      "pcVolPctl1y": 34.92063492063492,
+      "pcVolPctl5y": 25.892857142857142,
+      "pcOiPctl1y": 57.142857142857146,
+      "ivRank1y": 5.868167202572349,
+      "skewPctl1y": 45.63492063492063,
+      "observations1y": 252
+    },
+    "oiWalls": {
+      "expiry": "2026-10-16",
+      "maxPain": 205.0,
+      "callWalls": [
+        {
+          "strike": 180.0,
+          "oi": 106394
+        },
+        {
+          "strike": 220.0,
+          "oi": 104607
+        },
+        {
+          "strike": 250.0,
+          "oi": 73695
+        }
+      ],
+      "putWalls": [
+        {
+          "strike": 220.0,
+          "oi": 49733
+        },
+        {
+          "strike": 200.0,
+          "oi": 38992
+        },
+        {
+          "strike": 180.0,
+          "oi": 34838
+        }
+      ]
+    },
+    "unusual": [
+      {
+        "contract": "NVDA260930P00230000",
+        "type": "put",
+        "strike": 230.0,
+        "expiry": "2026-09-30",
+        "dte": 1,
+        "volume": 105643,
+        "oi": 5112,
+        "volOiRatio": 20.67,
+        "premium": 34333975.0,
+        "oiPrior": 5112,
+        "oiConfirmation": "pending",
+        "oiObservedAt": 1790731734,
+        "oiVintage": "prior_settle"
+      },
+      {
+        "contract": "NVDA290119C00210000",
+        "type": "call",
+        "strike": 210.0,
+        "expiry": "2029-01-19",
+        "dte": 843,
+        "volume": 2827,
+        "oi": 650,
+        "volOiRatio": 4.35,
+        "premium": 20326130.0,
+        "oiPrior": 650,
+        "oiConfirmation": "pending",
+        "oiObservedAt": 1790731734,
+        "oiVintage": "prior_settle"
+      },
+      {
+        "contract": "NVDA260930P00227500",
+        "type": "put",
+        "strike": 227.5,
+        "expiry": "2026-09-30",
+        "dte": 1,
+        "volume": 94669,
+        "oi": 3324,
+        "volOiRatio": 28.48,
+        "premium": 15620385.0,
+        "oiPrior": 3324,
+        "oiConfirmation": "pending",
+        "oiObservedAt": 1790731734,
+        "oiVintage": "prior_settle"
+      },
+      {
+        "contract": "NVDA261007C00217500",
+        "type": "call",
+        "strike": 217.5,
+        "expiry": "2026-10-07",
+        "dte": 8,
+        "volume": 5514,
+        "oi": 24,
+        "volOiRatio": 229.75,
+        "premium": 6048858.0,
+        "oiPrior": 24,
+        "oiConfirmation": "pending",
+        "oiObservedAt": 1790731734,
+        "oiVintage": "prior_settle"
+      },
+      {
+        "contract": "NVDA261016C00227500",
+        "type": "call",
+        "strike": 227.5,
+        "expiry": "2026-10-16",
+        "dte": 17,
+        "volume": 6757,
+        "oi": 2092,
+        "volOiRatio": 3.23,
+        "premium": 4202854.0,
+        "oiPrior": 2092,
+        "oiConfirmation": "pending",
+        "oiObservedAt": 1790731734,
+        "oiVintage": "prior_settle"
+      }
+    ],
+    "intradayFlow": {
+      "unusualCount": 5,
+      "firstSeenEt": "10:14 ET",
+      "firstSeenAt": 1790777640,
+      "asOfEt": "14:44 ET",
+      "asOf": 1790793899,
+      "live": true,
+      "delayMinutes": 15
+    },
+    "largePrintCount": 25,
+    "capabilities": {
+      "intradayBoard": {
+        "available": true,
+        "access": "signed_in_pro",
+        "apiData": false,
+        "delayMinutes": 15,
+        "url": "https://app.sentisense.ai/options"
+      }
+    }
+  }
+}

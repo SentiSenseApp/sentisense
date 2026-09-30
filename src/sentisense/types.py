@@ -1115,6 +1115,23 @@ class InstitutionalFlows(APIModel):
 
 
 @dataclass
+class OptionsOiFollowUp(APIModel):
+    """The open-interest follow-up for one contract, as carried by an aggregate's
+    ``unusualOi`` list: the same fields an unusual contract carries, keyed by symbol."""
+
+    contract: Optional[str] = None
+    oiPrior: Optional[int] = None
+    oiNext: Optional[int] = None
+    oiChange: Optional[int] = None
+    oiConfirmation: Optional[str] = None
+    """``opened``, ``closed``, ``mixed``, ``pending`` or ``unmatched``."""
+    oiObservedAt: Optional[int] = None
+    """Open-interest observation time in UTC epoch seconds."""
+    oiVintage: Optional[str] = None
+    """``prior_settle``, ``settled`` or ``next_session``."""
+
+
+@dataclass
 class OptionsAggregate(APIModel):
     """One session's options aggregate for a ticker.
 
@@ -1165,6 +1182,23 @@ class OptionsAggregate(APIModel):
     contracts: Optional[int] = None
     maxUnusualPremium: Optional[float] = None
     """Largest unusual-contract premium this session; zero when none qualified."""
+    maxUnusualPremiumEx0dte: Optional[float] = None
+    """Premium of the session's highlight contract: the largest qualifying premium with
+    an expiry at least one day after the session. Zero when the session was evaluated and
+    none qualified; ``None`` on sessions recorded before this rule existed."""
+    unusualOi: Optional[List[OptionsOiFollowUp]] = None
+    """Open-interest follow-up for the session's unusual contracts, plus its highlight
+    contract when that is not one of them. ``None`` until the follow-up has been read."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsAggregate":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        kwargs = {k: v for k, v in data.items() if k in known and k != "unusualOi"}
+        if data.get("unusualOi") is not None:
+            kwargs["unusualOi"] = [OptionsOiFollowUp.from_dict(u) for u in data["unusualOi"]]
+        return cls(**kwargs)
 
 
 @dataclass
@@ -1244,11 +1278,78 @@ class OptionsUnusualContract(APIModel):
 
 
 @dataclass
+class OptionsIntradayFlow(APIModel):
+    """A ticker's row on today's intraday options board, reduced to counts and the
+    board's own clock. It carries no contract symbol, strike, price or premium.
+
+    The board is rebuilt every 15 minutes during the session from 15-minute delayed
+    chains; the contract-level board itself is in the SentiSense app, not the API.
+    """
+
+    unusualCount: Optional[int] = None
+    """Contracts on the ticker's row passing the unusual rule so far this session, up to 5."""
+    firstSeenEt: Optional[str] = None
+    """Earliest board cycle that flagged one of them, ``"HH:mm ET"``. ``None`` when none."""
+    firstSeenAt: Optional[int] = None
+    """``firstSeenEt`` as Unix epoch seconds."""
+    flowPctl1y: Optional[float] = None
+    """Percentile (0-100) of the ticker's intraday highlight contract against its own
+    history. Present only for highlighted tickers, and ``None`` while that history holds
+    fewer than 60 sessions."""
+    asOfEt: Optional[str] = None
+    """The board's snapshot time, ``"HH:mm ET"``."""
+    asOf: Optional[int] = None
+    """The same instant as Unix epoch seconds. Unlike the dossier's own ``asOf``, which is
+    an ISO date, this one is a timestamp."""
+    live: Optional[bool] = None
+    """``True`` while the board updates during the session, ``False`` once it has stopped."""
+    delayMinutes: Optional[int] = None
+    """How far the board's chain data trails the market, in minutes."""
+
+
+@dataclass
+class OptionsIntradayBoardCapability(APIModel):
+    """Where the intraday options board lives and who can open it. Describes the board,
+    not the data: ``apiData`` is ``False`` because its rows are app-only."""
+
+    available: Optional[bool] = None
+    """``True`` when the app offers the board."""
+    access: Optional[str] = None
+    """Who can open the board in the app: ``"signed_in_pro"`` (any signed-in PRO account)
+    or ``"power_user"`` (an early-access group). Compare as a string; new values may appear."""
+    apiData: Optional[bool] = None
+    """``False``: the board's rows are app-only, and the API serves only the derived fields."""
+    delayMinutes: Optional[int] = None
+    """The board's data delay, in minutes."""
+    url: Optional[str] = None
+    """The Options page in the app."""
+
+
+@dataclass
+class OptionsCapabilities(APIModel):
+    """Product capabilities that ride the options responses."""
+
+    intradayBoard: Optional[OptionsIntradayBoardCapability] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsCapabilities":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            intradayBoard=OptionsIntradayBoardCapability.from_dict(data.get("intradayBoard")),
+        )
+
+
+@dataclass
 class OptionsSummary(APIModel):
     """The end-of-day options dossier for one stock or ETF.
 
     ``asOf`` is the latest completed session and the data refreshes the following
-    morning, so this is positioning rather than a quote feed.
+    morning, so this is positioning rather than a quote feed. The exception is the
+    intraday session fields (``intradayFlow``, ``largePrintCount``, ``largestPrintPctl``
+    and ``capabilities``), which are the same on every tier, previews included, and are
+    ``None`` when their source is absent: ``intradayFlow`` before the day's first board
+    or when the ticker has no row on it.
     """
 
     asOf: Optional[str] = None
@@ -1259,6 +1360,17 @@ class OptionsSummary(APIModel):
     oiWalls: Optional[OptionsOiWalls] = None
     unusual: List[OptionsUnusualContract] = field(default_factory=list)
     """Top contracts by premium."""
+    intradayFlow: Optional[OptionsIntradayFlow] = None
+    """The ticker's row on today's intraday board."""
+    largePrintCount: Optional[int] = None
+    """Large prints for the ticker (one contract's fills clustered into a single order
+    after the close) in the latest published prints session, up to 25; ``0`` when it has
+    none."""
+    largestPrintPctl: Optional[float] = None
+    """Highest percentile (0-100) among those prints, each print's premium against the
+    ticker's own trailing prints. ``None`` when none is scored."""
+    capabilities: Optional[OptionsCapabilities] = None
+    """Where the intraday board lives and who can open it."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "OptionsSummary":
@@ -1287,6 +1399,18 @@ class OptionsSummary(APIModel):
                 else None
             ),
             unusual=[OptionsUnusualContract.from_dict(u) for u in (data.get("unusual") or [])],
+            intradayFlow=(
+                OptionsIntradayFlow.from_dict(data["intradayFlow"])
+                if data.get("intradayFlow") is not None
+                else None
+            ),
+            largePrintCount=data.get("largePrintCount"),
+            largestPrintPctl=data.get("largestPrintPctl"),
+            capabilities=(
+                OptionsCapabilities.from_dict(data["capabilities"])
+                if data.get("capabilities") is not None
+                else None
+            ),
         )
 
 
@@ -1414,6 +1538,10 @@ class OptionsOverview(APIModel):
     and ``coverageCount`` describe the stock board alone, and the ``etf``-prefixed fields
     describe the ETF board. On a free key ``etfTotalCount`` reports the full ETF board the
     way the envelope's ``total_count`` reports the full stock board.
+
+    ``intradayActiveCount``, ``intradayRanking`` and ``capabilities`` summarize today's
+    intraday board across stocks. They are the same on every tier and are ``None`` before
+    the day's first board.
     """
 
     asOf: Optional[str] = None
@@ -1430,16 +1558,33 @@ class OptionsOverview(APIModel):
     etfExtremeCount: Optional[int] = None
     etfCoverageCount: Optional[int] = None
     etfTotalCount: Optional[int] = None
+    builtAt: Optional[int] = None
+    """When this board was built, Unix epoch seconds (UTC). Pair it with ``asOf``."""
+    highlightPolicy: Optional[str] = None
+    """The rule the stock ``highlights`` were chosen by, ``"ex0dte-v1"``. ``None`` when
+    that list was built before the rule existed."""
+    etfHighlightPolicy: Optional[str] = None
+    """The same for ``etfHighlights``."""
+    intradayActiveCount: Optional[int] = None
+    """Stocks on today's intraday board with at least one unusual contract so far.
+    Stock board only."""
+    intradayRanking: Optional[List[str]] = None
+    """Up to 25 of those tickers, most unusual for their own history first."""
+    capabilities: Optional[OptionsCapabilities] = None
+    """Where the intraday board lives and who can open it."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "OptionsOverview":
         if data is None:
             return None  # type: ignore[return-value]
         known = {f.name for f in dataclasses.fields(cls)}
-        kwargs = {
-            k: v for k, v in data.items()
-            if k in known and k not in ("rows", "etfRows", "highlights", "etfHighlights")
-        }
+        nested = ("rows", "etfRows", "highlights", "etfHighlights", "capabilities",
+                  "intradayRanking")
+        kwargs = {k: v for k, v in data.items() if k in known and k not in nested}
+        if data.get("intradayRanking") is not None:
+            kwargs["intradayRanking"] = list(data["intradayRanking"])
+        if data.get("capabilities") is not None:
+            kwargs["capabilities"] = OptionsCapabilities.from_dict(data["capabilities"])
         kwargs["rows"] = [OptionsOverviewRow.from_dict(r) for r in (data.get("rows") or [])]
         kwargs["etfRows"] = [
             OptionsOverviewRow.from_dict(r) for r in (data.get("etfRows") or [])

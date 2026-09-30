@@ -955,7 +955,9 @@ class SentiSenseClient:
         and skew are unusual today, ranked.
 
         End of day, not live. ``asOf`` is the latest completed session and the build
-        refreshes the following morning, so this is positioning, not a quote feed.
+        refreshes the following morning, so this is positioning, not a quote feed. The
+        exception is ``intradayActiveCount``, ``intradayRanking`` and ``capabilities``,
+        which summarize today's intraday board during the session.
 
         The response carries **two separately-ranked boards**: ``result.rows`` for the
         covered stock universe and ``result.etfRows`` for the covered ETFs. Do not merge
@@ -990,6 +992,10 @@ class SentiSenseClient:
         still building its baseline returns its readings with the percentiles omitted.
 
         Percentiles compare a ticker to its own past, never to another ticker.
+
+        During the session ``result.intradayFlow``, ``result.largePrintCount``,
+        ``result.largestPrintPctl`` and ``result.capabilities`` add the ticker's intraday
+        read, the same on every tier; each is ``None`` when the server omits it.
 
         Auto-unwrapped. Access via ``result.latest``, ``result.context``,
         ``result.oiWalls`` and ``result.unusual``; check ``result.is_preview`` for tier
