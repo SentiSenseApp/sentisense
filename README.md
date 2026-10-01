@@ -153,6 +153,7 @@ Every typed dataclass also supports dict-style access, so `price["currentPrice"]
 | `get_stock_quote(ticker)` | Fuller snapshot: day OHLC, 52-week range, market cap, P/E, EPS TTM, dividend yield |
 | `get_stock_profile(ticker)` | Company profile |
 | `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products, organizations) |
+| `get_stock_graph(ticker, depth=1, cap=75)` | Company knowledge graph: people, products, product families and peers, keyed by slug, with typed relationships |
 | `get_similar_stocks(ticker, limit=5)` | Peer stocks with their current prices |
 | `get_stock_ai_summary(ticker, depth="basic")` | Curated AI research report. `depth="deep"` returns the full report and consumes one report view |
 | `get_stock_chart(ticker, timeframe="1M")` | OHLCV bars, returned as a bare list, oldest first |
@@ -175,6 +176,8 @@ Chart timeframes are `1D`, `5D`, `1W`, `1M`, `3M`, `6M`, `1Y`, `5Y`, `10Y` and `
 | `get_short_interest(ticker)` | Short interest, from bi-monthly settlement data |
 | `get_float(ticker)` | Shares available for public trading |
 | `get_short_volume(ticker)` | Daily short-sale volume, distinct from short interest |
+
+Short interest (`shortInterest`, `avgDailyVolume` in shares, `daysToCover` in days) and short volume (`shortVolume`, `totalVolume` in shares, `shortVolumeRatio` in percentage points) arrive newest first in `dataPoints`, the 24 most recent settlement dates and the 90 most recent trading days respectively. Short volume counts the reporting venues only, so `totalVolume` reads lower than consolidated volume. Float carries `freeFloat` in shares (0 for a symbol with no free float, such as a fund) and `freeFloatPercent` in percentage points. An uncovered ticker returns empty `dataPoints`, or `None` float fields, rather than an error.
 
 Statement figures are reported in the filer's own currency, named by `reportedCurrency`, and are never converted to US dollars. An absent key means the currency is unknown, not that it is USD. For non-USD filers the API serves `peRatio`, `psRatio` and `pbRatio` as `None` on purpose, because a USD share price over a home-currency per-share figure is a unit mismatch; do not recompute them client-side.
 
@@ -447,10 +450,13 @@ Composition data is public. The holdings-weighted aggregate views follow the sam
 | Method | Description |
 |--------|-------------|
 | `list_etfs()` | Every ETF tracked: ticker, fund name, issuer, tracked index, asset class |
+| `get_etf_quote(ticker)` | Quote snapshot for an ETF: day OHLC, 52-week range, AUM, expense ratio, NAV, inception date |
 | `get_etf_holdings(ticker)` | Full composition with per-holding weights and freshness metadata |
 | `get_etf_analyst_aggregate(ticker)` | Holdings-weighted analyst consensus, with per-holding contributions in `topContributors` |
 | `get_etf_insider_aggregate(ticker, lookback_days=30)` | Holdings-weighted Form 4 net flow over a trailing window, clamped to 90 days |
 | `get_etf_sentiment_aggregate(ticker)` | Two Score readings side by side: constituent-weighted and direct |
+
+`get_stock_quote` answers an ETF ticker with an HTTP 400 `ticker_is_etf` error, so quote funds with `get_etf_quote`. Its `expenseRatio` and `dividendYield` are fractions (`0.0009` means 0.09%), `aum` is in US dollars, and a field the API cannot fill is omitted and reads as `None`.
 
 ### Screener
 

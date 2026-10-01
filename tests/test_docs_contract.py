@@ -232,3 +232,54 @@ class TestEntityShapeDocs:
         for field in ("``id``", "``displayName``", "``relatedStock``", "``urlSlug``"):
             assert field in doc
         assert "``entityId``" not in doc
+
+
+class TestEntityIdDeprecationDocs:
+    """Entity rows carry ``id`` and ``urlSlug``; only the slug is the public handle."""
+
+    @pytest.mark.parametrize("method", ["get_stock_entities", "get_popular_kb_entities"])
+    def test_id_is_marked_deprecated_next_to_url_slug(self, method):
+        doc = getattr(SentiSenseClient, method).__doc__ or ""
+        assert "``urlSlug``" in doc
+        assert "Deprecated: not a stable public identifier" in doc
+        assert "kb/" not in doc
+
+
+class TestAnalystFieldDocs:
+    def test_surprise_percent_is_documented_as_a_fraction(self):
+        # Sampled live: actual 2.02 vs estimate 1.89 arrives as 0.07, not 6.88.
+        doc = SentiSenseClient.get_analyst_estimates.__doc__ or ""
+        assert "``surprisePercent``" in doc
+        assert "a fraction rounded to 2 decimals" in doc
+        assert "``0.07`` = 7%" in doc
+        for field in ("periodType", "estimateMean", "numberOfAnalysts", "actualEps"):
+            assert "``%s``" % field in doc
+
+    def test_coverage_names_the_analyst_object(self):
+        doc = SentiSenseClient.get_analyst_coverage.__doc__ or ""
+        assert '``{"slug": ..., "name": ...}``' in doc
+
+
+class TestShortSideUnitDocs:
+    @pytest.mark.parametrize(
+        "method, fields",
+        [
+            ("get_short_interest", ("shortInterest", "daysToCover", "avgDailyVolume",
+                                    "settlementDate")),
+            ("get_float", ("freeFloat", "freeFloatPercent", "effectiveDate")),
+            ("get_short_volume", ("shortVolume", "totalVolume", "shortVolumeRatio")),
+        ],
+    )
+    def test_fields_are_documented(self, method, fields):
+        doc = getattr(SentiSenseClient, method).__doc__ or ""
+        for field in fields:
+            assert "``%s``" % field in doc, "%s does not document %s" % (method, field)
+
+    def test_ratio_fields_name_their_unit(self):
+        assert "percentage" in (SentiSenseClient.get_short_volume.__doc__ or "")
+        assert "percentage" in (SentiSenseClient.get_float.__doc__ or "")
+
+    def test_etf_holdings_docstring_uses_camel_case_names(self):
+        doc = SentiSenseClient.get_etf_holdings.__doc__ or ""
+        assert "``asOfDate``" in doc and "``totalKnownHoldings``" in doc
+        assert "as_of_date" not in doc and "total_known_holdings" not in doc

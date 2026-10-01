@@ -1,5 +1,7 @@
 """Round-trip tests for the typed ETF dataclasses and PreviewResult fallback."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from sentisense import (
@@ -10,9 +12,12 @@ from sentisense import (
     EtfInfo,
     EtfInsiderAggregate,
     EtfInsiderContributor,
+    EtfQuote,
     EtfSentimentAggregate,
+    ExtendedHoursInfo,
     EtfSentimentReading,
     PreviewResult,
+    SentiSenseClient,
     WeightedConsensus,
     WeightedNetFlow,
 )
@@ -264,3 +269,101 @@ class TestPreviewResultTruthiness:
         assert pr.is_preview is True
         assert pr.preview_reason == "PRO_REQUIRED"
         assert pr.total_count == 5
+
+
+# Shaped like real /api/v1/etfs/{ticker}/quote responses. The API omits unknown fields
+# rather than sending null: SPY here has no priceAsOf and no extendedHours, QQQ carries
+# an after-hours block.
+SPY_QUOTE = {
+    "ticker": "SPY",
+    "currentPrice": 762.63,
+    "change": -1.57,
+    "changePercent": -0.20544360115153756,
+    "volume": 62110242,
+    "open": 766.45,
+    "dayHigh": 769.41,
+    "dayLow": 762.18,
+    "previousClose": 764.2,
+    "week52High": 779.37,
+    "week52Low": 629.28,
+    "dividendYield": 0.009942851710528042,
+    "aum": 818687280000,
+    "expenseRatio": 9.0e-4,
+    "nav": 767.44,
+    "inceptionDate": "1993-01-22",
+    "timestamp": 1790841278705,
+}
+
+QQQ_QUOTE = {
+    "ticker": "QQQ",
+    "currentPrice": 739.77,
+    "change": 1.84,
+    "changePercent": 0.24934614394319676,
+    "volume": 29820353,
+    "aum": 500944241401,
+    "expenseRatio": 0.0018,
+    "nav": 744.46,
+    "inceptionDate": "1999-03-10",
+    "timestamp": 1790841279112,
+    "priceAsOf": 1790841200000,
+    "extendedHours": {
+        "session": "post",
+        "price": 742.8,
+        "change": 3.03,
+        "changePercent": 0.40958676345350215,
+    },
+}
+
+
+class TestEtfQuote:
+    def test_parse_full_payload(self):
+        q = EtfQuote.from_dict(SPY_QUOTE)
+        assert q.ticker == "SPY"
+        assert q.currentPrice == 762.63
+        assert q.changePercent == pytest.approx(-0.2054, abs=1e-4)
+        assert q.aum == 818687280000
+        assert q.expenseRatio == 0.0009
+        assert q.dividendYield == pytest.approx(0.00994, abs=1e-5)
+        assert q.inceptionDate == "1993-01-22"
+        # epoch milliseconds, not seconds
+        assert q.timestamp == 1790841278705
+        assert q["nav"] == 767.44
+
+    def test_omitted_fields_default_to_none(self):
+        q = EtfQuote.from_dict(SPY_QUOTE)
+        assert q.priceAsOf is None
+        assert q.extendedHours is None
+        bare = EtfQuote.from_dict({"ticker": "XYZ"})
+        assert bare.ticker == "XYZ"
+        for name in ("currentPrice", "change", "volume", "aum", "expenseRatio", "nav",
+                     "inceptionDate", "timestamp", "priceAsOf", "extendedHours"):
+            assert getattr(bare, name) is None, name
+
+    def test_nested_extended_hours_is_typed(self):
+        q = EtfQuote.from_dict(QQQ_QUOTE)
+        assert isinstance(q.extendedHours, ExtendedHoursInfo)
+        assert q.extendedHours.session == "post"
+        assert q.extendedHours.price == 742.8
+        assert q.extendedHours.changePercent == pytest.approx(0.4096, abs=1e-4)
+        assert q.priceAsOf == 1790841200000
+
+    def test_unknown_fields_are_ignored(self):
+        q = EtfQuote.from_dict({**SPY_QUOTE, "futureField": 1})
+        assert q.ticker == "SPY"
+        assert not hasattr(q, "futureField")
+
+    def test_none_payload(self):
+        assert EtfQuote.from_dict(None) is None
+
+
+class TestGetEtfQuote:
+    @patch.object(SentiSenseClient, "_get")
+    def test_path_is_upper_cased_and_parsed(self, mock_get):
+        resp = MagicMock()
+        resp.json.return_value = QQQ_QUOTE
+        mock_get.return_value = resp
+        q = SentiSenseClient("test-api-key").get_etf_quote("qqq")
+        mock_get.assert_called_once_with("/api/v1/etfs/QQQ/quote")
+        assert isinstance(q, EtfQuote)
+        assert q.ticker == "QQQ"
+        assert isinstance(q.extendedHours, ExtendedHoursInfo)

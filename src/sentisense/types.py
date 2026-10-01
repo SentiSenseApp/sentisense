@@ -284,6 +284,144 @@ class MarketStatus(APIModel):
     timestamp: int = 0
 
 
+# ── Stock graph types ───────────────────────────────────────
+
+
+@dataclass
+class GraphNode(APIModel):
+    """One entity in a stock graph.
+
+    ``slug`` is the identifier every edge and group refers to. It is the same
+    ``urlSlug`` the metrics and documents endpoints accept, so a node can be passed
+    straight to :meth:`~sentisense.SentiSenseClient.get_metrics`.
+    """
+
+    slug: str = ""
+    displayName: str = ""
+    type: str = ""  # e.g. "COMPANY", "PERSON", "PRODUCT_OR_SERVICE"
+
+
+@dataclass
+class GraphEdge(APIModel):
+    """One typed relationship between two graph nodes, addressed by slug.
+
+    ``type`` names the relationship (for example ``"LEADS"``, ``"FOUNDED"``,
+    ``"PRODUCT_OF"``, ``"VARIANT_OF"``, ``"PEER"``). ``direction`` is ``"DIRECTED"``
+    (``source`` relates to ``target``) or ``"BIDIRECTIONAL"``.
+
+    ``properties`` holds string-valued attributes of the relationship, such as
+    ``role`` and ``since`` on a ``LEADS`` edge or ``year`` on a ``FOUNDED`` edge. Keys
+    vary by edge type and most edges carry none, so read them with ``.get()``. Values
+    are strings even when they look numeric.
+    """
+
+    source: str = ""
+    target: str = ""
+    type: str = ""
+    direction: str = ""
+    properties: Dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "GraphEdge":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            source=data.get("source", ""),
+            target=data.get("target", ""),
+            type=data.get("type", ""),
+            direction=data.get("direction", ""),
+            properties=dict(data.get("properties") or {}),
+        )
+
+
+@dataclass
+class GraphProductFamily(APIModel):
+    """A product family and the slugs of its variants (e.g. a phone line and its models)."""
+
+    family: str = ""  # slug of the family's parent product
+    members: List[str] = field(default_factory=list)  # slugs of the variants
+
+
+@dataclass
+class GraphGroups(APIModel):
+    """The graph's nodes bucketed by role, each list holding node slugs."""
+
+    people: List[str] = field(default_factory=list)
+    products: List[str] = field(default_factory=list)
+    productFamilies: List[GraphProductFamily] = field(default_factory=list)
+    peers: List[str] = field(default_factory=list)
+    organizations: List[str] = field(default_factory=list)
+    publishers: List[str] = field(default_factory=list)
+    topics: List[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "GraphGroups":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            people=list(data.get("people") or []),
+            products=list(data.get("products") or []),
+            productFamilies=[
+                GraphProductFamily.from_dict(f) for f in (data.get("productFamilies") or [])
+            ],
+            peers=list(data.get("peers") or []),
+            organizations=list(data.get("organizations") or []),
+            publishers=list(data.get("publishers") or []),
+            topics=list(data.get("topics") or []),
+        )
+
+
+@dataclass
+class GraphCounts(APIModel):
+    """Node and edge totals for the returned graph, plus a node count per type."""
+
+    nodes: int = 0
+    edges: int = 0
+    byType: Dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class StockGraph(APIModel):
+    """The company knowledge graph around one ticker. Returned by ``client.get_stock_graph``.
+
+    ``root`` is the slug of the company node the traversal starts from. ``depth`` (1 or
+    2) and ``cap`` (maximum nodes, 1 to 200) echo the request. ``truncated`` is true when
+    the cap cut the traversal short. ``omitted`` counts nodes left out because they have
+    no slug to address them by.
+
+    Every identifier in ``nodes``, ``edges`` and ``groups`` is a slug, the same
+    ``urlSlug`` handle the metrics and documents endpoints take.
+    """
+
+    ticker: str = ""
+    root: str = ""
+    depth: int = 1
+    cap: int = 75
+    truncated: bool = False
+    omitted: int = 0
+    counts: Optional[GraphCounts] = None
+    groups: Optional[GraphGroups] = None
+    nodes: List[GraphNode] = field(default_factory=list)
+    edges: List[GraphEdge] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StockGraph":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(
+            ticker=data.get("ticker", ""),
+            root=data.get("root", ""),
+            depth=data.get("depth", 1),
+            cap=data.get("cap", 75),
+            truncated=bool(data.get("truncated", False)),
+            omitted=data.get("omitted", 0),
+            counts=GraphCounts.from_dict(data["counts"]) if data.get("counts") is not None else None,
+            groups=GraphGroups.from_dict(data["groups"]) if data.get("groups") is not None else None,
+            nodes=[GraphNode.from_dict(n) for n in (data.get("nodes") or [])],
+            edges=[GraphEdge.from_dict(e) for e in (data.get("edges") or [])],
+        )
+
+
 # ── Calendar types ──────────────────────────────────────────
 
 
@@ -1998,6 +2136,67 @@ class EtfHoldings(APIModel):
             partial=data.get("partial"),
             totalKnownHoldings=data.get("totalKnownHoldings"),
         )
+
+
+@dataclass
+class EtfQuote(APIModel):
+    """Aggregate ETF quote snapshot. Returned by ``client.get_etf_quote``.
+
+    The ETF counterpart of :class:`StockQuote`: the same price-side fields, with the
+    earnings-derived rows (market cap, P/E, EPS) replaced by fund fundamentals:
+    ``aum``, ``expenseRatio``, ``nav`` and ``inceptionDate``.
+
+    The API omits a field when its value is unknown rather than sending ``null``, so
+    every field except ``ticker`` defaults to ``None`` here. Treat ``None`` as unknown
+    and render a placeholder or hide the row.
+
+    Units: ``changePercent`` is in percentage points (``-0.21`` means -0.21%).
+    ``dividendYield`` (trailing twelve months) and ``expenseRatio`` are fractions
+    (``0.0099`` means 0.99%). ``aum`` and ``nav`` are US dollars. ``volume`` is shares.
+    ``inceptionDate`` is an ISO date (``YYYY-MM-DD``).
+
+    ``timestamp`` and ``priceAsOf`` are Unix MILLISECONDS. ``timestamp`` is when the
+    response was assembled, so it always reads as now. ``priceAsOf`` is when the market
+    data behind ``currentPrice`` is from; it is ``None`` outside regular hours and
+    whenever the upstream data carries no time of its own, so treat ``None`` as unknown
+    age, not as fresh.
+
+    ``currentPrice`` is the regular-session price, delayed. ``extendedHours`` is a
+    typed :class:`ExtendedHoursInfo` during pre-market and after-hours sessions and
+    ``None`` otherwise.
+    """
+
+    ticker: str = ""
+    currentPrice: Optional[float] = None
+    change: Optional[float] = None
+    changePercent: Optional[float] = None
+    volume: Optional[int] = None
+    open: Optional[float] = None
+    dayHigh: Optional[float] = None
+    dayLow: Optional[float] = None
+    previousClose: Optional[float] = None
+    week52High: Optional[float] = None
+    week52Low: Optional[float] = None
+    dividendYield: Optional[float] = None  # fraction, trailing twelve months
+    aum: Optional[int] = None  # assets under management, USD
+    expenseRatio: Optional[float] = None  # fraction (0.0009 means 0.09%)
+    nav: Optional[float] = None  # net asset value per share, USD
+    inceptionDate: Optional[str] = None  # ISO date 'YYYY-MM-DD'
+    timestamp: Optional[int] = None  # epoch milliseconds, response assembly time
+    priceAsOf: Optional[int] = None  # epoch milliseconds, age of the price data
+    extendedHours: Optional[ExtendedHoursInfo] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "EtfQuote":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)}
+        values = {k: v for k, v in data.items() if k in known and k != "extendedHours"}
+        extended = data.get("extendedHours")
+        values["extendedHours"] = (
+            ExtendedHoursInfo.from_dict(extended) if isinstance(extended, dict) else None
+        )
+        return cls(**values)
 
 
 @dataclass

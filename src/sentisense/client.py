@@ -30,6 +30,7 @@ from sentisense.types import (
     EtfHoldings,
     EtfInfo,
     EtfInsiderAggregate,
+    EtfQuote,
     EtfSentimentAggregate,
     Insight,
     InsiderActivity,
@@ -57,6 +58,7 @@ from sentisense.types import (
     ScreenerResults,
     SimilarStock,
     StockDetail,
+    StockGraph,
     StockPrice,
     StockQuote,
     StockRating,
@@ -332,15 +334,53 @@ class SentiSenseClient:
     def get_stock_entities(self, ticker: str) -> List[Dict[str, Any]]:
         """Get the tracked entities related to a stock (executives, products, organizations).
 
-        Each entry carries ``id`` (the knowledge-base id, e.g. ``"kb/person/1"``),
-        ``displayName``, ``type`` ("PERSON", "PRODUCT", ...), ``relatedStock``,
-        ``urlSlug``, and the nullable ``title``, ``category`` and ``iconUrl``.
+        Each entry carries ``urlSlug`` (the entity's public handle, e.g.
+        ``"Tim-Cook"``), ``displayName``, ``type`` ("PERSON", "PRODUCT", ...),
+        ``relatedStock``, and the nullable ``title``, ``category`` and ``iconUrl``.
+        A product with a tracked companion app also carries ``appId``.
         Pass ``urlSlug`` to :meth:`get_metrics` to pull an entity's time series.
+
+        Each entry also carries ``id``, the entity id as sent by the API.
+        Deprecated: not a stable public identifier. Use ``urlSlug`` to refer to an
+        entity.
 
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
         return self._get(f"/api/v1/stocks/{ticker}/entities").json()
+
+    def get_stock_graph(self, ticker: str, depth: int = 1, cap: int = 75) -> StockGraph:
+        """Get the company knowledge graph around a stock: its people, products and peers.
+
+        Returns a :class:`~sentisense.types.StockGraph` with typed ``nodes``
+        (``slug``, ``displayName``, ``type``), typed ``edges`` (``source``, ``target``,
+        ``type``, ``direction``, ``properties``), ``groups`` that bucket node slugs by
+        role (``people``, ``products``, ``productFamilies``, ``peers``,
+        ``organizations``, ``publishers``, ``topics``) and ``counts``.
+
+        Every identifier is a slug, the same ``urlSlug`` handle :meth:`get_metrics`
+        accepts, so any node can be passed straight to the metrics endpoints.
+
+        Edge ``properties`` are string-valued and depend on the edge type: a ``LEADS``
+        edge can carry ``role`` and ``since``, a ``FOUNDED`` edge ``year``. Most edges
+        carry none, so read keys with ``.get()``.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"AAPL"``). Upper-cased for you.
+            depth: Traversal depth, 1 or 2. Depth 2 also follows the neighbours' own
+                links. Other values are rejected by the API.
+            cap: Maximum number of nodes to return, 1 to 200. ``truncated`` is true on
+                the response when the cap cut the traversal short.
+
+        Raises:
+            NotFoundError: The ticker has no curated graph.
+        """
+        return StockGraph.from_dict(
+            self._get(
+                f"/api/v1/stocks/{ticker.upper()}/graph",
+                params={"depth": depth, "cap": cap},
+            ).json()
+        )
 
     def get_stock_ai_summary(self, ticker: str, depth: str = "basic") -> Dict[str, Any]:
         """Get the curated AI research report for a stock.
@@ -569,6 +609,17 @@ class SentiSenseClient:
     def get_short_interest(self, ticker: str) -> Dict[str, Any]:
         """Get short interest metrics (FINRA bi-monthly settlement data).
 
+        Returns ``{"ticker", "count", "dataPoints"}``. ``dataPoints`` is newest first
+        (the API returns the 24 most recent settlement dates), each with:
+
+        - ``shortInterest``: shares sold short and not yet covered, in shares.
+        - ``daysToCover``: ``shortInterest`` divided by ``avgDailyVolume``, in days.
+        - ``avgDailyVolume``: average daily trading volume, in shares.
+        - ``settlementDate``: ISO date (``YYYY-MM-DD``).
+
+        A ticker with no short interest data, including an unknown one, returns an
+        empty ``dataPoints`` list and ``count`` 0 rather than raising.
+
         Args:
             ticker: Stock ticker symbol (e.g. ``"GME"``).
         """
@@ -579,6 +630,25 @@ class SentiSenseClient:
     def get_float(self, ticker: str) -> Dict[str, Any]:
         """Get float information (shares available for public trading).
 
+        Returns a dict with:
+
+        - ``ticker``.
+        - ``freeFloat``: shares available for public trading, in shares. ``0`` means
+          the symbol has no free float, which is what funds such as SPY and QQQ
+          return.
+        - ``freeFloatPercent``: free float as a share of shares outstanding, in
+          percentage points (``92.1`` means 92.1%).
+        - ``effectiveDate``: when the figure took effect, a string: ``YYYY-MM-DD`` or
+          ``YYYY-MM-DD HH:mm:ss`` depending on the data source, so do not assume one
+          format.
+
+        Shares outstanding is not on this endpoint. For a share count, read
+        ``weightedAverageSharesDiluted`` or ``weightedAverageSharesBasic`` from
+        :meth:`get_fundamentals`.
+
+        A ticker with no float data, including an unknown one, returns the ``ticker``
+        with every other field ``None`` rather than raising.
+
         Args:
             ticker: Stock ticker symbol.
         """
@@ -586,6 +656,20 @@ class SentiSenseClient:
 
     def get_short_volume(self, ticker: str) -> Dict[str, Any]:
         """Get daily short-sale volume (FINRA), distinct from short interest.
+
+        Returns ``{"ticker", "count", "dataPoints"}``. ``dataPoints`` is newest first
+        (the API returns the 90 most recent trading days), each with:
+
+        - ``shortVolume``: shares sold short that day on the reporting venues.
+        - ``totalVolume``: total shares traded that day on the same reporting venues.
+          This is not consolidated market volume, so it reads lower than the day's
+          volume on a quote.
+        - ``shortVolumeRatio``: ``shortVolume`` over ``totalVolume``, in percentage
+          points (``41.04`` means 41.04%).
+        - ``date``: ISO date (``YYYY-MM-DD``).
+
+        A ticker with no short volume data, including an unknown one, returns an empty
+        ``dataPoints`` list and ``count`` 0 rather than raising.
 
         Args:
             ticker: Stock ticker symbol.
@@ -1528,6 +1612,25 @@ class SentiSenseClient:
         Free users receive 1 estimate (current quarter) plus the 2 most recent
         surprises; PRO users receive the full history.
 
+        Auto-unwrapped. ``data["estimates"]`` is a list of forward EPS estimates, each
+        with:
+
+        - ``periodLabel``: the period as sent by the API. Its format varies by period:
+          the current quarter carries a date (e.g. ``"2026-10-29"``), the others a
+          relative code (e.g. ``"+1q"``, ``"0y"``, ``"+1y"``). Display it; do not parse it.
+        - ``periodType``: ``"CURRENT_QUARTER"``, ``"NEXT_QUARTER"``, ``"CURRENT_YEAR"``
+          or ``"NEXT_YEAR"``. Key on this rather than on ``periodLabel``.
+        - ``estimateLow``, ``estimateMean``, ``estimateHigh``: EPS per share.
+        - ``numberOfAnalysts``: analysts contributing to the estimate.
+
+        ``data["surprises"]`` lists reported quarters, newest first, each with:
+
+        - ``periodLabel`` and ``reportDate``: ISO dates (``YYYY-MM-DD``).
+        - ``estimateEps`` and ``actualEps``: EPS per share.
+        - ``surprisePercent``: as sent by the API, a fraction rounded to 2 decimals
+          (``0.07`` = 7%), despite the name. Small surprises round to ``0.0``; recompute
+          from ``actualEps`` and ``estimateEps`` when you need more precision.
+
         Args:
             ticker: Stock ticker symbol.
         """
@@ -1578,6 +1681,11 @@ class SentiSenseClient:
         ``analysts`` list and a non-zero ``noteCount``, and ``latestNote["analyst"]``
         can be ``None``. Read ``attributedNoteCount`` and ``unattributedNoteCount`` on
         the response you received rather than hardcoding a rate.
+
+        When a note does name its analyst, ``latestNote["analyst"]`` is an object, not
+        a string: ``{"slug": ..., "name": ...}``. ``name`` is always set. ``slug``
+        addresses :meth:`get_analyst_profile` and is ``None`` when the analyst cannot be
+        linked to a profile, so read the name for display and the slug for navigation.
 
         ``firmRating`` belongs to the firm, not to a person: rating actions are
         published at firm level with no individual attached.
@@ -1687,7 +1795,16 @@ class SentiSenseClient:
     # ── Knowledge Base (KB) endpoints ───────────────────────────
 
     def get_popular_kb_entities(self) -> List[Dict[str, Any]]:
-        """Get popular KB entities (useful for search suggestions)."""
+        """Get popular KB entities (useful for search suggestions).
+
+        Each entry carries ``urlSlug`` (the entity's public handle; pass it to
+        :meth:`get_metrics`), ``displayName``, ``type`` and the nullable
+        ``relatedStock``, in the same row shape as :meth:`get_stock_entities`.
+
+        Each entry also carries ``id``, the entity id as sent by the API.
+        Deprecated: not a stable public identifier. Use ``urlSlug`` to refer to an
+        entity.
+        """
         return self._get("/api/v1/kb/entities/popular").json()
 
     # ── ETF endpoints ───────────────────────────────────────────
@@ -1705,16 +1822,45 @@ class SentiSenseClient:
     def get_etf_holdings(self, ticker: str) -> EtfHoldings:
         """Return the full holdings composition for an ETF.
 
-        Includes per-holding weights and freshness metadata (``as_of_date``,
-        ``fetched_at``, ``next_refresh_due``). When the composition is a
+        Includes per-holding weights and freshness metadata (``asOfDate``,
+        ``fetchedAt``, ``nextRefreshDue``). When the composition is a
         top-N view (e.g. via a third-party aggregator), ``partial`` is true
-        and ``total_known_holdings`` reflects the issuer's true count.
+        and ``totalKnownHoldings`` reflects the issuer's true count.
 
         Args:
             ticker: ETF ticker (e.g. ``"QQQ"``).
         """
         return EtfHoldings.from_dict(
             self._get(f"/api/v1/etfs/{ticker.upper()}/holdings").json()
+        )
+
+    def get_etf_quote(self, ticker: str) -> EtfQuote:
+        """Get the aggregate quote snapshot for an ETF.
+
+        The ETF counterpart of :meth:`get_stock_quote`: the same price fields (day OHLC,
+        52-week range, volume, trailing dividend yield) plus fund fundamentals ``aum``
+        (USD), ``expenseRatio`` (a fraction, ``0.0009`` means 0.09%), ``nav`` (USD) and
+        ``inceptionDate`` (ISO date). ``changePercent`` is in percentage points.
+
+        Fields the API cannot fill are omitted from the response and read as ``None``.
+        ``timestamp`` and ``priceAsOf`` are epoch milliseconds; see
+        :class:`~sentisense.types.EtfQuote`. During pre-market and after-hours a typed
+        ``extendedHours`` object is attached.
+
+        :meth:`get_stock_quote` answers an ETF ticker with an HTTP 400 ``APIError``
+        whose body names the error ``ticker_is_etf`` (read it from
+        ``exc.response.json()["error"]``); call this method for those tickers instead.
+
+        Args:
+            ticker: ETF ticker (e.g. ``"SPY"``). Upper-cased for you.
+
+        Raises:
+            APIError: HTTP 400 when the ticker is not a tracked ETF (body error
+                ``ticker_is_not_etf``).
+            NotFoundError: No quote data is available for the ticker.
+        """
+        return EtfQuote.from_dict(
+            self._get(f"/api/v1/etfs/{ticker.upper()}/quote").json()
         )
 
     def get_etf_analyst_aggregate(self, ticker: str) -> PreviewResult[EtfAnalystAggregate]:

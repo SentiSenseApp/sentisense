@@ -1,0 +1,176 @@
+{
+  "ticker": "AAPL",
+  "root": "Apple-Inc",
+  "depth": 1,
+  "cap": 75,
+  "truncated": false,
+  "omitted": 0,
+  "counts": {
+    "nodes": 9,
+    "edges": 11,
+    "byType": {
+      "COMPANY": 3,
+      "PERSON": 2,
+      "PRODUCT_OR_SERVICE": 4
+    }
+  },
+  "groups": {
+    "people": [
+      "Steve-Jobs",
+      "Tim-Cook"
+    ],
+    "products": [
+      "Apple-Watch",
+      "iPhone",
+      "iPhone-17",
+      "iPhone-17-Pro"
+    ],
+    "productFamilies": [
+      {
+        "family": "iPhone",
+        "members": [
+          "iPhone-17",
+          "iPhone-17-Pro"
+        ]
+      }
+    ],
+    "peers": [
+      "Alphabet-Inc",
+      "Microsoft-Corporation"
+    ],
+    "organizations": [],
+    "publishers": [],
+    "topics": []
+  },
+  "nodes": [
+    {
+      "slug": "Apple-Inc",
+      "displayName": "Apple Inc.",
+      "type": "COMPANY"
+    },
+    {
+      "slug": "Alphabet-Inc",
+      "displayName": "Alphabet Inc.",
+      "type": "COMPANY"
+    },
+    {
+      "slug": "Microsoft-Corporation",
+      "displayName": "Microsoft Corporation",
+      "type": "COMPANY"
+    },
+    {
+      "slug": "Steve-Jobs",
+      "displayName": "Steve Jobs",
+      "type": "PERSON"
+    },
+    {
+      "slug": "Tim-Cook",
+      "displayName": "Tim Cook",
+      "type": "PERSON"
+    },
+    {
+      "slug": "Apple-Watch",
+      "displayName": "Apple Watch",
+      "type": "PRODUCT_OR_SERVICE"
+    },
+    {
+      "slug": "iPhone",
+      "displayName": "iPhone",
+      "type": "PRODUCT_OR_SERVICE"
+    },
+    {
+      "slug": "iPhone-17",
+      "displayName": "iPhone 17",
+      "type": "PRODUCT_OR_SERVICE"
+    },
+    {
+      "slug": "iPhone-17-Pro",
+      "displayName": "iPhone 17 Pro",
+      "type": "PRODUCT_OR_SERVICE"
+    }
+  ],
+  "edges": [
+    {
+      "source": "Steve-Jobs",
+      "target": "Apple-Inc",
+      "type": "FOUNDED",
+      "direction": "DIRECTED",
+      "properties": {
+        "year": "1976"
+      }
+    },
+    {
+      "source": "Tim-Cook",
+      "target": "Apple-Inc",
+      "type": "LEADS",
+      "direction": "DIRECTED",
+      "properties": {
+        "role": "Executive Chairman",
+        "since": "2026"
+      }
+    },
+    {
+      "source": "Apple-Inc",
+      "target": "Alphabet-Inc",
+      "type": "PEER",
+      "direction": "BIDIRECTIONAL",
+      "properties": {}
+    },
+    {
+      "source": "Apple-Inc",
+      "target": "Microsoft-Corporation",
+      "type": "PEER",
+      "direction": "BIDIRECTIONAL",
+      "properties": {}
+    },
+    {
+      "source": "Alphabet-Inc",
+      "target": "Microsoft-Corporation",
+      "type": "PEER",
+      "direction": "BIDIRECTIONAL",
+      "properties": {}
+    },
+    {
+      "source": "iPhone",
+      "target": "Apple-Inc",
+      "type": "PRODUCT_OF",
+      "direction": "DIRECTED",
+      "properties": {}
+    },
+    {
+      "source": "iPhone-17",
+      "target": "Apple-Inc",
+      "type": "PRODUCT_OF",
+      "direction": "DIRECTED",
+      "properties": {}
+    },
+    {
+      "source": "iPhone-17-Pro",
+      "target": "Apple-Inc",
+      "type": "PRODUCT_OF",
+      "direction": "DIRECTED",
+      "properties": {}
+    },
+    {
+      "source": "Apple-Watch",
+      "target": "Apple-Inc",
+      "type": "PRODUCT_OF",
+      "direction": "DIRECTED",
+      "properties": {}
+    },
+    {
+      "source": "iPhone-17",
+      "target": "iPhone",
+      "type": "VARIANT_OF",
+      "direction": "DIRECTED",
+      "properties": {}
+    },
+    {
+      "source": "iPhone-17-Pro",
+      "target": "iPhone",
+      "type": "VARIANT_OF",
+      "direction": "DIRECTED",
+      "properties": {}
+    }
+  ]
+}

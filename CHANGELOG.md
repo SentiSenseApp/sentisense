@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.61.0
+
+- New `get_etf_quote(ticker)`, returning a typed `EtfQuote`: the ETF counterpart of
+  `get_stock_quote`, with day OHLC, 52-week range, volume and trailing dividend yield plus
+  fund fundamentals `aum` (USD), `expenseRatio` (a fraction), `nav` and `inceptionDate`.
+  Fields the API cannot fill are omitted from the response and read as `None`.
+  `timestamp` and `priceAsOf` are epoch milliseconds. `extendedHours` is parsed into a typed
+  `ExtendedHoursInfo`. `get_stock_quote` answers an ETF ticker with an HTTP 400
+  `ticker_is_etf` error, so route those tickers here.
+- New `get_stock_graph(ticker, depth=1, cap=75)`, returning a typed `StockGraph`: the
+  company's people, products, product families and peers as `GraphNode` and `GraphEdge`
+  lists plus `GraphGroups` and `GraphCounts`. Every identifier is a slug, the same handle
+  the metrics endpoints take. Edge `properties` are string-valued and vary by edge type
+  (`role` and `since` on a `LEADS` edge, `year` on a `FOUNDED` edge).
+- Docs: `get_analyst_coverage` now says that `latestNote["analyst"]`, when present, is an
+  object `{"slug", "name"}` rather than a string. `get_analyst_estimates` lists the
+  estimate and surprise fields; `surprisePercent` is a fraction rounded to 2 decimals
+  (`0.07` = 7%), despite its name. `get_short_interest`, `get_float` and `get_short_volume`
+  list their fields and units, and what an uncovered ticker returns. The `get_etf_holdings`
+  docstring now names the fields as they appear on `EtfHoldings` (`asOfDate`, `fetchedAt`,
+  `nextRefreshDue`, `totalKnownHoldings`). Float: a `freeFloat` of 0 means the symbol has
+  no free float (funds such as SPY and QQQ), and `effectiveDate` is `YYYY-MM-DD` or
+  `YYYY-MM-DD HH:mm:ss` depending on the data source.
+- Deprecated (docs only): the entity `id` on `get_stock_entities` and
+  `get_popular_kb_entities` rows is not a stable public identifier. Use `urlSlug` to refer
+  to an entity. Both fields are still returned.
+- No runtime behavior changed for existing methods.
+
 ## 0.60.0
 
 - Options dossiers and the options radar now keep the intraday session fields. On
