@@ -1616,8 +1616,8 @@ class SentiSenseClient:
         with:
 
         - ``periodLabel``: the period as sent by the API. Its format varies by period:
-          the current quarter carries a date (e.g. ``"2026-10-29"``), the others a
-          relative code (e.g. ``"+1q"``, ``"0y"``, ``"+1y"``). Display it; do not parse it.
+          the current quarter usually carries a date (e.g. ``"2026-10-29"``; a code such
+          as ``"0q"`` when no date is known yet), the others a relative code (e.g. ``"+1q"``, ``"0y"``, ``"+1y"``). Display it; do not parse it.
         - ``periodType``: ``"CURRENT_QUARTER"``, ``"NEXT_QUARTER"``, ``"CURRENT_YEAR"``
           or ``"NEXT_YEAR"``. Key on this rather than on ``periodLabel``.
         - ``estimateLow``, ``estimateMean``, ``estimateHigh``: EPS per share.
