@@ -165,6 +165,8 @@ Price fields carry `priceAsOf` in Unix milliseconds for the age of the market da
 
 Chart timeframes are `1D`, `5D`, `1W`, `1M`, `3M`, `6M`, `1Y`, `5Y`, `10Y` and `MAX` (`ALL` is a legacy alias of `5Y`). Only `10Y` and `MAX` are dividend-adjusted; `5Y` and shorter are split-adjusted only, so do not compare a `10Y` close against a `1Y` close for the same day. Deep ranges answer `202` the first time a rarely-requested stock is asked for, which the SDK retries for you (see [Error Handling](#error-handling)).
 
+Product nodes (`type == "PRODUCT_OR_SERVICE"`) in `get_stock_graph` now carry `category` when known. Other nodes and products without a category read as `None`.
+
 ### Fundamentals
 
 | Method | Description |
@@ -286,6 +288,8 @@ During the trading session the dossier and the radar also carry a few intraday f
 
 The two per-ticker methods report no coverage differently, which is worth knowing before you write the check. `get_stock_options_summary` returns a `None` payload for an uncovered or unknown ticker, so `result.data is None` is the explicit check; the wrapper itself is falsy in that case and has a length of 0, so `if not result:` works too. `get_stock_options_history` returns a populated object with an empty `series` instead. The history also echoes the `window` the server actually served, which need not be the one you asked for: an unrecognised value clamps to `1y`, and so does any free key.
 
+On a delisted symbol, the options summary carries `listingStatus == "DELISTED"` and, when known, `delistedDate` (YYYY-MM-DD). This marks a frozen last dossier, so read `asOf` before treating it as current. Listed and pending symbols leave both fields `None`.
+
 ### Congressional trading
 
 | Method | Description |
@@ -321,6 +325,19 @@ The directory is the only one of these that is not tier-gated, and the only one 
 | `get_activist_positions(report_date)` | Activist investor positions for a quarter |
 | `get_institution_detail(slug_or_cik)` | One filer's profile, summary stats and current-quarter holdings |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Discover filers, AUM-ranked, rolled up by parent |
+
+`positionsHeld` on an institution detail counts the full portfolio's held positions:
+`max(0, holdingsCount - soldOutPositions)`, even when the holdings list is truncated.
+The client still returns a dictionary in `result.data`; the exported `InstitutionDetail`
+type is an optional-key annotation for callers who want it:
+
+```python
+from typing import cast
+from sentisense import InstitutionDetail
+
+detail = cast(InstitutionDetail, client.get_institution_detail("1067983").data)
+print(detail.get("positionsHeld"))  # None when an older response omits it
+```
 
 **Paging the holder list.** A widely held ticker returns thousands of rows: a megacap quarter is roughly 6,000 holders and 1.5 MB on the wire. Pass `limit` unless you really want the whole list. Omitting every paging argument sends the original unbounded request, so existing code keeps working.
 
@@ -393,6 +410,8 @@ Two shapes to read rather than assume. A firm can appear with `noteCount` 0, a `
 
 `ratingBuckets` sizes the same book by rating tier: `buy`, `hold`, `sell`, `unrated` and `total`, counted over every covering firm before the free truncation, so `buy + hold + sell + unrated == total` and a free key reads the same numbers as a PRO one. `unrated` is a desk with no current rating on record, such as a price-target-only firm. These count the firms in this coverage book, a different population from the `strongBuy` through `strongSell` figures on `get_analyst_consensus`, which come from the provider's analyst survey. Read one or the other, do not reconcile them.
 
+Surprise rows now carry optional `surprisePct`, the signed true percent rounded half-up to two decimals: `(actualEps - estimateEps) * 100 / abs(estimateEps)`. It is `None` when either EPS is missing or the estimate is zero. The existing `surprisePercent` fraction is unchanged (`0.03` means about 3%). Rows remain dictionaries; the exported optional-key `AnalystEarningsSurprise` type can annotate them with `typing.cast`. Use `.get("surprisePct")` to support older responses.
+
 ### Earnings
 
 The earnings analysis report is the assembled version of a quarter: one object per fiscal period carrying the editorial headline, the KPI cards with year-over-year deltas, the guidance language as management phrased it, and a summary of the earnings call. Pair it with the recent-reporters feed to drive a post-earnings sweep.
@@ -434,6 +453,8 @@ print(statistics.beat.rate, statistics.coverageRatio)
 ```
 
 A ticker with no stored quarter answers with an empty list rather than a 404. A quarter can gain its call summary on a later read, so branch on `hasTranscript` and compare `transcriptGeneratedAt` against `generatedAt` rather than assuming a fixed lag. The calendar is the forward-looking half of this family and the recent-reporters feed the backward-looking one; the window there is bounded by report date, so a quarter reported inside it appears even when its call summary lands later.
+
+`get_earnings_summaries` exposes the envelope count as `result.total_count` on both PRO and FREE. It counts indexed quarters; returned rows can be fewer because of `limit` or an unavailable body. Older responses without the count still read as `None`.
 
 ### Company KPIs (PRO)
 

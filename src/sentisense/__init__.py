@@ -12,6 +12,7 @@ from sentisense.exceptions import (
     TemporarilyUnavailable,
 )
 from sentisense.types import (
+    AnalystEarningsSurprise,
     AssetMetadata,
     CalendarMeta,
     ClusterBuy,
@@ -54,6 +55,7 @@ from sentisense.types import (
     InsiderTrade,
     InstitutionalFlow,
     InstitutionalFlows,
+    InstitutionDetail,
     IndexHistoryResponse,
     IndexListResponse,
     IndexSnapshot,
@@ -116,6 +118,8 @@ from sentisense.types import (
 )
 
 __all__ = [
+    "AnalystEarningsSurprise",
+    "InstitutionDetail",
     "__version__",
     "APIError",
     "AssetMetadata",

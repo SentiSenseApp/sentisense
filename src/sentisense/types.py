@@ -8,9 +8,56 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generic, Iterator, List, Optional, TypeVar
+from typing import Any, Dict, Generic, Iterator, List, Optional, TypedDict, TypeVar
 
 T = TypeVar("T")
+
+
+class AnalystEarningsSurprise(TypedDict, total=False):
+    """Optional wire keys for a surprise row; the client keeps returning dictionaries.
+
+    ``surprisePct`` is the signed true percent, rounded half-up to two decimals:
+    ``(actualEps - estimateEps) * 100 / abs(estimateEps)``. It is null when either
+    EPS is missing or the estimate is zero. ``surprisePercent`` remains the
+    original fraction rounded to two decimals (``0.03`` means about 3%).
+    """
+
+    periodLabel: Optional[str]
+    reportDate: Optional[str]  # ISO calendar day, YYYY-MM-DD.
+    estimateEps: Optional[float]
+    actualEps: Optional[float]
+    surprisePercent: Optional[float]
+    surprisePct: Optional[float]
+
+
+class InstitutionDetail(TypedDict, total=False):
+    """Optional wire keys for the dictionary in an institution detail's ``data``.
+
+    ``positionsHeld`` is ``max(0, holdingsCount - soldOutPositions)`` for the
+    full portfolio, even when ``holdings`` is paged or truncated. These types
+    are opt-in annotations; the client's return signature stays unchanged.
+    """
+
+    filerCik: Optional[str]
+    displayName: Optional[str]
+    urlSlug: Optional[str]
+    filerCategory: Optional[str]
+    totalValueUsd: int
+    holdingsCount: int
+    latestReportDate: Optional[str]  # ISO calendar day, YYYY-MM-DD.
+    quartersTracked: int
+    newPositions: int
+    increasedPositions: int
+    decreasedPositions: int
+    soldOutPositions: int
+    multiCikRollup: Optional[bool]
+    childCikCount: Optional[int]
+    childCiks: Optional[List[str]]
+    holdings: Optional[List[Dict[str, Any]]]
+    optionPositions: List[Dict[str, Any]]
+    returnedCount: int
+    offset: int
+    positionsHeld: int
 
 
 # ── Base ────────────────────────────────────────────────────
@@ -299,6 +346,8 @@ class GraphNode(APIModel):
     slug: str = ""
     displayName: str = ""
     type: str = ""  # e.g. "COMPANY", "PERSON", "PRODUCT_OR_SERVICE"
+    category: Optional[str] = None
+    """Product category, present only on PRODUCT_OR_SERVICE nodes when known."""
 
 
 @dataclass
@@ -1509,6 +1558,10 @@ class OptionsSummary(APIModel):
     ticker's own trailing prints. ``None`` when none is scored."""
     capabilities: Optional[OptionsCapabilities] = None
     """Where the intraday board lives and who can open it."""
+    listingStatus: Optional[str] = None
+    """DELISTED marks a frozen last dossier; absent for listed or pending symbols."""
+    delistedDate: Optional[str] = None
+    """ISO day (YYYY-MM-DD) trading stopped; absent when the date is unknown."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "OptionsSummary":
@@ -1549,6 +1602,8 @@ class OptionsSummary(APIModel):
                 if data.get("capabilities") is not None
                 else None
             ),
+            listingStatus=data.get("listingStatus"),
+            delistedDate=data.get("delistedDate"),
         )
 
 

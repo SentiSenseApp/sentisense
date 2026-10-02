@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.62.0
+
+- Docs: graph `cap` limits non-root nodes; the root is always included in addition.
+- Options summaries now retain optional `listingStatus` and `delistedDate`. A
+  `DELISTED` marker identifies a frozen last dossier; the date is an ISO calendar
+  day and can be absent when unknown. Listed and pending symbols omit both fields.
+- Stock graph nodes now retain optional product `category`.
+- Exported optional-key dictionary types `AnalystEarningsSurprise` (including nullable
+  `surprisePct`) and `InstitutionDetail` (including `positionsHeld`). Existing client
+  signatures and dictionary payloads are unchanged. `surprisePct` is a signed true
+  percent rounded half-up to two decimals; `surprisePercent` remains the legacy fraction.
+- Earnings summaries already expose envelope `totalCount` as `result.total_count`;
+  it now counts indexed quarters on PRO as well as FREE. Returned rows can be fewer
+  when a body is unavailable or the request is limited. Older responses remain supported.
+
 ## 0.61.0
 
 - New `get_etf_quote(ticker)`, returning a typed `EtfQuote`: the ETF counterpart of

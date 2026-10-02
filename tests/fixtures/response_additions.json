@@ -1,0 +1,217 @@
+{
+  "optionsDelisted": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "asOf": "2026-08-04",
+      "sentiment": -0.12,
+      "latest": {
+        "date": "2026-08-04",
+        "atmIv": 0.0,
+        "pcVol": 0.62
+      },
+      "context": {
+        "ivRank1y": 0.0,
+        "pcVolPctl1y": 18.0
+      },
+      "oiWalls": {
+        "expiry": "2026-08-21",
+        "maxPain": 205.0
+      },
+      "listingStatus": "DELISTED",
+      "delistedDate": "2026-08-05"
+    }
+  },
+  "optionsDelistedUnknownDate": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "asOf": "2026-08-04",
+      "sentiment": -0.12,
+      "latest": {
+        "date": "2026-08-04",
+        "atmIv": 0.0,
+        "pcVol": 0.62
+      },
+      "context": {
+        "ivRank1y": 0.0,
+        "pcVolPctl1y": 18.0
+      },
+      "oiWalls": {
+        "expiry": "2026-08-21",
+        "maxPain": 205.0
+      },
+      "listingStatus": "DELISTED"
+    }
+  },
+  "optionsListed": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "asOf": "2026-08-04",
+      "sentiment": -0.12,
+      "latest": {
+        "date": "2026-08-04",
+        "atmIv": 0.0,
+        "pcVol": 0.62
+      },
+      "context": {
+        "ivRank1y": 0.0,
+        "pcVolPctl1y": 18.0
+      },
+      "oiWalls": {
+        "expiry": "2026-08-21",
+        "maxPain": 205.0
+      }
+    }
+  },
+  "estimates": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "estimates": [],
+      "surprises": [
+        {
+          "periodLabel": "2026-08-20",
+          "reportDate": "2026-08-20",
+          "estimateEps": 2.43,
+          "actualEps": 2.51,
+          "surprisePercent": 0.03,
+          "surprisePct": 3.29
+        },
+        {
+          "periodLabel": "2026-08-20",
+          "reportDate": "2026-08-20",
+          "estimateEps": -1.0,
+          "actualEps": -0.5,
+          "surprisePercent": 0.5,
+          "surprisePct": 50.0
+        },
+        {
+          "periodLabel": "2026-08-20",
+          "reportDate": "2026-08-20",
+          "estimateEps": 0.0,
+          "actualEps": 0.05,
+          "surprisePercent": null,
+          "surprisePct": null
+        }
+      ]
+    }
+  },
+  "estimatesLegacy": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "estimates": [],
+      "surprises": [
+        {
+          "periodLabel": "2026-08-20",
+          "reportDate": "2026-08-20",
+          "estimateEps": 2.43,
+          "actualEps": 2.51,
+          "surprisePercent": 0.03
+        }
+      ]
+    }
+  },
+  "earningsSummaries": {
+    "isPreview": false,
+    "previewReason": null,
+    "totalCount": 9,
+    "data": [
+      {
+        "fiscalPeriod": "Q2 FY2026",
+        "reportDate": "2026-08-20",
+        "headline": "Quarterly results"
+      }
+    ]
+  },
+  "earningsSummariesEmpty": {
+    "isPreview": false,
+    "previewReason": null,
+    "totalCount": 0,
+    "data": []
+  },
+  "earningsSummariesLegacy": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": []
+  },
+  "institutionDetail": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "filerCik": "1067983",
+      "displayName": "Berkshire Hathaway",
+      "urlSlug": "Berkshire-Hathaway",
+      "filerCategory": "CONGLOMERATE",
+      "totalValueUsd": 1000000,
+      "holdingsCount": 4,
+      "latestReportDate": "2026-06-30",
+      "quartersTracked": 2,
+      "newPositions": 1,
+      "increasedPositions": 0,
+      "decreasedPositions": 0,
+      "soldOutPositions": 1,
+      "multiCikRollup": false,
+      "childCikCount": 0,
+      "childCiks": null,
+      "holdings": [
+        {
+          "ticker": "AAPL",
+          "companyName": "Apple Inc.",
+          "shares": 100,
+          "valueUsd": 400000,
+          "changeType": "UNCHANGED",
+          "sharesChange": 0,
+          "sharesChangePct": 0.0,
+          "portfolioWeight": 40.0
+        }
+      ],
+      "returnedCount": 1,
+      "offset": 0,
+      "positionsHeld": 3
+    }
+  },
+  "stockGraph": {
+    "ticker": "AAPL",
+    "root": "Apple-Inc",
+    "depth": 1,
+    "cap": 75,
+    "truncated": false,
+    "omitted": 0,
+    "nodes": [
+      {
+        "slug": "Apple-Inc",
+        "displayName": "Apple Inc.",
+        "type": "COMPANY"
+      },
+      {
+        "slug": "iPhone",
+        "displayName": "iPhone",
+        "type": "PRODUCT_OR_SERVICE",
+        "category": "Smartphones"
+      },
+      {
+        "slug": "other-product",
+        "displayName": "Other product",
+        "type": "PRODUCT_OR_SERVICE"
+      }
+    ],
+    "edges": [],
+    "groups": {
+      "products": [
+        "iPhone",
+        "other-product"
+      ]
+    },
+    "counts": {
+      "nodes": 3,
+      "edges": 0,
+      "byType": {
+        "COMPANY": 1,
+        "PRODUCT_OR_SERVICE": 2
+      }
+    }
+  }
+}

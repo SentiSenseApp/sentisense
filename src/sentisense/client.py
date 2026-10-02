@@ -369,8 +369,9 @@ class SentiSenseClient:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``). Upper-cased for you.
             depth: Traversal depth, 1 or 2. Depth 2 also follows the neighbours' own
                 links. Other values are rejected by the API.
-            cap: Maximum number of nodes to return, 1 to 200. ``truncated`` is true on
-                the response when the cap cut the traversal short.
+            cap: Maximum number of non-root nodes to return, 1 to 200. The root is
+                always included in addition. ``truncated`` is true on the response
+                when the cap cut the traversal short.
 
         Raises:
             NotFoundError: The ticker has no curated graph.
@@ -768,6 +769,11 @@ class SentiSenseClient:
         Auto-unwrapped. Check ``result.is_preview`` for tier status. PRO users
         receive the full holdings array; free users receive the top 10 holdings.
 
+        ``data["positionsHeld"]``, when present, counts the full portfolio's
+        held positions: ``max(0, holdingsCount - soldOutPositions)``. The exported
+        :class:`InstitutionDetail` is an optional-key dictionary annotation;
+        the returned payload and signature remain unchanged.
+
         Args:
             slug_or_cik: URL slug (e.g. ``"Berkshire-Hathaway"``) or numeric SEC CIK.
         """
@@ -881,8 +887,10 @@ class SentiSenseClient:
         Auto-unwrapped: iterate ``result`` or read ``result.data``. Check
         ``result.is_preview``. A PRO key receives every hydrated quarter in
         full; a FREE key receives the latest quarter shaped rather than
-        truncated, plus ``result.total_count``. See :class:`EarningsQuarter`
-        for which fields each tier carries.
+        truncated. ``result.total_count`` counts indexed quarters on both tiers;
+        returned rows can be fewer when a body is unavailable or the request
+        is limited. Older responses may omit it, yielding ``None``.
+        See :class:`EarningsQuarter` for which fields each tier carries.
 
         A quarter typically appears within 48 hours of the company reporting,
         and the call summary can arrive after the press-release content for the
@@ -1628,8 +1636,12 @@ class SentiSenseClient:
         - ``periodLabel`` and ``reportDate``: ISO dates (``YYYY-MM-DD``).
         - ``estimateEps`` and ``actualEps``: EPS per share.
         - ``surprisePercent``: as sent by the API, a fraction rounded to 2 decimals
-          (``0.07`` = 7%), despite the name. Small surprises round to ``0.0``; recompute
-          from ``actualEps`` and ``estimateEps`` when you need more precision.
+          (``0.07`` = 7%), despite the name. Its value is unchanged.
+        - ``surprisePct``: signed true percent, rounded half-up to 2 decimals,
+          computed as ``(actualEps - estimateEps) * 100 / abs(estimateEps)``.
+          Null when either EPS is missing or the estimate is zero; absent on
+          older responses. Prefer this field for display. The exported
+          :class:`AnalystEarningsSurprise` annotates these optional dictionary keys.
 
         Args:
             ticker: Stock ticker symbol.
