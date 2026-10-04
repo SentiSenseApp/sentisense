@@ -90,6 +90,25 @@ _RATE_LIMIT_FALLBACK_WAIT = 60.0
 # Statuses whose Retry-After the server sets deliberately, and we honour verbatim.
 _RETRY_AFTER_STATUSES = frozenset({429, 503})
 
+# Error code of the monthly-allowance 429. Unlike the per-minute limit it carries no
+# Retry-After and does not clear until the next month, so retrying it only stalls the caller.
+_QUOTA_EXCEEDED_CODE = "quota_exceeded"
+
+
+def _is_quota_exceeded(response: "requests.Response") -> bool:
+    """Whether a 429 is the monthly allowance rather than the per-minute limit.
+
+    A body that is not a JSON object, or has no error code, answers ``False`` and keeps
+    the normal retry behaviour.
+    """
+    if response.status_code != 429:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return isinstance(body, dict) and body.get("error") == _QUOTA_EXCEEDED_CODE
+
 
 def _retry_after_seconds(
     response: "requests.Response",
@@ -161,6 +180,10 @@ class SentiSenseClient:
             resp = getattr(self.session, method)(url, **kwargs)
             if resp.ok:
                 return resp
+            if _is_quota_exceeded(resp):
+                # The monthly allowance is spent: no wait inside this process will clear it.
+                # Raise at once with the server's message, which says when it resets.
+                _raise_for_status(resp)
             is_retryable = resp.status_code == 429 or resp.status_code >= 500
             if is_retryable and attempt < self.max_retries:
                 if resp.status_code in _RETRY_AFTER_STATUSES:
@@ -412,11 +435,11 @@ class SentiSenseClient:
                 for the full report.
 
         Raises:
-            RateLimitError: The account's monthly report views are exhausted. This
-                shares the ``429`` status with per-minute rate limiting, which the
-                client retries, so an exhausted monthly allowance waits out
-                ``max_retries`` backoffs before raising. Pass ``max_retries=0`` when
-                calling ``depth="deep"`` in a loop if you would rather fail fast.
+            RateLimitError: The account's monthly report views are exhausted
+                (``code == "quota_exceeded"``). It is raised on the first response,
+                without retrying, and its message says when the allowance resets.
+                Per-minute rate limiting shares the ``429`` status
+                (``code == "rate_limit_exceeded"``) and is retried first.
         """
         return self._get(
             f"/api/v1/stocks/{ticker}/ai-summary",

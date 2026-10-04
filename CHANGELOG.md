@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.62.1
+
+- A `429` with error code `quota_exceeded` (the monthly allowance) is no longer retried.
+  It has no `Retry-After` and does not clear until the allowance resets, so the default
+  three retries used to block the calling thread for about three minutes before raising.
+  It now raises `RateLimitError` on the first response, with the server's message (which
+  says when the allowance resets). The per-minute `rate_limit_exceeded` 429 is still
+  retried after `Retry-After`. A `429` whose body cannot be read keeps the old behavior.
+- Exceptions now carry `.code`, the API's error code from the response body (`None` when
+  absent), so a caller can tell `quota_exceeded` from `rate_limit_exceeded`.
+
 ## 0.62.0
 
 - Docs: graph `cap` limits non-root nodes; the root is always included in addition.

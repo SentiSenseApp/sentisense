@@ -1723,3 +1723,145 @@ class TestAnalystCalls:
         ):
             with pytest.raises(NotFoundError):
                 client.get_analyst_calls("no-such-analyst")
+
+
+class TestTwoKindsOf429:
+    """The per-minute limit clears in a minute, so the client waits and retries it.
+
+    The monthly allowance does not clear until next month and carries no ``Retry-After``,
+    so retrying it only blocks the caller for minutes before the same error arrives.
+    """
+
+    QUOTA_MESSAGE = (
+        "Monthly API request quota exceeded for your current plan. It resets on the 1st of "
+        "next month. PRO raises this: https://app.sentisense.ai/pricing"
+    )
+
+    def _client_returning(self, responses):
+        import types as _types
+
+        client = SentiSenseClient(api_key="k")
+        pending = iter(responses)
+        calls = []
+
+        def get(url, **kw):
+            calls.append(url)
+            return next(pending)
+
+        client.session = _types.SimpleNamespace(get=get)
+        return client, calls
+
+    def _response(self, status, body=None, headers=None, reason="Too Many Requests"):
+        resp = MagicMock()
+        resp.status_code = status
+        resp.headers = headers or {}
+        resp.ok = 200 <= status < 300
+        resp.reason = reason
+        if isinstance(body, Exception):
+            resp.json.side_effect = body
+        else:
+            resp.json.return_value = body if body is not None else {}
+        return resp
+
+    def test_quota_429_raises_on_the_first_response_with_the_servers_message(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client, calls = self._client_returning(
+            [self._response(429, {"error": "quota_exceeded", "message": self.QUOTA_MESSAGE})]
+        )
+
+        with pytest.raises(RateLimitError) as excinfo:
+            client.get_all_stocks()
+
+        err = excinfo.value
+        assert err.status_code == 429
+        assert err.code == "quota_exceeded"
+        assert err.message == self.QUOTA_MESSAGE
+        assert str(err) == self.QUOTA_MESSAGE
+        assert err.retry_after is None
+        assert len(calls) == 1
+        assert slept == []
+
+    def test_quota_429_is_not_retried_even_with_a_retry_after(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client, calls = self._client_returning(
+            [
+                self._response(
+                    429,
+                    {"error": "quota_exceeded", "message": self.QUOTA_MESSAGE},
+                    {"Retry-After": "60"},
+                )
+            ]
+        )
+
+        with pytest.raises(RateLimitError) as excinfo:
+            client.get_all_stocks()
+
+        assert excinfo.value.code == "quota_exceeded"
+        assert len(calls) == 1
+        assert slept == []
+
+    def test_per_minute_429_still_waits_and_retries(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client, calls = self._client_returning(
+            [
+                self._response(
+                    429,
+                    {"error": "rate_limit_exceeded", "message": "Rate limit exceeded"},
+                    {"Retry-After": "60"},
+                ),
+                self._response(200, ["AAPL"], reason="OK"),
+            ]
+        )
+
+        assert client._request("get", "/x").status_code == 200
+        assert len(calls) == 2
+        assert slept == [60.0]
+
+    def test_per_minute_429_raises_with_its_code_once_retries_are_used_up(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        limited = {"error": "rate_limit_exceeded", "message": "Rate limit exceeded"}
+        client, calls = self._client_returning(
+            [self._response(429, limited, {"Retry-After": "5"}) for _ in range(4)]
+        )
+
+        with pytest.raises(RateLimitError) as excinfo:
+            client._request("get", "/x")
+
+        assert excinfo.value.code == "rate_limit_exceeded"
+        assert excinfo.value.retry_after == 5
+        assert len(calls) == 4
+        assert slept == [5.0, 5.0, 5.0]
+
+    def test_429_with_an_unreadable_body_keeps_retrying(self, monkeypatch):
+        import sentisense.client as client_module
+
+        slept = []
+        monkeypatch.setattr(client_module.time, "sleep", slept.append)
+        client, calls = self._client_returning(
+            [
+                self._response(429, ValueError("not json"), {"Retry-After": "2"}),
+                self._response(200, ["AAPL"], reason="OK"),
+            ]
+        )
+
+        assert client._request("get", "/x").status_code == 200
+        assert len(calls) == 2
+        assert slept == [2.0]
+
+    def test_error_code_is_none_when_the_body_has_none(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(404, {"message": "Not found"}, "Not Found")):
+            with pytest.raises(NotFoundError) as excinfo:
+                client.get_stock_profile("INVALID")
+            assert excinfo.value.code is None

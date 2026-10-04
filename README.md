@@ -96,7 +96,7 @@ client = SentiSenseClient(
 | `api_key` | required, positional | Sent as the `X-SentiSense-API-Key` header on every request. |
 | `base_url` | `https://app.sentisense.ai` | Override for a non-production host. |
 | `timeout` | `30.0` | Per-request timeout in seconds. |
-| `max_retries` | `3` | Retries on 429 and 5xx. Set `0` to fail fast. |
+| `max_retries` | `3` | Retries the per-minute 429 and 5xx. The monthly-allowance 429 is never retried. Set `0` to fail fast. |
 
 All three options are keyword-only. Retries honour a `Retry-After` header when the server sends one, clamped so an oversized value cannot wedge the calling thread, and fall back to exponential backoff with jitter otherwise. Since this client is synchronous, a retry blocks the thread that called it.
 
@@ -561,20 +561,23 @@ try:
 except AuthenticationError:
     print("Invalid or missing API key")
 except RateLimitError as exc:
-    print("Rate limited, retry after", exc.retry_after)
+    if exc.code == "quota_exceeded":
+        print(exc.message)  # monthly allowance used up; says when it resets
+    else:
+        print("Rate limited, retry after", exc.retry_after)
 ```
 
 | Exception | HTTP Status | Description |
 |-----------|-------------|-------------|
 | `AuthenticationError` | 401, 403 | Invalid or missing API key, or insufficient tier |
 | `NotFoundError` | 404 | Resource not found |
-| `RateLimitError` | 429 | Rate limit exceeded. Carries `.retry_after` when the server sent one |
+| `RateLimitError` | 429 | Per-minute limit (`.code == "rate_limit_exceeded"`, carries `.retry_after`) or monthly allowance used up (`.code == "quota_exceeded"`) |
 | `DeepHistoryUnavailable` | 202 | Deep chart history (`10Y`, `MAX`) is still being assembled; retry shortly |
 | `APIError` | Other 4xx/5xx | General API error |
 
-All exceptions inherit from `SentiSenseError` and carry `.status_code`, `.message` and `.response`.
+All exceptions inherit from `SentiSenseError` and carry `.status_code`, `.message`, `.code` (the API's error code, or `None`) and `.response`.
 
-The client retries 429 and 5xx responses on your behalf up to `max_retries`, so an exception here means the retries were exhausted or the status was not retryable. Deep chart ranges are retried separately: they answer `202` while a cold stock's history is assembled, and the SDK never substitutes a shorter range, so a successful call always carries the timeframe you asked for.
+The client retries the per-minute 429 and 5xx responses on your behalf up to `max_retries`, so an exception here means the retries were exhausted or the status was not retryable. The monthly-allowance 429 (`quota_exceeded`) is raised on the first response, since waiting cannot clear it before the allowance resets. Deep chart ranges are retried separately: they answer `202` while a cold stock's history is assembled, and the SDK never substitutes a shorter range, so a successful call always carries the timeframe you asked for.
 
 ## Not yet in the Python SDK
 

@@ -6,18 +6,24 @@ import requests
 
 
 class SentiSenseError(Exception):
-    """Base exception for all SentiSense SDK errors."""
+    """Base exception for all SentiSense SDK errors.
+
+    ``code`` is the API's machine-readable error code (the ``error`` field of the response
+    body, for example ``"quota_exceeded"``), or ``None`` when the response carried none.
+    """
 
     def __init__(
         self,
         message: str,
         status_code: Optional[int] = None,
         response: Optional[requests.Response] = None,
+        code: Optional[str] = None,
     ):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.response = response
+        self.code = code
 
 
 class AuthenticationError(SentiSenseError):
@@ -39,7 +45,13 @@ class DeepHistoryUnavailable(SentiSenseError):
 
 
 class RateLimitError(SentiSenseError):
-    """Raised on 429 responses (rate limit exceeded)."""
+    """Raised on 429 responses. Check ``code`` to tell the two apart:
+
+    - ``"rate_limit_exceeded"``: the per-minute limit. The client retries it after
+      ``Retry-After`` before raising, so you see this only once retries are used up.
+    - ``"quota_exceeded"``: the monthly allowance is used up. It is raised on the first
+      response without retrying, and ``message`` says when the allowance resets.
+    """
 
     def __init__(
         self,
@@ -47,8 +59,9 @@ class RateLimitError(SentiSenseError):
         status_code: Optional[int] = None,
         response: Optional[requests.Response] = None,
         retry_after: Optional[int] = None,
+        code: Optional[str] = None,
     ):
-        super().__init__(message, status_code, response)
+        super().__init__(message, status_code, response, code=code)
         self.retry_after = retry_after
 
 
@@ -83,14 +96,17 @@ def _raise_for_status(response: requests.Response) -> None:
     if response.ok:
         return
 
+    code: Optional[str] = None
     try:
         body = response.json()
         message = body.get("message") or body.get("error") or response.reason
-    except (ValueError, KeyError):
+        if isinstance(body.get("error"), str):
+            code = body["error"]
+    except (ValueError, KeyError, AttributeError):
         message = response.reason or f"HTTP {response.status_code}"
 
     status = response.status_code
-    kwargs = dict(message=message, status_code=status, response=response)
+    kwargs = dict(message=message, status_code=status, response=response, code=code)
 
     if status in (401, 403):
         raise AuthenticationError(**kwargs)
