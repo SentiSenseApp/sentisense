@@ -44,6 +44,7 @@ from sentisense.types import (
     MarketStatus,
     MarketSummary,
     OptionsHistory,
+    OptionsIntradayHistory,
     OptionsOverview,
     OptionsSummary,
     EtfScreenerResults,
@@ -1072,7 +1073,8 @@ class SentiSenseClient:
         End of day, not live. ``asOf`` is the latest completed session and the build
         refreshes the following morning, so this is positioning, not a quote feed. The
         exception is ``intradayActiveCount``, ``intradayRanking`` and ``capabilities``,
-        which summarize today's intraday board during the session.
+        which summarize today's intraday board during the session; ``intradayAsOf``
+        (epoch seconds) and ``intradayAsOfEt`` date that board.
 
         The response carries **two separately-ranked boards**: ``result.rows`` for the
         covered stock universe and ``result.etfRows`` for the covered ETFs. Do not merge
@@ -1116,7 +1118,9 @@ class SentiSenseClient:
         ``result.oiWalls`` and ``result.unusual``; check ``result.is_preview`` for tier
         status. A free key receives the full dossier for the first ten calls each calendar
         month and a headline-only preview after that; calls that return no dossier do not
-        spend that allowance.
+        spend that allowance. The headline preview has no nested objects: its readings
+        arrive flat as ``result.ivRank1y``, ``result.atmIv``, ``result.expectedMove1d``,
+        ``result.pcVol``, ``result.pcVolPctl1y`` and ``result.maxPain``.
 
         Args:
             ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
@@ -1158,6 +1162,52 @@ class SentiSenseClient:
                 params={"window": window},
             ).json(),
             item_cls=OptionsHistory,
+        )
+
+    def get_stock_options_intraday_history(
+        self, ticker: str, session: Optional[str] = None
+    ) -> PreviewResult[OptionsIntradayHistory]:
+        """Get one stock's or ETF's intraday options series for one session: its numbers
+        at every 15-minute cycle of the intraday board, oldest cycle first.
+
+        Use it to test an intraday signal against what the board actually showed at each
+        point in the day, then compare it with the end-of-day row for the same session from
+        :meth:`get_stock_options_history`. Each point carries call and put volume so far,
+        the put/call ratio, the count of contracts passing the unusual rule, the percentile
+        of the largest qualifying contract against the ticker's own year, and the ATM
+        implied volatility. It never carries a contract symbol, strike, price, premium,
+        open interest or print size.
+
+        PRO only. A free key receives the standard preview: ``result.is_preview`` is
+        ``True``, ``result.preview_reason`` is ``"PRO_REQUIRED"``, ``result.upgrade`` says
+        how to lift the gate, and ``result.data`` is ``None``.
+
+        **No data is an empty series, not a null payload.** A weekend, a holiday, a session
+        from before the history was kept, a ticker outside the board and an unknown symbol
+        all answer with ``result.series`` empty, so check the list's length. A ticker that
+        was on the board for only part of the day has fewer points than the session has
+        cycles; ``result.missingCycles`` lists cycles whose stored point could not be read,
+        which are unknown rather than absent. A malformed or future ``session`` raises
+        :class:`~sentisense.exceptions.APIError` (HTTP 400, ``code`` ``"invalid_session"``).
+        A 503 means the stored series could not be read; it is retried like any other 503
+        and never answered with a partial series.
+
+        Args:
+            ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
+            session: Trading session date, ``"YYYY-MM-DD"`` (Eastern). Omitted, the server
+                serves the session the intraday board ran most recently: today's once the
+                first cycle lands at 09:45 ET, the previous session before that. Read
+                ``result.session`` for the date actually served.
+        """
+        params: Dict[str, Any] = {}
+        if session is not None:
+            params["session"] = session
+        return self._unwrap(
+            self._get(
+                f"/api/v1/stocks/{ticker.upper()}/options/intraday-history",
+                params=params,
+            ).json(),
+            item_cls=OptionsIntradayHistory,
         )
 
     # ── SentiSense Rating endpoint ──────────────────────────────

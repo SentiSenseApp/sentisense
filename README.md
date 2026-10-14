@@ -281,10 +281,26 @@ End-of-day options positioning: where implied volatility, put/call flow and skew
 | `get_options_overview()` | Market-wide radar, ranked, stocks and ETFs as separate boards |
 | `get_stock_options_summary(ticker)` | One name's dossier: aggregate, percentiles, walls, unusual contracts |
 | `get_stock_options_history(ticker, window="1y")` | That name's daily aggregates as a series, `1y`, `2y` or `5y` |
+| `get_stock_options_intraday_history(ticker, session=None)` | That name's numbers at every 15-minute cycle of one session's intraday board (PRO) |
 
 The radar carries two separately-ranked boards, `rows` for stocks and `etfRows` for ETFs, each with its own aggregates. Keep them apart: every reading behind a row's `interestScore` is a percentile of that ticker's own trailing history, so a ranking built across both boards compares numbers measured against different baselines. A row whose baseline is still building carries its raw readings with the percentiles and `interestScore` omitted, which means "not enough history yet" rather than "nothing interesting".
 
-During the trading session the dossier and the radar also carry a few intraday fields, the same on every tier: `intradayFlow` (a count of the ticker's unusual contracts so far, when the first one was flagged, and the board's own clock), `largePrintCount` and `largestPrintPctl` on the dossier, and `intradayActiveCount` with `intradayRanking` on the radar. They carry no contract, strike, price or premium, and are `None` before the day's first board. `capabilities.intradayBoard` says where the contract-level board lives; its rows are served in the SentiSense app, not by the API.
+During the trading session the dossier and the radar also carry a few intraday fields, the same on every tier: `intradayFlow` (a count of the ticker's unusual contracts so far, when the first one was flagged, and the board's own clock), `largePrintCount` and `largestPrintPctl` on the dossier, and `intradayActiveCount` with `intradayRanking` on the radar. They carry no contract, strike, price or premium, and are `None` before the day's first board. On the radar, `intradayAsOf` (epoch seconds) and `intradayAsOfEt` date the board the ranking was read from. `capabilities.intradayBoard` says where the contract-level board lives; its rows are served in the SentiSense app, not by the API.
+
+`get_stock_options_intraday_history` keeps every cycle of that board for one ticker, so you can test an intraday signal against what the board showed at each point in the day and then compare it with the session's end-of-day row from `get_stock_options_history`:
+
+```python
+day = client.get_stock_options_intraday_history("NVDA", session="2026-10-14")
+if day.is_preview:
+    print(day.upgrade["message"])          # PRO only: a free key gets no series
+else:
+    for point in day.series:              # oldest cycle first
+        print(point.asOfEt, point.callVol, point.putVol, point.pcVol, point.unusualCount, point.atmIv)
+```
+
+Each point carries call and put volume so far, the put/call ratio, the unusual-contract count, the percentile of the largest qualifying contract against the ticker's own year (`maxPremiumPctl1y`) and the ATM implied volatility; readings that are unavailable are `None`, never zero. Omit `session` for the session the board ran most recently, and read `result.session` for the date served. A ticker appears only on cycles where it was on the board, so gaps show in each point's `cycle`, and `missingCycles` lists cycles whose stored point could not be read. A weekend, a holiday, a ticker outside the board and an unknown symbol all return an empty `series`, not `None`. A malformed or future date raises `APIError` with `code == "invalid_session"`.
+
+A free key that has spent its ten monthly dossiers receives a headline preview from `get_stock_options_summary`: `asOf`, `sentiment` and six flat readings, `ivRank1y`, `atmIv`, `expectedMove1d`, `pcVol`, `pcVolPctl1y` and `maxPain`, with `latest`, `context` and `oiWalls` left `None`. On a full dossier those six are `None` and the same readings live in the nested objects, so branch on `result.is_preview`.
 
 The two per-ticker methods report no coverage differently, which is worth knowing before you write the check. `get_stock_options_summary` returns a `None` payload for an uncovered or unknown ticker, so `result.data is None` is the explicit check; the wrapper itself is falsy in that case and has a length of 0, so `if not result:` works too. `get_stock_options_history` returns a populated object with an empty `series` instead. The history also echoes the `window` the server actually served, which need not be the one you asked for: an unrecognised value clamps to `1y`, and so does any free key.
 
@@ -524,7 +540,9 @@ The Score fields (`SENTI_SCORE_7D`, `SENTI_SCORE_1M`, `SCORE_CHANGE_7D`) are the
 
 On the ETF side, `CONSTITUENTS_WEIGHTED_SENTISENSE` is the holdings-weighted Score across what the fund owns and is usually the one you want; `DIRECT_SENTISENSE` is the Score from chatter about the fund ticker itself. `WEIGHT_COVERED_PCT` tells you how much of the fund's weight had constituent data behind the weighted number.
 
-Screens read a snapshot that refreshes every 20 minutes, so this is not a quote feed. Use `get_stock_quote` for current quotes.
+Every stock row carries `priceAsOf`, when the market data behind `currentPrice`, `change` and `changePercent` is from, in epoch milliseconds (the same unit as `get_stock_price`). It is `None` outside regular hours, on a previous-close fallback and when no quote was available, so read `None` as unknown rather than fresh, and judge a price's age from `priceAsOf`, not `lastUpdated`. Rated stocks also carry `ratingLetter`, `ratingScore` and `ratingPercentile`; all three are `None` for an unrated one.
+
+Prices are 15-minute delayed quotes, refreshed at request time during the regular session from a cache at most 5 minutes old. Everything else on a row comes from a snapshot rebuilt about every 20 minutes during the session, so this is not a quote feed: use `get_stock_quote` for one ticker's current quote.
 
 ### Market mood, indexes and trackers
 

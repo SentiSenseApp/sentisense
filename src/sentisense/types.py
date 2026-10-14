@@ -1537,6 +1537,11 @@ class OptionsSummary(APIModel):
     and ``capabilities``), which are the same on every tier, previews included, and are
     ``None`` when their source is absent: ``intradayFlow`` before the day's first board
     or when the ticker has no row on it.
+
+    A free key that has spent its monthly dossier allowance receives the headline
+    preview instead: ``asOf``, ``sentiment`` and the six flat readings ``ivRank1y``,
+    ``atmIv``, ``expectedMove1d``, ``pcVol``, ``pcVolPctl1y`` and ``maxPain``, with
+    ``latest``, ``context`` and ``oiWalls`` left ``None`` and ``unusual`` empty.
     """
 
     asOf: Optional[str] = None
@@ -1562,6 +1567,22 @@ class OptionsSummary(APIModel):
     """DELISTED marks a frozen last dossier; absent for listed or pending symbols."""
     delistedDate: Optional[str] = None
     """ISO day (YYYY-MM-DD) trading stopped; absent when the date is unknown."""
+    # Headline preview. Once a free key has spent its monthly dossier allowance the
+    # summary answers with a preview whose readings sit directly on the payload, with no
+    # ``latest``, ``context`` or ``oiWalls`` wrapper. These six fields carry that cut; on
+    # a full dossier they stay ``None`` and the same readings live in the nested objects.
+    ivRank1y: Optional[float] = None
+    """Headline preview only: ``context.ivRank1y`` on a full dossier."""
+    atmIv: Optional[float] = None
+    """Headline preview only: ``latest.atmIv`` on a full dossier."""
+    expectedMove1d: Optional[float] = None
+    """Headline preview only: ``latest.expectedMove1d`` on a full dossier."""
+    pcVol: Optional[float] = None
+    """Headline preview only: ``latest.pcVol`` on a full dossier."""
+    pcVolPctl1y: Optional[float] = None
+    """Headline preview only: ``context.pcVolPctl1y`` on a full dossier."""
+    maxPain: Optional[float] = None
+    """Headline preview only: ``oiWalls.maxPain`` on a full dossier."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "OptionsSummary":
@@ -1604,6 +1625,12 @@ class OptionsSummary(APIModel):
             ),
             listingStatus=data.get("listingStatus"),
             delistedDate=data.get("delistedDate"),
+            ivRank1y=data.get("ivRank1y"),
+            atmIv=data.get("atmIv"),
+            expectedMove1d=data.get("expectedMove1d"),
+            pcVol=data.get("pcVol"),
+            pcVolPctl1y=data.get("pcVolPctl1y"),
+            maxPain=data.get("maxPain"),
         )
 
 
@@ -1733,8 +1760,9 @@ class OptionsOverview(APIModel):
     way the envelope's ``total_count`` reports the full stock board.
 
     ``intradayActiveCount``, ``intradayRanking`` and ``capabilities`` summarize today's
-    intraday board across stocks. They are the same on every tier and are ``None`` before
-    the day's first board.
+    intraday board across stocks, dated by ``intradayAsOf`` (epoch seconds) and
+    ``intradayAsOfEt``. They are the same on every tier and are ``None`` before the day's
+    first board.
     """
 
     asOf: Optional[str] = None
@@ -1763,6 +1791,11 @@ class OptionsOverview(APIModel):
     Stock board only."""
     intradayRanking: Optional[List[str]] = None
     """Up to 25 of those tickers, most unusual for their own history first."""
+    intradayAsOf: Optional[int] = None
+    """Snapshot time of the intraday board ``intradayActiveCount`` and
+    ``intradayRanking`` were read from, Unix epoch seconds. ``None`` with them."""
+    intradayAsOfEt: Optional[str] = None
+    """The same moment as ``"HH:mm ET"``. ``None`` with them."""
     capabilities: Optional[OptionsCapabilities] = None
     """Where the intraday board lives and who can open it."""
 
@@ -1789,6 +1822,92 @@ class OptionsOverview(APIModel):
             OptionsHighlight.from_dict(h) for h in (data.get("etfHighlights") or [])
         ]
         return cls(**kwargs)
+
+
+@dataclass
+class OptionsIntradayPoint(APIModel):
+    """One ticker's numbers at one cycle of the intraday options board.
+
+    Counts, a ratio, a percentile and a ticker-level implied volatility, as the board
+    showed them at ``asOf``. It carries no contract symbol, strike, price, premium, open
+    interest or print size. Readings the server cannot compute are omitted and parse as
+    ``None``, never zero.
+    """
+
+    cycle: Optional[int] = None
+    """The board's cycle number within the session, starting at 1."""
+    asOf: Optional[int] = None
+    """The cycle's snapshot time, Unix epoch seconds."""
+    asOfEt: Optional[str] = None
+    """The same moment as ``"HH:mm ET"``."""
+    callVol: Optional[int] = None
+    """Calls traded so far this session, across the chain."""
+    putVol: Optional[int] = None
+    """Puts traded so far this session."""
+    pcVol: Optional[float] = None
+    """``putVol / callVol``. ``None`` when ``callVol`` is 0."""
+    unusualCount: Optional[int] = None
+    """Contracts passing the unusual rule so far this session, up to 5: the same count as
+    ``intradayFlow.unusualCount`` on the dossier."""
+    maxPremiumPctl1y: Optional[float] = None
+    """Percentile (0-100) of the ticker's largest qualifying unusual contract so far this
+    session (same-day expiries excluded) against its own trailing year. ``None`` when
+    nothing qualifies, and while that history holds fewer than 60 sessions."""
+    atmIv: Optional[float] = None
+    """At-the-money implied volatility as a fraction (``0.42`` is 42%), by the same rule
+    as the end-of-day ``atmIv``. ``None`` when that expiry has no usable contract."""
+
+
+@dataclass
+class OptionsIntradayHistory(APIModel):
+    """One ticker's intraday options series for one session, oldest cycle first.
+
+    The board is rebuilt every 15 minutes from 15-minute delayed chains, from 09:45 to
+    16:15 ET, so a full session holds 27 cycles. A ticker appears only on the cycles where
+    it was on the board, so ``cycles`` can be below that and the gaps show in each point's
+    ``cycle`` and ``asOf``.
+
+    No data is an empty ``series``, not a ``None`` payload: a weekend, a holiday, a
+    session before the history was kept, a ticker outside the board and an unknown symbol
+    all answer with this object and nothing in ``series``.
+    """
+
+    ticker: Optional[str] = None
+    """Canonical ticker."""
+    session: Optional[str] = None
+    """The trading session served, ISO date (Eastern)."""
+    live: Optional[bool] = None
+    """``True`` while that session's board is still updating (today, before the close);
+    ``False`` for a completed or past session."""
+    delayMinutes: Optional[int] = None
+    """How far the chain data behind each point trails the market, in minutes."""
+    cycles: Optional[int] = None
+    """Number of points in ``series``."""
+    missingCycles: Optional[List[int]] = None
+    """Cycles of the session whose board was published but whose stored point could not
+    be found, ascending: this ticker's numbers at those cycles are unknown, not absent.
+    ``None`` when there are none."""
+    series: List[OptionsIntradayPoint] = field(default_factory=list)
+    """One point per cycle that carried this ticker, oldest first."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "OptionsIntradayHistory":
+        if data is None:
+            return None  # type: ignore[return-value]
+        missing = data.get("missingCycles")
+        return cls(
+            ticker=data.get("ticker"),
+            session=data.get("session"),
+            live=data.get("live"),
+            delayMinutes=data.get("delayMinutes"),
+            cycles=data.get("cycles"),
+            missingCycles=list(missing) if missing is not None else None,
+            series=[
+                OptionsIntradayPoint.from_dict(p)
+                for p in (data.get("series") or [])
+                if p is not None
+            ],
+        )
 
 
 # ── SentiSense Rating types ─────────────────────────────────
@@ -2867,6 +2986,19 @@ class ScreenerRow(APIModel):
     sentisenseScoreBars30D: Optional[List[float]] = None
     priceSparkline30D: Optional[List[float]] = None
     lastUpdated: Optional[int] = None  # epoch seconds
+    priceAsOf: Optional[int] = None
+    """When the market data behind ``currentPrice``, ``change`` and ``changePercent`` is
+    from, epoch **milliseconds**: the same field and unit as on :class:`StockPrice`.
+    ``None`` outside regular hours, on a previous-close fallback, and when no quote was
+    available, so read ``None`` as unknown rather than fresh. Judge a price's age from
+    this, not from ``lastUpdated``."""
+    ratingLetter: Optional[str] = None
+    """SentiSense Rating letter, ``A`` to ``F``. ``None`` for an unrated stock."""
+    ratingScore: Optional[float] = None
+    """The graded 0-100 Rating score a Rating sort orders by. ``None`` when unrated."""
+    ratingPercentile: Optional[float] = None
+    """The 0-100 rank among the stocks rated that day, before risk adjustments. ``None``
+    when unrated."""
 
 
 @dataclass

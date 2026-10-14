@@ -1,0 +1,18 @@
+{
+  "isPreview": false,
+  "previewReason": null,
+  "data": {
+    "ticker": "NVDA",
+    "session": "2026-10-14",
+    "live": true,
+    "delayMinutes": 15,
+    "cycles": 4,
+    "missingCycles": [3],
+    "series": [
+      { "cycle": 1, "asOf": 1791985500, "asOfEt": "09:45 ET", "callVol": 182000, "putVol": 97000, "pcVol": 0.53, "unusualCount": 1, "atmIv": 0.4415 },
+      { "cycle": 2, "asOf": 1791986400, "asOfEt": "10:00 ET", "callVol": 251000, "putVol": 141000, "pcVol": 0.56, "unusualCount": 2, "atmIv": 0.4398 },
+      { "cycle": 4, "asOf": 1791988200, "asOfEt": "10:30 ET", "callVol": 379000, "putVol": 209000, "pcVol": 0.55, "unusualCount": 2, "maxPremiumPctl1y": 91.5, "atmIv": 0.4362 },
+      { "cycle": 5, "asOf": 1791989100, "asOfEt": "10:45 ET", "callVol": 402000, "putVol": 230000, "pcVol": 0.57, "unusualCount": 3, "maxPremiumPctl1y": 93.0 }
+    ]
+  }
+}

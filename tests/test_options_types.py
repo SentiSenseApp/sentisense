@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sentisense import SentiSenseClient
+from sentisense.exceptions import APIError
 from sentisense.types import (
     APIModel,
     OptionsCapabilities,
@@ -29,6 +30,8 @@ from sentisense.types import (
     OptionsHighlight,
     OptionsIntradayBoardCapability,
     OptionsIntradayFlow,
+    OptionsIntradayHistory,
+    OptionsIntradayPoint,
     OptionsOiFollowUp,
     OptionsOverview,
     OptionsSummary,
@@ -439,7 +442,8 @@ class TestIntradaySessionFields:
             assert getattr(summary, name) is None
         overview = OptionsOverview.from_dict({"asOf": "2026-09-29"})
         for name in ("builtAt", "highlightPolicy", "etfHighlightPolicy",
-                     "intradayActiveCount", "intradayRanking", "capabilities"):
+                     "intradayActiveCount", "intradayRanking", "intradayAsOf",
+                     "intradayAsOfEt", "capabilities"):
             assert getattr(overview, name) is None
 
     def test_an_empty_ranking_is_kept_apart_from_an_absent_one(self):
@@ -457,6 +461,171 @@ class TestIntradaySessionFields:
         })
         assert summary.intradayFlow.unusualCount == 1
         assert summary.capabilities.intradayBoard.access == "power_user"
+
+
+class TestOverviewIntradayClock:
+    def test_dates_the_intraday_ranking(self, client):
+        payload = {"isPreview": False, "previewReason": None, "data": {
+            "asOf": "2026-10-13",
+            "intradayActiveCount": 2,
+            "intradayRanking": ["NVDA", "TSLA"],
+            "intradayAsOf": 1791988200,
+            "intradayAsOfEt": "10:30 ET",
+        }}
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_options_overview()
+        _assert_every_wire_key_survives(payload["data"], result.data)
+        # Epoch seconds for the board, while the end-of-day asOf stays an ISO date.
+        assert result.intradayAsOf == 1791988200
+        assert isinstance(result.asOf, str)
+        assert result.intradayAsOfEt == "10:30 ET"
+
+
+class TestSummaryHeadlinePreview:
+    """A free key past its monthly dossier allowance gets the headline cut: the readings
+    sit flat on the payload with no ``latest``, ``context`` or ``oiWalls`` wrapper. Before
+    these fields were declared the parser dropped all six, leaving only ``asOf`` and
+    ``sentiment`` on a response that carried eight readings."""
+
+    PAYLOAD = {
+        "isPreview": True,
+        "previewReason": "PRO_REQUIRED",
+        "upgrade": {"plan": "PRO", "url": "https://app.sentisense.ai/pricing"},
+        "data": {
+            "asOf": "2026-09-28",
+            "sentiment": 0.2,
+            "ivRank1y": 45,
+            "atmIv": 0.4,
+            "expectedMove1d": 0.0373,
+            "pcVol": 0.7,
+            "pcVolPctl1y": 60,
+            "maxPain": 150,
+        },
+    }
+
+    def test_keeps_every_headline_reading(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(self.PAYLOAD)):
+            result = client.get_stock_options_summary("NVDA")
+        _assert_every_wire_key_survives(self.PAYLOAD["data"], result.data)
+        assert result.is_preview is True
+        assert result.ivRank1y == 45
+        assert result.atmIv == 0.4
+        assert result.expectedMove1d == 0.0373
+        assert result.pcVol == 0.7
+        assert result.pcVolPctl1y == 60
+        assert result.maxPain == 150
+        # The cut has no nested objects, and nothing is invented to fill them.
+        assert result.latest is None
+        assert result.context is None
+        assert result.oiWalls is None
+        assert result.unusual == []
+
+    def test_a_full_dossier_leaves_the_flat_readings_none(self, client):
+        payload = _load("options_summary_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_summary("NVDA")
+        for name in ("ivRank1y", "atmIv", "expectedMove1d", "pcVol", "pcVolPctl1y", "maxPain"):
+            assert getattr(result, name) is None, name
+
+
+def _error_response(status, body):
+    resp = MagicMock()
+    resp.status_code = status
+    resp.ok = False
+    resp.reason = "Bad Request"
+    resp.headers = {}
+    resp.json.return_value = body
+    return resp
+
+
+class TestIntradayHistory:
+    """The per-ticker intraday series. The fixture is built from the published example
+    and the response class, pending a capture from the live endpoint."""
+
+    def test_calls_the_per_ticker_path_and_sends_the_session(self, client):
+        payload = _load("options_intraday_history.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)) as get:
+            client.get_stock_options_intraday_history("nvda", session="2026-10-14")
+        url = get.call_args[0][0]
+        assert url.endswith("/api/v1/stocks/NVDA/options/intraday-history")
+        assert get.call_args[1]["params"] == {"session": "2026-10-14"}
+
+    def test_leaves_the_session_to_the_server_when_omitted(self, client):
+        payload = _load("options_intraday_history.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)) as get:
+            client.get_stock_options_intraday_history("NVDA")
+        assert "session" not in get.call_args[1]["params"]
+
+    def test_keeps_every_field_the_server_sends(self, client):
+        payload = _load("options_intraday_history.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_intraday_history("NVDA")
+        _assert_every_wire_key_survives(payload["data"], result.data)
+        assert isinstance(result.data, OptionsIntradayHistory)
+        assert result.is_preview is False
+
+    def test_types_the_series_oldest_cycle_first(self, client):
+        payload = _load("options_intraday_history.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_intraday_history("NVDA")
+        assert result.ticker == "NVDA"
+        assert result.session == "2026-10-14"
+        assert result.live is True
+        assert result.delayMinutes == 15
+        assert result.cycles == len(result.series) == 4
+        assert all(isinstance(p, OptionsIntradayPoint) for p in result.series)
+        # Gaps show in the cycle numbers; a cycle whose point could not be read is listed.
+        assert [p.cycle for p in result.series] == [1, 2, 4, 5]
+        assert result.missingCycles == [3]
+        first, last = result.series[0], result.series[-1]
+        assert isinstance(first.asOf, int)
+        assert first.asOfEt == "09:45 ET"
+        assert first.callVol == 182000
+        assert first.pcVol == 0.53
+        # Unavailable readings stay None, never zero.
+        assert first.maxPremiumPctl1y is None
+        assert last.maxPremiumPctl1y == 93.0
+        assert last.atmIv is None
+
+    def test_a_point_with_no_calls_has_no_ratio(self):
+        point = OptionsIntradayPoint.from_dict(
+            {"cycle": 1, "callVol": 0, "putVol": 12, "unusualCount": 0}
+        )
+        assert point.pcVol is None
+        assert point.callVol == 0
+
+    def test_nothing_stored_is_an_empty_series_not_a_null_payload(self, client):
+        payload = {"isPreview": False, "previewReason": None, "data": {
+            "ticker": "KO", "session": "2026-10-11", "live": False,
+            "delayMinutes": 15, "cycles": 0, "series": [],
+        }}
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_intraday_history("KO", session="2026-10-11")
+        assert result.data is not None
+        assert result.series == []
+        assert result.missingCycles is None
+
+    def test_a_free_key_gets_the_preview_with_no_payload(self, client):
+        payload = {
+            "isPreview": True,
+            "previewReason": "PRO_REQUIRED",
+            "upgrade": {"plan": "PRO", "url": "https://app.sentisense.ai/pricing"},
+            "data": None,
+        }
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_intraday_history("NVDA")
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"
+        assert result.upgrade["plan"] == "PRO"
+        assert result.data is None
+
+    def test_a_bad_session_raises_with_the_error_code(self, client):
+        body = {"error": "invalid_session", "message": "session must be YYYY-MM-DD"}
+        with patch.object(client.session, "get", return_value=_error_response(400, body)):
+            with pytest.raises(APIError) as caught:
+                client.get_stock_options_intraday_history("NVDA", session="10/14/2026")
+        assert caught.value.status_code == 400
+        assert caught.value.code == "invalid_session"
 
 
 def test_no_response_model_declares_a_field_named_data():

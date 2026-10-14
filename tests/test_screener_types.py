@@ -245,6 +245,43 @@ class TestRunScreen:
         assert res.results[1].marketCap is None
 
 
+class TestRowFreshnessAndRating:
+    def test_rows_keep_price_as_of_and_the_rating(self, client):
+        payload = {"matched": 2, "limit": 2, "results": [
+            {
+                "ticker": "AAPL",
+                "currentPrice": 211.34,
+                "changePercent": -0.62,
+                "priceAsOf": 1760449500000,
+                "lastUpdated": 1760449200,
+                "ratingLetter": "B",
+                "ratingScore": 71.4,
+                "ratingPercentile": 83.4,
+            },
+            {"ticker": "KO", "currentPrice": 70.1, "priceAsOf": None,
+             "ratingLetter": None, "ratingScore": None, "ratingPercentile": None},
+        ]}
+        with patch.object(client.session, "post", return_value=_mock_response(payload)):
+            res = client.run_screen({"filters": []})
+        fresh, unknown = res.results
+        # Milliseconds, the same unit as StockPrice.priceAsOf, not lastUpdated's seconds.
+        assert fresh.priceAsOf == 1760449500000
+        assert fresh.lastUpdated == 1760449200
+        assert fresh.ratingLetter == "B"
+        assert fresh.ratingScore == 71.4
+        assert fresh.ratingPercentile == 83.4
+        # Off-hours or no quote: unknown, not fresh. Unrated: all three None.
+        assert unknown.priceAsOf is None
+        assert unknown.ratingLetter is None
+        assert unknown.ratingScore is None
+
+    def test_a_response_from_before_the_field_parses(self, client):
+        payload = {"matched": 1, "limit": 1, "results": [{"ticker": "AAPL"}]}
+        with patch.object(client.session, "post", return_value=_mock_response(payload)):
+            res = client.run_screen({"filters": []})
+        assert res.results[0].priceAsOf is None
+
+
 class TestRunEtfScreen:
     def test_hits_the_etf_path_and_parses_rows(self, client):
         payload = {

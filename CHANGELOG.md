@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.63.0
+
+- New `get_stock_options_intraday_history(ticker, session=None)`, returning
+  `PreviewResult[OptionsIntradayHistory]`: one ticker's numbers at every 15-minute cycle of
+  one session's intraday options board, oldest first. `OptionsIntradayHistory` carries
+  `ticker`, `session`, `live`, `delayMinutes`, `cycles`, optional `missingCycles` and
+  `series`; each `OptionsIntradayPoint` carries `cycle`, `asOf` (epoch seconds), `asOfEt`,
+  `callVol`, `putVol`, `pcVol`, `unusualCount`, `maxPremiumPctl1y` and `atmIv`. PRO keys
+  only: a free key receives a `PRO_REQUIRED` preview with `data` set to `None`. No data is
+  an empty `series`; a malformed or future `session` raises `APIError` with
+  `code == "invalid_session"`.
+- `OptionsOverview` now keeps `intradayAsOf` (epoch seconds) and `intradayAsOfEt`
+  (`"HH:mm ET"`), the time of the intraday board behind `intradayActiveCount` and
+  `intradayRanking`.
+- Fixed: the options summary's free headline preview lost six of its eight readings.
+  `OptionsSummary` now declares the flat preview fields `ivRank1y`, `atmIv`,
+  `expectedMove1d`, `pcVol`, `pcVolPctl1y` and `maxPain`; on a full dossier they stay `None`
+  and the readings live in `latest`, `context` and `oiWalls` as before.
+- `ScreenerRow` now keeps `priceAsOf` (epoch milliseconds, `None` when unknown) and the
+  SentiSense Rating fields `ratingLetter`, `ratingScore` and `ratingPercentile`.
+- `OptionsHighlight`, `OptionsIntradayHistory` and `OptionsIntradayPoint` are exported from
+  the package root.
+
 ## 0.62.1
 
 - A `429` with error code `quota_exceeded` (the monthly allowance) is no longer retried.
