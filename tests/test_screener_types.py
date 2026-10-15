@@ -323,3 +323,52 @@ class TestRunEtfScreen:
         filt = m.call_args[1]["json"]["plan"]["filters"][0]
         assert filt["values"] == ["Equity"]
         assert "value" not in filt
+
+
+OPTIONS_KEYS = ["ivRank1y", "pcVol", "pcVolPctl1y", "skew25dPctl1y", "optionsInterestScore",
+                "maxUnusualPremium", "expectedMove20d", "optionsAsOf"]
+
+OPTIONS_VALUES = {
+    "ivRank1y": 74.0,
+    "pcVol": 0.82,
+    "pcVolPctl1y": 91.0,
+    "skew25dPctl1y": 12.0,
+    "optionsInterestScore": 66.0,
+    "maxUnusualPremium": 1250000.0,
+    "expectedMove20d": 0.2329,
+    "optionsAsOf": "2026-10-13",
+}
+
+
+class TestEndOfDayOptionsFields:
+    """Rows from both execute endpoints carry seven end-of-day options readings plus
+    ``optionsAsOf``. ``from_dict`` drops undeclared keys, so each one must be declared on
+    BOTH row types or an ETF caller reads nothing at all."""
+
+    def _rows(self, client, path_call, extra):
+        payload = {"matched": 3, "limit": 3, "results": [
+            {"ticker": "HIGH", **OPTIONS_VALUES, **extra},
+            {"ticker": "MISSING", **extra},
+            {"ticker": "NULLS", **{k: None for k in OPTIONS_KEYS}, **extra},
+        ]}
+        with patch.object(client.session, "post", return_value=_mock_response(payload)):
+            return path_call(client).results
+
+    def test_stock_rows_keep_every_options_value_missing_and_null(self, client):
+        high, missing, nulls = self._rows(client, lambda c: c.run_screen({"filters": []}), {})
+        for key, value in OPTIONS_VALUES.items():
+            assert getattr(high, key) == value, key
+            assert getattr(missing, key) is None, key
+            assert getattr(nulls, key) is None, key
+        # A fraction of price, exactly as the options endpoints serve it: 0.2329 is 23.29%.
+        assert high.expectedMove20d == 0.2329
+        assert high["optionsAsOf"] == "2026-10-13"
+
+    def test_etf_rows_keep_every_options_value_missing_and_null(self, client):
+        high, missing, nulls = self._rows(
+            client, lambda c: c.run_etf_screen({"filters": []}), {"name": "Fund"})
+        for key, value in OPTIONS_VALUES.items():
+            assert getattr(high, key) == value, key
+            assert getattr(missing, key) is None, key
+            assert getattr(nulls, key) is None, key
+        assert high.name == "Fund"

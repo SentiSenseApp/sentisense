@@ -2999,6 +2999,27 @@ class ScreenerRow(APIModel):
     ratingPercentile: Optional[float] = None
     """The 0-100 rank among the stocks rated that day, before risk adjustments. ``None``
     when unrated."""
+    ivRank1y: Optional[float] = None
+    """IV rank, 0-100: where implied volatility sits in its own trailing one-year range.
+    End of day, from the nightly options board; ``optionsAsOf`` says which session."""
+    pcVol: Optional[float] = None
+    """Put volume divided by call volume in that session. End of day."""
+    pcVolPctl1y: Optional[float] = None
+    """Percentile, 0-100, of ``pcVol`` against its own trailing year. End of day."""
+    skew25dPctl1y: Optional[float] = None
+    """Percentile, 0-100, of the 25-delta skew against its own trailing year. End of day."""
+    optionsInterestScore: Optional[float] = None
+    """Composite 0-100 options interest score; ``None`` when unscored (too little options
+    activity or history). End of day."""
+    maxUnusualPremium: Optional[float] = None
+    """Dollar premium of the session's largest unusual contract; ``None`` when there was
+    none. End of day."""
+    expectedMove20d: Optional[float] = None
+    """Options-implied 90% expected move over 20 trading sessions as a **fraction** of price
+    (``0.2`` is 20%), the same number as ``expectedMove20d`` on the options endpoints."""
+    optionsAsOf: Optional[str] = None
+    """ISO date (``YYYY-MM-DD``) of the session the options values above are from. Per row,
+    since rows can differ; ``None`` exactly when they are."""
 
 
 @dataclass
@@ -3041,6 +3062,27 @@ class EtfScreenerRow(APIModel):
     totalKnownHoldings: Optional[int] = None
     partial: Optional[bool] = None
     lastUpdated: Optional[int] = None  # epoch seconds
+    ivRank1y: Optional[float] = None
+    """IV rank, 0-100: where implied volatility sits in its own trailing one-year range.
+    End of day, from the nightly options board; ``optionsAsOf`` says which session."""
+    pcVol: Optional[float] = None
+    """Put volume divided by call volume in that session. End of day."""
+    pcVolPctl1y: Optional[float] = None
+    """Percentile, 0-100, of ``pcVol`` against the fund's own trailing year. End of day."""
+    skew25dPctl1y: Optional[float] = None
+    """Percentile, 0-100, of the 25-delta skew against the fund's own trailing year. End of day."""
+    optionsInterestScore: Optional[float] = None
+    """Composite 0-100 options interest score; ``None`` when unscored (too little options
+    activity or history). End of day."""
+    maxUnusualPremium: Optional[float] = None
+    """Dollar premium of the session's largest unusual contract; ``None`` when there was
+    none. End of day."""
+    expectedMove20d: Optional[float] = None
+    """Options-implied 90% expected move over 20 trading sessions as a **fraction** of price
+    (``0.2`` is 20%), the same number as ``expectedMove20d`` on the options endpoints."""
+    optionsAsOf: Optional[str] = None
+    """ISO date (``YYYY-MM-DD``) of the session the options values above are from. Per row,
+    since rows can differ; ``None`` exactly when they are."""
 
 
 @dataclass
