@@ -3019,7 +3019,8 @@ class ScreenerRow(APIModel):
     (``0.2`` is 20%), the same number as ``expectedMove20d`` on the options endpoints."""
     optionsAsOf: Optional[str] = None
     """ISO date (``YYYY-MM-DD``) of the session the options values above are from. Per row,
-    since rows can differ; ``None`` exactly when they are."""
+    since rows can differ. ``None`` when no valid options overview row was joined for the
+    ticker; individual readings may still be ``None`` when the date is present."""
 
 
 @dataclass
@@ -3082,7 +3083,8 @@ class EtfScreenerRow(APIModel):
     (``0.2`` is 20%), the same number as ``expectedMove20d`` on the options endpoints."""
     optionsAsOf: Optional[str] = None
     """ISO date (``YYYY-MM-DD``) of the session the options values above are from. Per row,
-    since rows can differ; ``None`` exactly when they are."""
+    since rows can differ. ``None`` when no valid options overview row was joined for the
+    ticker; individual readings may still be ``None`` when the date is present."""
 
 
 @dataclass
