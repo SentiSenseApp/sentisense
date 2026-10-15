@@ -497,7 +497,7 @@ Composition data is public. The holdings-weighted aggregate views follow the sam
 
 ### Screener
 
-Filter the tracked universe on the SentiSense Score, attention, analyst consensus, technicals and price in one query. Screening on analyst ratings alone is something a dozen free tools do; screening on analyst ratings *where the Score disagrees* is not.
+Filter the tracked universe on the SentiSense Score, attention, analyst consensus, technicals, price and end-of-day options readings in one query. Screening on analyst ratings alone is something a dozen free tools do; screening on analyst ratings *where the Score disagrees* is not.
 
 | Method | Description |
 |--------|-------------|
@@ -526,6 +526,17 @@ res = client.run_screen(
 )
 for row in res.results:
     print(row.ticker, row.sentiSenseScore7D, row.analystBuyRatioPct)
+
+# Options positioning: implied volatility in the top quarter of its own year
+res = client.run_screen(
+    {
+        "filters": [{"fieldName": "IV_RANK_1Y", "op": "GTE", "value": 75}],
+        "sort": {"fieldName": "IV_RANK_1Y", "dir": "DESC"},
+    },
+    limit=25,
+)
+for row in res.results:
+    print(row.ticker, row.ivRank1y, row.expectedMove20d, row.optionsAsOf)
 ```
 
 `limit` rides next to the plan rather than inside it, because a plan is a stored object and paging is a transport concern. It defaults to 100 and caps at 500. `matched` is the count before `limit` was applied, so truncation is visible. `tickers` is optional: omit it to screen the whole tracked universe, pass a list to screen a watchlist.
@@ -541,6 +552,8 @@ The Score fields (`SENTI_SCORE_7D`, `SENTI_SCORE_1M`, `SCORE_CHANGE_7D`) are the
 On the ETF side, `CONSTITUENTS_WEIGHTED_SENTISENSE` is the holdings-weighted Score across what the fund owns and is usually the one you want; `DIRECT_SENTISENSE` is the Score from chatter about the fund ticker itself. `WEIGHT_COVERED_PCT` tells you how much of the fund's weight had constituent data behind the weighted number.
 
 Every stock row carries `priceAsOf`, when the market data behind `currentPrice`, `change` and `changePercent` is from, in epoch milliseconds (the same unit as `get_stock_price`). It is `None` outside regular hours, on a previous-close fallback and when no quote was available, so read `None` as unknown rather than fresh, and judge a price's age from `priceAsOf`, not `lastUpdated`. Rated stocks also carry `ratingLetter`, `ratingScore` and `ratingPercentile`; all three are `None` for an unrated one.
+
+Stock rows also carry seven end-of-day options readings, `ivRank1y`, `pcVol`, `pcVolPctl1y`, `skew25dPctl1y`, `optionsInterestScore`, `maxUnusualPremium` and `expectedMove20d`, plus `optionsAsOf`, the session date they are from. `expectedMove20d` is a fraction of price (`0.2` is 20%) and `optionsAsOf` is a `YYYY-MM-DD` date; filter on the options fields with names like `IV_RANK_1Y`.
 
 Prices are 15-minute delayed quotes, refreshed at request time during the regular session from a cache at most 5 minutes old. Everything else on a row comes from a snapshot rebuilt about every 20 minutes during the session, so this is not a quote feed: use `get_stock_quote` for one ticker's current quote.
 
