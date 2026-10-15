@@ -539,8 +539,8 @@ def _error_response(status, body):
 
 
 class TestIntradayHistory:
-    """The per-ticker intraday series. The fixture is built from the published example
-    and the response class, pending a capture from the live endpoint."""
+    """The per-ticker intraday series. This fixture is hand-built so it can show a gap and a
+    missing cycle; the live capture is in TestLiveCaptures20261015."""
 
     def test_calls_the_per_ticker_path_and_sends_the_session(self, client):
         payload = _load("options_intraday_history.json")
@@ -651,3 +651,40 @@ def test_no_response_model_declares_a_field_named_data():
         "these models declare a field named 'data', which PreviewResult.data shadows: "
         + ", ".join(offenders)
     )
+
+
+class TestLiveCaptures20261015:
+    """Responses captured from the live API on 2026-10-15 during the session, trimmed to a
+    few rows. They check that every key the server really sends is declared, which the
+    hand-built fixtures above cannot show."""
+
+    def test_intraday_history_keeps_every_live_key(self, client):
+        payload = _load("options_intraday_history_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_intraday_history("NVDA", session="2026-10-15")
+        _assert_every_wire_key_survives(payload["data"], result.data)
+        assert result.live is True
+        assert [p.cycle for p in result.series] == [1, 2, 3, 4]
+        assert all(isinstance(p.asOf, int) for p in result.series)
+
+    def test_overview_keeps_the_intraday_board_time(self, client):
+        payload = _load("options_overview_intraday_live.json")
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_options_overview()
+        _assert_every_wire_key_survives(payload["data"], result.data)
+        assert isinstance(result.intradayAsOf, int)
+        assert result.intradayAsOfEt.endswith(" ET")
+
+    def test_screener_rows_keep_every_live_key(self, client):
+        payload = _load("screener_options_live.json")
+        plan = {"filters": [{"fieldName": "IV_RANK_1Y", "op": "GTE", "value": 0}]}
+        with patch.object(client.session, "post", return_value=_mock_response(payload["stocks"])):
+            stocks = client.run_screen(plan, limit=2)
+        with patch.object(client.session, "post", return_value=_mock_response(payload["etfs"])):
+            etfs = client.run_etf_screen(plan, limit=2)
+        for wire, parsed in ((payload["stocks"], stocks), (payload["etfs"], etfs)):
+            assert len(parsed.results) == len(wire["results"])
+            for i, row in enumerate(wire["results"]):
+                _assert_every_wire_key_survives(row, parsed.results[i], "results[%d]" % i)
+        assert isinstance(stocks.results[0].priceAsOf, int)
+        assert stocks.results[0].optionsAsOf == etfs.results[0].optionsAsOf
