@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Server-side behavior change, no SDK code change: `get_stock_holders()` now returns the roster of
+  the share class you ask for. `get_stock_holders("GOOG")` returns Alphabet's Class C holders (it
+  used to return the Class A roster), and `BRK.A` and `Z` return their own classes. A renamed
+  company's former ticker resolves to its current one, including quarters filed under the old
+  symbol. The raw holders response now also carries `requestedTicker`, `resolvedTicker`,
+  `resolution` (`exact`, `spelling`, `share_class`, `rename`) and `storedTicker`.
+- The options summary for a class we do not cover separately (currently `GOOG`) serves the other
+  class's chain and now says so in the raw response with `isProxy: true`, `underlyingTicker` and
+  `requestedTicker`.
+
 ## 0.64.0
 
 - `ScreenerRow` and `EtfScreenerRow` now keep the seven end-of-day options readings the
