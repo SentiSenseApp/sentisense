@@ -77,7 +77,7 @@ tone = client.get_metrics_distribution("NVDA", metric_type="sentiment", dimensio
 
 ## Authentication and Configuration
 
-Every endpoint requires an API key. Generate one from the [Developer Console](https://app.sentisense.ai/get-api-key).
+Every endpoint requires an API key. Generate one from the [Developer Console](https://app.sentisense.ai/get-api-key). Omit `api_key` and the client reads the `SENTISENSE_API_KEY` environment variable.
 
 ```python
 import os
@@ -93,7 +93,7 @@ client = SentiSenseClient(
 
 | Argument | Default | What it does |
 |----------|---------|--------------|
-| `api_key` | required, positional | Sent as the `X-SentiSense-API-Key` header on every request. |
+| `api_key` | optional, positional | Falls back to the `SENTISENSE_API_KEY` environment variable when omitted. Sent as the `X-SentiSense-API-Key` header on every request. |
 | `base_url` | `https://app.sentisense.ai` | Override for a non-production host. |
 | `timeout` | `30.0` | Per-request timeout in seconds. |
 | `max_retries` | `3` | Retries the per-minute 429 and 5xx. The monthly-allowance 429 is never retried. Set `0` to fail fast. |

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `SentiSenseClient` reads the `SENTISENSE_API_KEY` environment variable when `api_key` is omitted or empty. An explicit key still wins. With neither, construction raises `AuthenticationError` naming the variable.
+
 ## 0.65.0
 
 - Fixed: `Quarter` dropped the `pending` flag, so the documented way to pick the newest

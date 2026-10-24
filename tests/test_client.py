@@ -1944,3 +1944,28 @@ class TestTwoKindsOf429:
             with pytest.raises(NotFoundError) as excinfo:
                 client.get_stock_profile("INVALID")
             assert excinfo.value.code is None
+
+
+class TestApiKeyEnvFallback:
+    def test_explicit_key_wins_over_env(self, monkeypatch):
+        monkeypatch.setenv("SENTISENSE_API_KEY", "env-key")
+        c = SentiSenseClient("explicit-key")
+        assert c.session.headers["X-SentiSense-API-Key"] == "explicit-key"
+
+    def test_env_used_when_omitted(self, monkeypatch):
+        monkeypatch.setenv("SENTISENSE_API_KEY", "env-key")
+        c = SentiSenseClient()
+        assert c.session.headers["X-SentiSense-API-Key"] == "env-key"
+
+    def test_missing_both_raises_naming_variable(self, monkeypatch):
+        monkeypatch.delenv("SENTISENSE_API_KEY", raising=False)
+        with pytest.raises(AuthenticationError, match="SENTISENSE_API_KEY") as exc:
+            SentiSenseClient()
+        assert "https://app.sentisense.ai/get-api-key" in str(exc.value)
+
+    def test_empty_string_treated_as_missing(self, monkeypatch):
+        monkeypatch.delenv("SENTISENSE_API_KEY", raising=False)
+        with pytest.raises(AuthenticationError):
+            SentiSenseClient("")
+        monkeypatch.setenv("SENTISENSE_API_KEY", "env-key")
+        assert SentiSenseClient("").session.headers["X-SentiSense-API-Key"] == "env-key"

@@ -1,6 +1,7 @@
 """SentiSense API client."""
 
 import math
+import os
 import random
 import time
 from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
@@ -9,6 +10,7 @@ import requests
 
 from sentisense.__about__ import __version__
 from sentisense.exceptions import (
+    AuthenticationError,
     DeepHistoryUnavailable,
     SentiSenseError,
     TemporarilyUnavailable,
@@ -152,12 +154,20 @@ class SentiSenseClient:
 
     def __init__(
         self,
-        api_key: str,
+        api_key: Optional[str] = None,
         *,
         base_url: str = BASE_URL,
         timeout: float = 30.0,
         max_retries: int = 3,
     ):
+        # An explicit non-empty key wins; otherwise fall back to the environment.
+        api_key = api_key or os.environ.get("SENTISENSE_API_KEY")
+        if not api_key:
+            raise AuthenticationError(
+                "No API key provided. Pass api_key to SentiSenseClient or set the "
+                "SENTISENSE_API_KEY environment variable. Get a free key at "
+                "https://app.sentisense.ai/get-api-key"
+            )
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
