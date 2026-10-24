@@ -226,6 +226,37 @@ class TestOptionsSummary:
         assert result.context.ivRank1y == 38.29
         assert result.oiWalls.callWalls[0].strike == 220
         assert result.unusual[0].type == "call"
+        # Snapshots built before the open-interest totals existed leave them unset.
+        assert result.oiWalls.totalCallOi is None
+        assert result.oiWalls.maxPainCallOi is None
+
+    def test_keeps_open_interest_totals_and_the_max_pain_strike_oi(self, client):
+        payload = {
+            "isPreview": False,
+            "previewReason": None,
+            "data": {
+                "asOf": "2026-10-22",
+                "oiWalls": {
+                    "expiry": "2026-10-23",
+                    "maxPain": 660,
+                    "callWalls": [{"strike": 900, "oi": 15200}],
+                    "putWalls": [{"strike": 550, "oi": 12100}],
+                    "totalCallOi": 412000,
+                    "totalPutOi": 298000,
+                    "maxPainCallOi": 0,
+                    "maxPainPutOi": 17500,
+                },
+            },
+        }
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            result = client.get_stock_options_summary("META")
+        walls = result.oiWalls
+        assert walls.totalCallOi == 412000
+        assert walls.totalPutOi == 298000
+        # 0 means no calls are open at the max pain strike, not a missing reading.
+        assert walls.maxPainCallOi == 0
+        assert walls.maxPainPutOi == 17500
+        assert walls["maxPainPutOi"] == 17500
 
     def test_reads_a_null_payload_as_no_coverage(self, client):
         payload = {"isPreview": False, "previewReason": None, "data": None}

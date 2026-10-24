@@ -1,7 +1,26 @@
 # Changelog
 
-## Unreleased
+## 0.65.0
 
+- Fixed: `Quarter` dropped the `pending` flag, so the documented way to pick the newest
+  fully filed quarter, `[q for q in quarters if not q.get("pending")]`, kept the quarter that
+  is still filing. `Quarter` now keeps `pending`, `ownershipEligible` and
+  `ownershipEligibleAt` (the New York calendar day after the effective SEC filing deadline).
+  `pending` is `True` through that deadline day; rows without the flags read as `False`,
+  `False` and `None`.
+- `OptionsOiWalls` now keeps `totalCallOi` and `totalPutOi` (each side's open interest
+  summed across every strike of the expiry) and, when present, `maxPainCallOi` and
+  `maxPainPutOi` (the open interest at the `maxPain` strike, even when that strike is not a
+  wall, `0` when a side has none there). All four are `None` on snapshots built before they
+  existed.
+- `get_stock_holders()` takes `report_date` as optional. Omit it and the request carries no
+  `reportDate`, so the server serves the ticker's latest settled quarter (echoed in
+  `reportDate`, with `selection.mode == "DEFAULT"`) and reports any newer still-filing quarter
+  in `earlyFilers`. Existing positional and keyword calls behave as before.
+- Docs: `get_stock_holders()` describes the holders fields it already returns: `selection`,
+  `earlyFilersStatus` and `earlyFilers`, `notableHolders` and `notableHoldersScope`,
+  `comparisonReportDate`, the summary `comparisonStatus`, and the per-row
+  `comparisonStatus`.
 - Server-side behavior change, no SDK code change: `get_stock_holders()` now returns the roster of
   the share class you ask for. `get_stock_holders("GOOG")` returns Alphabet's Class C holders (it
   used to return the Class A roster), and `BRK.A` and `Z` return their own classes. A renamed

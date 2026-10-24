@@ -361,6 +361,60 @@ class TestInstitutionalEndpoints:
         assert result[0].value == "2025Q4"
 
     @patch.object(SentiSenseClient, "_get")
+    def test_documented_quarter_recipe_skips_the_filing_quarter(self, mock_get, client):
+        # Rows shaped like a live response: newest first, with the still-filing
+        # quarter on top. The documented recipe must land on the first settled one.
+        mock_get.return_value = _mock_response(
+            json_data=[
+                {
+                    "value": "2026Q3",
+                    "label": "Q3 2026",
+                    "reportDate": "2026-09-30",
+                    "ownershipEligible": False,
+                    "ownershipEligibleAt": "2026-11-17",
+                    "pending": True,
+                },
+                {
+                    "value": "2026Q2",
+                    "label": "Q2 2026",
+                    "reportDate": "2026-06-30",
+                    "ownershipEligible": True,
+                    "ownershipEligibleAt": "2026-08-15",
+                    "pending": False,
+                },
+                {
+                    "value": "2026Q1",
+                    "label": "Q1 2026",
+                    "reportDate": "2026-03-31",
+                    "ownershipEligible": True,
+                    "ownershipEligibleAt": "2026-05-16",
+                    "pending": False,
+                },
+            ]
+        )
+        quarters = client.get_institutional_quarters()
+        filed = [q for q in quarters if not q.get("pending")]
+        latest_date = filed[0]["reportDate"]
+        assert latest_date == "2026-06-30"
+
+        assert quarters[0].pending is True
+        assert quarters[0].ownershipEligible is False
+        assert quarters[0].ownershipEligibleAt == "2026-11-17"
+        assert quarters[1]["pending"] is False
+        assert quarters[1]["ownershipEligible"] is True
+        assert quarters[1]["ownershipEligibleAt"] == "2026-08-15"
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_quarter_rows_without_the_new_flags_still_parse(self, mock_get, client):
+        mock_get.return_value = _mock_response(
+            json_data=[{"value": "2025Q4", "label": "Q4 2025", "reportDate": "2025-12-31"}]
+        )
+        (quarter,) = client.get_institutional_quarters()
+        assert quarter.pending is False
+        assert quarter.ownershipEligible is False
+        assert quarter.ownershipEligibleAt is None
+
+    @patch.object(SentiSenseClient, "_get")
     def test_get_institutional_flows(self, mock_get, client):
         mock_get.return_value = _mock_response(
             json_data={"isPreview": False, "previewReason": None, "data": {"inflows": [], "outflows": []}}
@@ -409,6 +463,31 @@ class TestInstitutionalEndpoints:
         mock_get.assert_called_once_with(
             "/api/v1/institutional/holders/AAPL",
             params={"reportDate": "2025-12-31"},
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_omits_report_date_when_not_passed(self, mock_get, client):
+        # No date means the server picks the ticker's latest settled quarter, so the
+        # request must not carry an empty or null reportDate.
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stock_holders("AAPL")
+        mock_get.assert_called_once_with("/api/v1/institutional/holders/AAPL", params={})
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_omits_report_date_with_paging(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stock_holders("AAPL", limit=25)
+        mock_get.assert_called_once_with(
+            "/api/v1/institutional/holders/AAPL", params={"limit": 25}
+        )
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_stock_holders_keyword_report_date(self, mock_get, client):
+        mock_get.return_value = _mock_response(json_data=[])
+        client.get_stock_holders("AAPL", report_date="2026-06-30")
+        mock_get.assert_called_once_with(
+            "/api/v1/institutional/holders/AAPL",
+            params={"reportDate": "2026-06-30"},
         )
 
     @patch.object(SentiSenseClient, "_get")

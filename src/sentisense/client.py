@@ -706,7 +706,15 @@ class SentiSenseClient:
     # ── Institutional flow endpoints ────────────────────────────
 
     def get_institutional_quarters(self) -> List[Quarter]:
-        """Get available 13F reporting quarters."""
+        """Get available 13F reporting quarters, newest first.
+
+        The first entry is usually the quarter that is still filing. Each
+        ``Quarter`` carries ``pending``, ``ownershipEligible`` and
+        ``ownershipEligibleAt``, so select on the flag rather than by position::
+
+            filed = [q for q in client.get_institutional_quarters() if not q.get("pending")]
+            latest_date = filed[0]["reportDate"]
+        """
         return self._parse_list(self._get("/api/v1/institutional/quarters").json(), Quarter)
 
     def get_institutional_flows(self, report_date: Optional[str] = None, limit: int = 50) -> PreviewResult[InstitutionalFlows]:
@@ -733,7 +741,7 @@ class SentiSenseClient:
     def get_stock_holders(
         self,
         ticker: str,
-        report_date: str,
+        report_date: Optional[str] = None,
         *,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
@@ -751,9 +759,35 @@ class SentiSenseClient:
         Paged responses also carry ``returnedCount`` and ``offset`` alongside the
         holder rows, so you can walk the list without re-counting it yourself.
 
+        The returned dict also carries:
+
+        - ``selection``: how the quarter was chosen, with ``mode`` (``EXPLICIT`` when
+          you pass ``report_date``, ``DEFAULT`` when you omit it), ``status`` (``settled`` or ``filing``),
+          ``policyVersion``, ``marketDefaultReportDate`` (the newest eligible quarter)
+          and ``isStaleForMarket`` (``True`` when this response is for an older quarter
+          than that).
+        - ``earlyFilersStatus`` (``AVAILABLE``, ``NONE`` or ``UNAVAILABLE``) and, when
+          ``AVAILABLE``, ``earlyFilers``: a newer quarter that is still filing for this
+          ticker, with ``reportDate``, ``status``, ``holderCount``,
+          ``distinctFilerCount``, ``baselineFilerCount`` and optional ``coveragePct``.
+          Those holders are reported separately and never mixed into ``holders``.
+        - ``notableHolders`` and ``notableHoldersScope``: well-known institutions
+          matched against the quarter's full roster (names and identifiers on a free
+          key; position and change fields on PRO). They do not expand the ``holders``
+          preview.
+        - ``comparisonReportDate`` and ``comparisonStatus``: the prior quarter used for
+          share changes and a conservative summary of whether the comparison is
+          complete. Each holder row has its own ``comparisonStatus``, and only
+          ``AVAILABLE`` on that row supports its change figures, even when the summary
+          reads incomplete.
+
         Args:
             ticker: Stock ticker symbol.
-            report_date: Quarter date string (e.g. "2025-12-31").
+            report_date: Quarter date string (e.g. "2025-12-31"). Optional: omit it
+                and the server serves this ticker's latest settled quarter, echoed in
+                ``reportDate``, with any newer still-filing quarter reported separately
+                in ``earlyFilers``. To pass one, take it from
+                ``get_institutional_quarters()``, skipping entries with ``pending`` set.
             limit: Maximum holder rows to return. Must be >= 1; values above 1000
                 are capped server-side. Omit for the full list.
             offset: Row offset to start from, for paging with ``limit``. Server
@@ -762,7 +796,9 @@ class SentiSenseClient:
                 "sharesChangePct".
             sort_dir: Sort direction, "desc" (server default) or "asc".
         """
-        params: Dict[str, Any] = {"reportDate": report_date}
+        params: Dict[str, Any] = {}
+        if report_date is not None:
+            params["reportDate"] = report_date
         if limit is not None:
             params["limit"] = limit
         if offset is not None:

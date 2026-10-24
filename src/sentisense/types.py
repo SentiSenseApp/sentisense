@@ -1221,11 +1221,30 @@ class MarketSummary(APIModel):
 
 @dataclass
 class Quarter(APIModel):
-    """Available 13F reporting quarter."""
+    """Available 13F reporting quarter.
+
+    The list from ``get_institutional_quarters()`` is newest first, so its first
+    entry is usually the quarter that is still filing. Pick a quarter by its flag,
+    never by position::
+
+        filed = [q for q in quarters if not q.get("pending")]
+        latest_date = filed[0]["reportDate"]
+    """
 
     value: str = ""
     label: str = ""
     reportDate: str = ""
+    pending: bool = False
+    """``True`` through the effective SEC filing deadline day in New York (45 days
+    after quarter end, rolled past weekends and federal holidays). Filings may still
+    be arriving, so a holders or activist request for this quarter returns few rows
+    or none."""
+    ownershipEligible: bool = False
+    """``True`` from the New York calendar day after the effective filing deadline.
+    It does not certify that every institution filed."""
+    ownershipEligibleAt: Optional[str] = None
+    """ISO date (New York calendar day) on which the quarter becomes eligible, the
+    day after the effective filing deadline."""
 
 
 @dataclass
@@ -1424,6 +1443,20 @@ class OptionsOiWalls(APIModel):
     maxPain: Optional[float] = None
     callWalls: List[OptionsWall] = field(default_factory=list)
     putWalls: List[OptionsWall] = field(default_factory=list)
+    totalCallOi: Optional[int] = None
+    """Call open interest summed across every strike of the expiry, when present.
+    ``None`` on snapshots built before the field existed."""
+    totalPutOi: Optional[int] = None
+    """Put open interest summed across every strike of the expiry, when present.
+    ``None`` on snapshots built before the field existed."""
+    maxPainCallOi: Optional[int] = None
+    """Call open interest at the ``maxPain`` strike, when present, even when that
+    strike is not one of the walls. ``0`` when no calls are open there; ``None`` on
+    snapshots built before the field existed."""
+    maxPainPutOi: Optional[int] = None
+    """Put open interest at the ``maxPain`` strike, when present, even when that
+    strike is not one of the walls. ``0`` when no puts are open there; ``None`` on
+    snapshots built before the field existed."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "OptionsOiWalls":
@@ -1434,6 +1467,10 @@ class OptionsOiWalls(APIModel):
             maxPain=data.get("maxPain"),
             callWalls=[OptionsWall.from_dict(w) for w in (data.get("callWalls") or [])],
             putWalls=[OptionsWall.from_dict(w) for w in (data.get("putWalls") or [])],
+            totalCallOi=data.get("totalCallOi"),
+            totalPutOi=data.get("totalPutOi"),
+            maxPainCallOi=data.get("maxPainCallOi"),
+            maxPainPutOi=data.get("maxPainPutOi"),
         )
 
 

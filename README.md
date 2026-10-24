@@ -337,10 +337,26 @@ The directory is the only one of these that is not tier-gated, and the only one 
 |--------|-------------|
 | `get_institutional_quarters()` | Available 13F reporting quarters |
 | `get_institutional_flows(report_date=None, limit=50)` | Fund flows for a quarter, split into inflows and outflows. Omit the date for the latest |
-| `get_stock_holders(ticker, report_date, limit=None, offset=None, sort_by=None, sort_dir=None)` | Institutional holders of one stock |
+| `get_stock_holders(ticker, report_date=None, limit=None, offset=None, sort_by=None, sort_dir=None)` | Institutional holders of one stock. Omit the date for the ticker's latest settled quarter |
 | `get_activist_positions(report_date)` | Activist investor positions for a quarter |
 | `get_institution_detail(slug_or_cik)` | One filer's profile, summary stats and current-quarter holdings |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Discover filers, AUM-ranked, rolled up by parent |
+
+The quarter list is newest first, and its first entry is usually still filing. Each
+`Quarter` carries `pending`, `ownershipEligible` and `ownershipEligibleAt`, so pick a
+quarter by the flag rather than by position:
+
+```python
+quarters = client.get_institutional_quarters()
+filed = [q for q in quarters if not q.get("pending")]
+holders = client.get_stock_holders("AAPL", filed[0]["reportDate"], limit=25)
+```
+
+The holders dictionary also says how its quarter was chosen (`selection`), reports a newer
+still-filing quarter separately (`earlyFilersStatus`, `earlyFilers`), lists well-known
+institutions matched against the full roster (`notableHolders`), and summarizes the
+quarter-over-quarter comparison (`comparisonReportDate`, `comparisonStatus`). Each holder row
+carries its own `comparisonStatus`; only `AVAILABLE` on that row supports its change figures.
 
 `positionsHeld` on an institution detail counts the full portfolio's held positions:
 `max(0, holdingsCount - soldOutPositions)`, even when the holdings list is truncated.
