@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.66.0
 
 - `SentiSenseClient` reads the `SENTISENSE_API_KEY` environment variable when `api_key` is omitted or empty. An explicit key still wins. With neither, construction raises `AuthenticationError` naming the variable.
 
