@@ -1312,6 +1312,89 @@ class InstitutionalFlows(APIModel):
         )
 
 
+@dataclass
+class HoldersHistoryQuarter(APIModel):
+    """One quarter of a stock's 13F ownership history.
+
+    ``holderCount`` and the share and value totals roll multi-filer managers up into
+    one holder the same way ``get_stock_holders()`` does, so a settled quarter here
+    agrees with that quarter's holders response. The flow fields repeat the
+    ``get_institutional_flows()`` arithmetic for this one ticker.
+
+    A quarter with ``status`` ``"filing"`` holds only the institutions that have
+    filed so far, so its counts and totals are partial.
+    """
+
+    reportDate: str = ""
+    """Quarter end, ISO date (``YYYY-MM-DD``)."""
+    value: str = ""
+    """Quarter id in ``YYYYQN`` form, e.g. ``"2026Q2"``."""
+    label: str = ""
+    """Display label, e.g. ``"Q2 2026"``."""
+    status: str = ""
+    """``"settled"`` once the quarter's filing deadline has passed, ``"filing"`` before."""
+    pending: bool = False
+    """``True`` while ``status`` is ``"filing"``; same rule as ``Quarter.pending``."""
+    holderCount: int = 0
+    """Institutional holders, with multi-filer managers counted once."""
+    totalInstitutionalShares: int = 0
+    """Shares held by all reporting institutions."""
+    totalInstitutionalValue: int = 0
+    """Reported value of those shares, in US dollars."""
+    sharesOutstanding: Optional[int] = None
+    """The share class's shares outstanding as last filed on the day the quarter
+    settles (today, while it is still filing). ``None`` for ADRs and other
+    unsupported security types, when no dated per-class count exists, or when
+    institutions report more than 150% of it, which signals a unit mismatch."""
+    institutionalOwnershipPct: Optional[float] = None
+    """``totalInstitutionalShares`` as a percent of ``sharesOutstanding`` (``84.94``
+    means 84.94%). Can pass 100 because lent shares are reported by both lender and
+    buyer. ``None`` whenever ``sharesOutstanding`` is ``None``."""
+    netSharesChange: int = 0
+    """Shares bought minus shares sold over the quarter, summed across filers."""
+    totalSharesBought: int = 0
+    """Sum of share increases across filers that added or opened a position."""
+    totalSharesSold: int = 0
+    """Sum of share decreases across filers that trimmed or reported a zero position,
+    as a positive number."""
+    newPositions: int = 0
+    """Filer positions opened this quarter."""
+    increasedPositions: int = 0
+    """Filer positions added to."""
+    decreasedPositions: int = 0
+    """Filer positions trimmed."""
+    soldOutPositions: int = 0
+    """Filers that reported this position at zero shares. A filer that leaves the
+    position out of its filing entirely is not counted here."""
+    avgClosePrice: Optional[float] = None
+    """The quarter's average closing price, in US dollars. ``None`` when the quarter
+    is unpriced."""
+    dollarFlowUsd: Optional[float] = None
+    """``netSharesChange * avgClosePrice``, in US dollars. ``None`` when
+    ``avgClosePrice`` is ``None``, never a stand-in zero."""
+
+
+@dataclass
+class HoldersHistory(APIModel):
+    """A stock's 13F ownership by quarter, newest first.
+
+    Quarters with no holdings for the security, such as those before it listed,
+    are omitted, so ``quarters`` can be shorter than the window you asked for and
+    is empty for a ticker with no 13F coverage.
+    """
+
+    ticker: str = ""
+    """The security answered for, in SentiSense's spelling (``BRK.B``, ``GOOG``)."""
+    quarters: List[HoldersHistoryQuarter] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "HoldersHistory":
+        return cls(
+            ticker=data.get("ticker", ""),
+            quarters=[HoldersHistoryQuarter.from_dict(q) for q in data.get("quarters") or []],
+        )
+
+
 # ── Options types ───────────────────────────────────────────
 #
 # Every reading in this family is end of day, and every percentile is measured against

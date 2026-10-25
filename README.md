@@ -338,6 +338,7 @@ The directory is the only one of these that is not tier-gated, and the only one 
 | `get_institutional_quarters()` | Available 13F reporting quarters |
 | `get_institutional_flows(report_date=None, limit=50)` | Fund flows for a quarter, split into inflows and outflows. Omit the date for the latest |
 | `get_stock_holders(ticker, report_date=None, limit=None, offset=None, sort_by=None, sort_dir=None)` | Institutional holders of one stock. Omit the date for the ticker's latest settled quarter |
+| `get_stock_holders_history(ticker, quarters=None)` | One stock's institutional ownership quarter by quarter, newest first: holders, share of the class held, net shares bought or sold, dollar flow |
 | `get_activist_positions(report_date)` | Activist investor positions for a quarter |
 | `get_institution_detail(slug_or_cik)` | One filer's profile, summary stats and current-quarter holdings |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Discover filers, AUM-ranked, rolled up by parent |
@@ -357,6 +358,18 @@ still-filing quarter separately (`earlyFilersStatus`, `earlyFilers`), lists well
 institutions matched against the full roster (`notableHolders`), and summarizes the
 quarter-over-quarter comparison (`comparisonReportDate`, `comparisonStatus`). Each holder row
 carries its own `comparisonStatus`; only `AVAILABLE` on that row supports its change figures.
+
+Ownership history returns one row per quarter for a stock, newest first, covering the 12
+newest quarters by default (`quarters` up to 20). Free keys see the newest four. The newest
+row can still be filing (`status == "filing"`), in which case it covers only the institutions
+that have filed so far. `sharesOutstanding`, `institutionalOwnershipPct`, `avgClosePrice` and
+`dollarFlowUsd` are `None` when they cannot be computed, never zero:
+
+```python
+history = client.get_stock_holders_history("AAPL", quarters=8)
+for q in history.quarters:
+    print(q.label, q.status, q.holderCount, q.institutionalOwnershipPct, q.netSharesChange)
+```
 
 `positionsHeld` on an institution detail counts the full portfolio's held positions:
 `max(0, holdingsCount - soldOutPositions)`, even when the holdings list is truncated.

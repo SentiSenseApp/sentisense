@@ -34,6 +34,7 @@ from sentisense.types import (
     EtfInsiderAggregate,
     EtfQuote,
     EtfSentimentAggregate,
+    HoldersHistory,
     Insight,
     InsiderActivity,
     InsiderTrade,
@@ -819,6 +820,48 @@ class SentiSenseClient:
             params["sortDir"] = sort_dir
         return self._unwrap(
             self._get(f"/api/v1/institutional/holders/{ticker}", params=params).json(),
+        )
+
+    def get_stock_holders_history(
+        self,
+        ticker: str,
+        quarters: Optional[int] = None,
+    ) -> PreviewResult[HoldersHistory]:
+        """Get a stock's institutional ownership quarter by quarter, newest first.
+
+        Auto-unwrapped into :class:`~sentisense.types.HoldersHistory`. Read the rows as
+        ``result.quarters``; each is a
+        :class:`~sentisense.types.HoldersHistoryQuarter` with the holder count, the
+        share of the class institutions held (``institutionalOwnershipPct``), and the
+        quarter's net shares bought or sold, dollar flow and position counts.
+
+        The newest quarter can still be filing (``status`` ``"filing"``), in which case
+        its figures cover only the institutions that have filed so far. Quarters in
+        which the security had no holdings are omitted.
+
+        Free keys receive the newest four quarters with ``result.is_preview`` set and
+        ``result.total_count`` holding the number of quarters in the full window. PRO
+        receives the whole window and ``total_count`` is ``None``.
+
+        Example::
+
+            history = client.get_stock_holders_history("AAPL", quarters=8)
+            for q in history.quarters:
+                print(q.label, q.status, q.holderCount, q.institutionalOwnershipPct)
+
+        Args:
+            ticker: Stock ticker symbol. Share classes are answered separately
+                (``GOOG`` and ``GOOGL``, ``BRK.A`` and ``BRK.B``).
+            quarters: How many of the newest quarters to cover. Server default is
+                12; values above 20 are capped server-side, and values below 1 are
+                rejected with a 400.
+        """
+        params: Dict[str, Any] = {}
+        if quarters is not None:
+            params["quarters"] = quarters
+        return self._unwrap(
+            self._get(f"/api/v1/institutional/holders/{ticker}/history", params=params).json(),
+            item_cls=HoldersHistory,
         )
 
     def get_activist_positions(self, report_date: str) -> PreviewResult[List[Dict[str, Any]]]:
