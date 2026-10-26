@@ -2477,7 +2477,16 @@ class SentiSenseClient:
             metric_type: Metric to retrieve: "mentions", "sentiment",
                 "sentisense_score" (the SentiSense Score),
                 "sentisense_rating" (the SentiSense Rating score, 0-100), or
-                "social_dominance".
+                "social_dominance". Product entities that have an app (pass an
+                entity slug such as "Instagram", not a ticker) also serve four
+                daily App Store series: "app_review_count" (new written reviews)
+                and "app_rating" (their average stars, 1-5), and
+                "app_all_ratings_count" (all new ratings, star-only and written
+                together) and "app_all_ratings_avg" (their average stars, 1-5).
+                Written reviews are a small share of all ratings and skew lower.
+                The two all-ratings series have no point on a day with no net new
+                ratings or when the store's totals fell; over a range, weight each
+                day's "app_all_ratings_avg" by "app_all_ratings_count".
             start_time: Start of window as epoch milliseconds.
             end_time: End of window as epoch milliseconds.
             max_data_points: Maximum number of data points to return.
