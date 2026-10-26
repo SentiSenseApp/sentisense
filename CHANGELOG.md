@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.67.0
+
+- New `get_stock_holders_history(ticker, quarters=None)`, returning
+  `PreviewResult[HoldersHistory]`: one stock's institutional ownership quarter by quarter,
+  newest first (12 quarters by default, up to 20; free keys see the newest four).
+- New `ShareClass` (`ticker`, `primary`). `StockDetail.shareClasses` lists every separately
+  listed class of a company, primary first, on the primary class's row of
+  `get_all_stocks_detailed()` (the `BRK.B` row lists `BRK.B` then `BRK.A`); it is `None` on
+  every other row. `get_stock_profile()` returns the same list as `shareClasses` dicts for such
+  a company and omits the key otherwise.
+- `get_analyst_estimates()` documents `data["ticker"]`, the listing the per-share figures are
+  quoted for (`BRK-A` answers `BRK.B`, `GOOG` answers `GOOGL`). The new `AnalystEstimates`
+  TypedDict annotates its keys. Read it with `.get("ticker")`, since older responses omit it.
+- `get_earnings_summaries()` now returns `EarningsSummariesResult`, a `PreviewResult` subclass
+  that keeps the envelope `ticker` as `result.ticker` (the same meaning; `None` when the
+  response omits it). Iteration, `len`, indexing, `.data`, `.is_preview` and `.total_count`
+  behave as before.
+
 ## 0.66.0
 
 - `SentiSenseClient` reads the `SENTISENSE_API_KEY` environment variable when `api_key` is omitted or empty. An explicit key still wins. With neither, construction raises `AuthenticationError` naming the variable.
