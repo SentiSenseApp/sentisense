@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.68.0
+
+- `get_metrics()` documents four App Store metric types, all daily series for product entities
+  that have an app (pass an entity slug such as `"Instagram"`, not a ticker):
+  `app_review_count` (new written reviews) and `app_rating` (their average stars, 1 to 5), and
+  `app_all_ratings_count` (all new ratings, star-only and written together) and
+  `app_all_ratings_avg` (their average stars). Written reviews are a small share of all ratings
+  and skew lower. The two all-ratings series have no point on a day with no net new ratings or
+  when the store's totals fell; over a range, weight each day's average by the count.
+
 ## 0.67.0
 
 - New `get_stock_holders_history(ticker, quarters=None)`, returning
