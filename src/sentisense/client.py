@@ -26,6 +26,7 @@ from sentisense.types import (
     EarningsReactions,
     EarningsStatistics,
     EarningsQuarter,
+    EarningsSummariesResult,
     DocumentSearchResponse,
     FundamentalsPeriod,
     EtfAnalystAggregate,
@@ -328,6 +329,12 @@ class SentiSenseClient:
         same curated landscape card returned by :meth:`list_etfs`. It is
         separate from ``logoUrl`` and ``iconUrl``, which are square branding
         marks, and is absent when no curated image is assigned.
+
+        A company with more than one separately listed share class carries
+        ``shareClasses``, a list of ``{"ticker", "primary"}`` dicts, primary
+        first (``BRK.B`` then ``BRK.A``); the list is the same whichever class
+        you request. It is absent otherwise. :class:`~sentisense.types.ShareClass`
+        types one entry.
         """
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 
@@ -522,7 +529,11 @@ class SentiSenseClient:
         return self._get("/api/v1/stocks").json()
 
     def get_all_stocks_detailed(self) -> List[StockDetail]:
-        """Get all stocks with company names and entity IDs."""
+        """Get all stocks with company names and entity IDs.
+
+        The primary class's row of a multi-class company carries
+        ``shareClasses``; see :class:`~sentisense.types.StockDetail`.
+        """
         return self._parse_list(self._get("/api/v1/stocks/detailed").json(), StockDetail)
 
     def get_market_status(self) -> MarketStatus:
@@ -989,7 +1000,7 @@ class SentiSenseClient:
 
     def get_earnings_summaries(
         self, ticker: str, limit: Optional[int] = None
-    ) -> PreviewResult[List[EarningsQuarter]]:
+    ) -> EarningsSummariesResult:
         """Get the per-quarter earnings analysis report for a ticker, newest first.
 
         One :class:`EarningsQuarter` per fiscal quarter, carrying the editorial
@@ -1004,6 +1015,10 @@ class SentiSenseClient:
         returned rows can be fewer when a body is unavailable or the request
         is limited. Older responses may omit it, yielding ``None``.
         See :class:`EarningsQuarter` for which fields each tier carries.
+
+        ``result.ticker`` names the listing the per-share figures are quoted
+        for: ``"BRK.B"`` for ``BRK-A``, ``"GOOGL"`` for ``GOOG``. It is
+        ``None`` when the response does not carry it.
 
         A quarter typically appears within 48 hours of the company reporting,
         and the call summary can arrive after the press-release content for the
@@ -1021,11 +1036,17 @@ class SentiSenseClient:
         params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
-        return self._unwrap(
-            self._get(
-                f"/api/v1/stocks/{ticker.upper()}/earnings-summaries", params=params
-            ).json(),
-            list_cls=EarningsQuarter,
+        json_data = self._get(
+            f"/api/v1/stocks/{ticker.upper()}/earnings-summaries", params=params
+        ).json()
+        result = self._unwrap(json_data, list_cls=EarningsQuarter)
+        return EarningsSummariesResult(
+            result.data,
+            result.is_preview,
+            result.preview_reason,
+            result.total_count,
+            result.upgrade,
+            ticker=json_data.get("ticker"),
         )
 
     def get_recent_earnings(
@@ -1782,7 +1803,12 @@ class SentiSenseClient:
         Free users receive 1 estimate (current quarter) plus the 2 most recent
         surprises; PRO users receive the full history.
 
-        Auto-unwrapped. ``data["estimates"]`` is a list of forward EPS estimates, each
+        Auto-unwrapped. ``data["ticker"]`` names the listing the per-share figures
+        are quoted for: ``"BRK.B"`` for ``BRK-A``, ``"GOOGL"`` for ``GOOG``. It is
+        absent on older responses, so read it with ``result.data.get("ticker")``.
+        :class:`AnalystEstimates` annotates these optional dictionary keys.
+
+        ``data["estimates"]`` is a list of forward EPS estimates, each
         with:
 
         - ``periodLabel``: the period as sent by the API. Its format varies by period:

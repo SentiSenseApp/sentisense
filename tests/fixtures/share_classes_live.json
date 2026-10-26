@@ -1,0 +1,229 @@
+{
+  "profileBrkA": {
+    "ticker": "BRK.A",
+    "name": "Berkshire Hathaway Inc.",
+    "marketCap": 1161113968300.0,
+    "currency": "usd",
+    "primaryExchange": "XNYS",
+    "homepageUrl": "https://www.berkshirehathaway.com",
+    "sector": "Financials",
+    "industry": "FIRE, MARINE & CASUALTY INSURANCE",
+    "country": "United States",
+    "ipoDate": "1980-03-17",
+    "kind": "STOCK",
+    "shareClasses": [
+      {
+        "ticker": "BRK.B",
+        "primary": true
+      },
+      {
+        "ticker": "BRK.A",
+        "primary": false
+      }
+    ]
+  },
+  "profileGoog": {
+    "ticker": "GOOG",
+    "name": "Alphabet Inc. Class C Capital Stock",
+    "marketCap": 3880313723179.6797,
+    "currency": "usd",
+    "primaryExchange": "XNAS",
+    "homepageUrl": "https://www.abc.xyz",
+    "sector": "Communication Services",
+    "industry": "SERVICES-COMPUTER PROGRAMMING, DATA PROCESSING, ETC.",
+    "country": "United States",
+    "ipoDate": "2004-08-19",
+    "kind": "STOCK",
+    "shareClasses": [
+      {
+        "ticker": "GOOGL",
+        "primary": true
+      },
+      {
+        "ticker": "GOOG",
+        "primary": false
+      }
+    ]
+  },
+  "profileAapl": {
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "marketCap": 5074761240500.0,
+    "currency": "usd",
+    "primaryExchange": "XNAS",
+    "homepageUrl": "https://www.apple.com",
+    "sector": "Information Technology",
+    "industry": "ELECTRONIC COMPUTERS",
+    "country": "United States",
+    "ipoDate": "1980-12-12",
+    "kind": "STOCK"
+  },
+  "detailedRows": [
+    {
+      "ticker": "AAPL",
+      "simpleName": "Apple",
+      "companyName": "Apple Inc.",
+      "urlSlug": "Apple-Inc",
+      "brandColor": "#555555"
+    },
+    {
+      "ticker": "BRK.B",
+      "simpleName": "Berkshire Hathaway",
+      "companyName": "Berkshire Hathaway Inc.",
+      "urlSlug": "Berkshire-Hathaway-Inc",
+      "brandColor": null,
+      "shareClasses": [
+        {
+          "ticker": "BRK.B",
+          "primary": true
+        },
+        {
+          "ticker": "BRK.A",
+          "primary": false
+        }
+      ]
+    },
+    {
+      "ticker": "GOOGL",
+      "simpleName": "Google",
+      "companyName": "Alphabet Inc.",
+      "urlSlug": "Alphabet-Inc",
+      "brandColor": "#4285F4",
+      "shareClasses": [
+        {
+          "ticker": "GOOGL",
+          "primary": true
+        },
+        {
+          "ticker": "GOOG",
+          "primary": false
+        }
+      ]
+    }
+  ],
+  "estimatesBrkA": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "ticker": "BRK.B",
+      "estimates": [
+        {
+          "periodLabel": "2026-11-07",
+          "periodType": "CURRENT_QUARTER",
+          "estimateLow": 5.601,
+          "estimateMean": 5.8842,
+          "estimateHigh": 6.1674,
+          "numberOfAnalysts": 2,
+          "revenueLow": 100958738250.0,
+          "revenueMean": 100958738250.0,
+          "revenueHigh": 100958738250.0,
+          "numberOfAnalystsRevenue": 1,
+          "fiscalPeriodEnd": "2026-09-30"
+        }
+      ],
+      "surprises": [
+        {
+          "periodLabel": "2026-08-08",
+          "reportDate": "2026-08-08",
+          "estimateEps": 5.13,
+          "actualEps": 6.02,
+          "surprisePercent": 0.17,
+          "surprisePct": 17.35
+        }
+      ]
+    }
+  },
+  "estimatesLegacy": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": {
+      "estimates": [
+        {
+          "periodLabel": "2026-11-07",
+          "periodType": "CURRENT_QUARTER",
+          "estimateLow": 5.601,
+          "estimateMean": 5.8842,
+          "estimateHigh": 6.1674,
+          "numberOfAnalysts": 2,
+          "revenueLow": 100958738250.0,
+          "revenueMean": 100958738250.0,
+          "revenueHigh": 100958738250.0,
+          "numberOfAnalystsRevenue": 1,
+          "fiscalPeriodEnd": "2026-09-30"
+        }
+      ],
+      "surprises": [
+        {
+          "periodLabel": "2026-08-08",
+          "reportDate": "2026-08-08",
+          "estimateEps": 5.13,
+          "actualEps": 6.02,
+          "surprisePercent": 0.17,
+          "surprisePct": 17.35
+        }
+      ]
+    }
+  },
+  "earningsSummariesBrkA": {
+    "isPreview": false,
+    "previewReason": null,
+    "totalCount": 0,
+    "data": [],
+    "ticker": "BRK.B"
+  },
+  "earningsSummariesGoog": {
+    "isPreview": false,
+    "previewReason": null,
+    "totalCount": 1,
+    "data": [
+      {
+        "fiscalPeriod": "Q2 2026",
+        "reportDate": "2026-07-22",
+        "headline": "Alphabet Q2 2026 revenue rose 24% to $119.8B, Google Cloud accelerated to 82% growth, and a $99.0B unrealized equity-securities gain pushed diluted EPS to $9.11.",
+        "hasTranscript": true,
+        "generatedAt": 1784809746,
+        "source": "press_release",
+        "kpiHighlights": [
+          {
+            "label": "Revenue",
+            "value": "$119.8B",
+            "yoy": "+24%"
+          },
+          {
+            "label": "Google Cloud Revenue",
+            "value": "$24.8B",
+            "yoy": "+82%"
+          }
+        ]
+      }
+    ],
+    "ticker": "GOOGL"
+  },
+  "earningsSummariesLegacy": {
+    "isPreview": false,
+    "previewReason": null,
+    "totalCount": 1,
+    "data": [
+      {
+        "fiscalPeriod": "Q2 2026",
+        "reportDate": "2026-07-22",
+        "headline": "Alphabet Q2 2026 revenue rose 24% to $119.8B, Google Cloud accelerated to 82% growth, and a $99.0B unrealized equity-securities gain pushed diluted EPS to $9.11.",
+        "hasTranscript": true,
+        "generatedAt": 1784809746,
+        "source": "press_release",
+        "kpiHighlights": [
+          {
+            "label": "Revenue",
+            "value": "$119.8B",
+            "yoy": "+24%"
+          },
+          {
+            "label": "Google Cloud Revenue",
+            "value": "$24.8B",
+            "yoy": "+82%"
+          }
+        ]
+      }
+    ]
+  }
+}

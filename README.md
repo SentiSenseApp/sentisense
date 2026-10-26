@@ -158,7 +158,7 @@ Every typed dataclass also supports dict-style access, so `price["currentPrice"]
 | `get_stock_ai_summary(ticker, depth="basic")` | Curated AI research report. `depth="deep"` returns the full report and consumes one report view |
 | `get_stock_chart(ticker, timeframe="1M")` | OHLCV bars, returned as a bare list, oldest first |
 | `get_all_stocks()` | The tracked universe: every ticker SentiSense covers |
-| `get_all_stocks_detailed()` | The same universe with company names, entity ids and social dominance |
+| `get_all_stocks_detailed()` | The same universe with company names, entity ids and social dominance. A multi-class company's primary row lists its classes in `shareClasses` |
 | `get_market_status()` | Market open or closed |
 
 Price fields carry `priceAsOf` in Unix milliseconds for the age of the market data. Read that for freshness rather than `timestamp`, which records when the response was served and therefore always reads as now. During pre-market and after-hours a nested `extendedHours` object appears next to the regular-session price.
@@ -418,7 +418,7 @@ The price target cone (mean, high, low, upside percent) and the consensus are fr
 | `get_analyst_consensus_history(ticker, from_date=None, to_date=None, limit=None)` | Daily consensus observations. Free: last 30 days with distribution fields null |
 | `get_analyst_called_it(ticker, limit=None)` | Recorded call history for moves of 20% or more over five sessions. Free: newest move, up to 5 calls, move counts intact |
 | `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrades and downgrades. Free: the 3 most recent |
-| `get_analyst_estimates(ticker)` | Forward EPS estimates and surprise history. Free: 1 quarter |
+| `get_analyst_estimates(ticker)` | Forward EPS estimates and surprise history. Free: 1 quarter. `data["ticker"]` names the listing the per-share figures are for (`BRK-A` answers `BRK.B`) |
 | `get_analyst_market_activity(lookback_days=30)` | Market-wide analyst actions across all covered tickers (PRO) |
 | `get_analyst_coverage(ticker, lookback_days=None)` | Who covers this stock, grouped by firm. Free: the 5 most recently active firms |
 | `get_analyst_profile(slug)` | One analyst: firms published under, and their coverage book. Free: 5 tickers |
@@ -500,6 +500,8 @@ print(statistics.beat.rate, statistics.coverageRatio)
 A ticker with no stored quarter answers with an empty list rather than a 404. A quarter can gain its call summary on a later read, so branch on `hasTranscript` and compare `transcriptGeneratedAt` against `generatedAt` rather than assuming a fixed lag. The calendar is the forward-looking half of this family and the recent-reporters feed the backward-looking one; the window there is bounded by report date, so a quarter reported inside it appears even when its call summary lands later.
 
 `get_earnings_summaries` exposes the envelope count as `result.total_count` on both PRO and FREE. It counts indexed quarters; returned rows can be fewer because of `limit` or an unavailable body. Older responses without the count still read as `None`.
+
+`result.ticker` names the listing the quarters' per-share figures are quoted for: `BRK-A` answers `BRK.B` and `GOOG` answers `GOOGL`. It reads `None` on older responses.
 
 ### Company KPIs (PRO)
 

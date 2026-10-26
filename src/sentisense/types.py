@@ -30,6 +30,19 @@ class AnalystEarningsSurprise(TypedDict, total=False):
     surprisePct: Optional[float]
 
 
+class AnalystEstimates(TypedDict, total=False):
+    """Optional wire keys for the dictionary in an estimates result's ``data``.
+
+    ``ticker`` names the listing the per-share figures are quoted for. Estimates
+    are stored under a company's primary share class, so ``BRK-A`` answers
+    ``"BRK.B"`` and ``GOOG`` answers ``"GOOGL"``. It is absent on older responses.
+    """
+
+    ticker: str
+    estimates: List[Dict[str, Any]]
+    surprises: List[AnalystEarningsSurprise]
+
+
 class InstitutionDetail(TypedDict, total=False):
     """Optional wire keys for the dictionary in an institution detail's ``data``.
 
@@ -300,6 +313,19 @@ class SimilarStock(APIModel):
 
 
 @dataclass
+class ShareClass(APIModel):
+    """One separately listed share class of a company.
+
+    Carried in ``shareClasses`` on the stock profile and on the primary class's
+    row of the detailed stock list, primary class first: ``GOOGL`` then
+    ``GOOG``, ``BRK.B`` then ``BRK.A``, ``ZG`` then ``Z``.
+    """
+
+    ticker: str = ""
+    primary: bool = False
+
+
+@dataclass
 class StockDetail(APIModel):
     """Stock with company name and entity metadata.
 
@@ -307,6 +333,11 @@ class StockDetail(APIModel):
     name ("Agilent") and ``companyName`` is the legal name ("Agilent
     Technologies, Inc."). ``name`` is a legacy alias the API never sends; it is
     filled from ``simpleName`` so older code keeps working.
+
+    ``shareClasses`` is set only on the row of a company whose separately
+    listed classes are tracked as one company, and lists every class, primary
+    first (the ``GOOGL`` row lists ``GOOGL`` then ``GOOG``). The other classes
+    have no row of their own. It is ``None`` on every other row.
     """
 
     ticker: str = ""
@@ -317,10 +348,16 @@ class StockDetail(APIModel):
     urlSlug: Optional[str] = None
     brandColor: Optional[str] = None
     socialDominance: Optional[Dict[str, Any]] = None
+    shareClasses: Optional[List[ShareClass]] = None
 
     def __post_init__(self) -> None:
         if not self.name:
             self.name = self.simpleName or self.companyName
+        if self.shareClasses is not None:
+            self.shareClasses = [
+                sc if isinstance(sc, ShareClass) else ShareClass.from_dict(sc)
+                for sc in self.shareClasses
+            ]
 
 
 @dataclass
@@ -604,6 +641,30 @@ class EarningsQuarter(APIModel):
             ],
             sources=[EarningsSource.from_dict(s) for s in (data.get("sources") or [])],
         )
+
+
+class EarningsSummariesResult(PreviewResult[List[EarningsQuarter]]):
+    """The result of :meth:`~sentisense.SentiSenseClient.get_earnings_summaries`.
+
+    Behaves exactly like :class:`PreviewResult` over a list of
+    :class:`EarningsQuarter`, and adds ``.ticker`` from the response envelope:
+    the listing the quarters' per-share figures (such as EPS highlights) are
+    quoted for. Summaries are stored under a company's primary share class, so
+    ``BRK-A`` answers ``"BRK.B"`` and ``GOOG`` answers ``"GOOGL"``. It is
+    ``None`` on older responses that do not carry it.
+    """
+
+    def __init__(
+        self,
+        data: List[EarningsQuarter],
+        is_preview: bool,
+        preview_reason: Optional[str],
+        total_count: Optional[int] = None,
+        upgrade: Optional[dict] = None,
+        ticker: Optional[str] = None,
+    ):
+        super().__init__(data, is_preview, preview_reason, total_count, upgrade)
+        object.__setattr__(self, "ticker", ticker)
 
 
 @dataclass

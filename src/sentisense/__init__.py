@@ -13,6 +13,7 @@ from sentisense.exceptions import (
 )
 from sentisense.types import (
     AnalystEarningsSurprise,
+    AnalystEstimates,
     AssetMetadata,
     CalendarMeta,
     ClusterBuy,
@@ -25,6 +26,7 @@ from sentisense.types import (
     EarningsKpiHighlight,
     EarningsOutcomeStatistics,
     EarningsQuarter,
+    EarningsSummariesResult,
     EarningsReaction,
     EarningsReactions,
     EarningsSource,
@@ -109,6 +111,7 @@ from sentisense.types import (
     ScreenerResults,
     ScreenerRow,
     SentimentEntry,
+    ShareClass,
     SimilarStock,
     StockDetail,
     StockGraph,
@@ -124,6 +127,7 @@ from sentisense.types import (
 
 __all__ = [
     "AnalystEarningsSurprise",
+    "AnalystEstimates",
     "InstitutionDetail",
     "__version__",
     "APIError",
@@ -140,6 +144,7 @@ __all__ = [
     "EarningsKpiHighlight",
     "EarningsOutcomeStatistics",
     "EarningsQuarter",
+    "EarningsSummariesResult",
     "EarningsReaction",
     "EarningsReactions",
     "EarningsSource",
@@ -229,6 +234,7 @@ __all__ = [
     "SentiSenseError",
     "TemporarilyUnavailable",
     "SentimentEntry",
+    "ShareClass",
     "SimilarStock",
     "StockDetail",
     "StockGraph",
