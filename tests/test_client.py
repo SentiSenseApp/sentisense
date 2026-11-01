@@ -827,6 +827,38 @@ class TestCalendarEndpoints:
         assert not hasattr(e, "source")
         assert cal.metadata.windowStart == "2026-04-20"
         assert cal.metadata.generatedAt == 1776528000
+        # result fields are optional: absent on this row, so they default to None
+        assert e.actualEps is None
+        assert e.epsSurprisePct is None
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_get_earnings_calendar_types_reported_results(self, mock_get, client):
+        row = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc.",
+            "earningsDate": "2026-04-30",
+            "earningsTime": "after_close",
+            "fiscalQuarter": "Q2 2026",
+            "confirmed": True,
+            "estimatedEps": 1.62,
+            "estimatedRevenue": 94500000000.0,
+            "actualEps": 1.65,
+            "actualRevenue": 95359000000.0,
+            "epsSurprisePct": 1.85,
+            "revenueSurprisePct": 0.91,
+        }
+        mock_get.return_value = _mock_response(
+            json_data={"isPreview": False, "previewReason": None,
+                       "data": {"earnings": [row], "metadata": {"count": 1}}}
+        )
+
+        e = client.get_earnings_calendar(ticker="AAPL").earnings[0]
+
+        assert e.estimatedRevenue == 94500000000.0
+        assert e.actualEps == 1.65
+        assert e.actualRevenue == 95359000000.0
+        assert e.epsSurprisePct == 1.85
+        assert e["revenueSurprisePct"] == 0.91
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_earnings_calendar_passes_filters(self, mock_get, client):
