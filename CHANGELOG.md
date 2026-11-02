@@ -3,13 +3,13 @@
 ## 0.69.0
 
 - `EarningsEvent` (rows of `get_earnings_calendar()`) gains five optional fields:
-  `estimatedRevenue` (consensus revenue, reporting currency), `actualEps` and `actualRevenue`
+  `estimatedRevenue` (consensus revenue), `actualEps` and `actualRevenue`
   (`None` until the company reports), and `epsSurprisePct` and `revenueSurprisePct`
   (`(actual - estimate) / abs(estimate) * 100`, rounded to two decimals; `None` when either side
   is missing or the estimate is 0). A recent row now tells you whether the company beat.
 - `EarningsEvent.epsBasis`: `"gaap"` when `actualEps` equals the company's filed GAAP EPS for
   the quarter, `"adjusted"` when it is the company's adjusted figure, `"unknown"` when the
-  quarter's statement is not filed yet; `None` until the company reports. A surprise is only like
+  quarter's statement is not filed yet or the gap is too small to tell; `None` until the company reports. A surprise is only like
   for like when the estimate and the actual share a basis, so show the label next to it.
 
 ## 0.68.0

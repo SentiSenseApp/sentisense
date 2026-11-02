@@ -522,7 +522,7 @@ class EarningsEvent(APIModel):
     fiscalQuarter: Optional[str] = None
     confirmed: bool = False
     estimatedEps: Optional[float] = None
-    estimatedRevenue: Optional[float] = None  # consensus revenue, reporting currency
+    estimatedRevenue: Optional[float] = None  # consensus revenue estimate
     actualEps: Optional[float] = None  # reported EPS; None until the company reports
     actualRevenue: Optional[float] = None  # reported revenue; None until the company reports
     epsSurprisePct: Optional[float] = None  # (actual - estimate) / abs(estimate) * 100; None if either is missing or the estimate is 0
