@@ -527,6 +527,7 @@ class EarningsEvent(APIModel):
     actualRevenue: Optional[float] = None  # reported revenue; None until the company reports
     epsSurprisePct: Optional[float] = None  # (actual - estimate) / abs(estimate) * 100; None if either is missing or the estimate is 0
     revenueSurprisePct: Optional[float] = None  # same formula on revenue
+    epsBasis: Optional[str] = None  # "gaap" | "adjusted" | "unknown" for actualEps; None until the company reports
 
 
 @dataclass

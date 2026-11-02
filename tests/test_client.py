@@ -846,6 +846,7 @@ class TestCalendarEndpoints:
             "actualRevenue": 95359000000.0,
             "epsSurprisePct": 1.85,
             "revenueSurprisePct": 0.91,
+            "epsBasis": "adjusted",
         }
         mock_get.return_value = _mock_response(
             json_data={"isPreview": False, "previewReason": None,
@@ -859,6 +860,7 @@ class TestCalendarEndpoints:
         assert e.actualRevenue == 95359000000.0
         assert e.epsSurprisePct == 1.85
         assert e["revenueSurprisePct"] == 0.91
+        assert e.epsBasis == "adjusted"
 
     @patch.object(SentiSenseClient, "_get")
     def test_get_earnings_calendar_passes_filters(self, mock_get, client):
