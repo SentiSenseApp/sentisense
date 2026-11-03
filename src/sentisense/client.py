@@ -261,12 +261,13 @@ class SentiSenseClient:
         ``totalCount`` on preview responses and on paged endpoints, and ``upgrade``
         on previews only. This strips the envelope, parses ``data``, and returns a
         :class:`~sentisense.types.PreviewResult` with ``.is_preview``,
-        ``.preview_reason``, ``.total_count`` and ``.upgrade`` metadata.
+        ``.preview_reason``, ``.total_count``, ``.upgrade`` and ``.sample`` metadata.
         """
         is_preview = json_data.get("isPreview", False)
         preview_reason = json_data.get("previewReason")
         total_count = json_data.get("totalCount")
         upgrade = json_data.get("upgrade")
+        sample = json_data.get("sample")
         data = json_data.get("data", json_data)
 
         if list_cls is not None and isinstance(data, list):
@@ -276,7 +277,7 @@ class SentiSenseClient:
         else:
             parsed = data
 
-        return PreviewResult(parsed, is_preview, preview_reason, total_count, upgrade)
+        return PreviewResult(parsed, is_preview, preview_reason, total_count, upgrade, sample)
 
     # ── Stock endpoints ─────────────────────────────────────────
 
@@ -1047,6 +1048,7 @@ class SentiSenseClient:
             result.total_count,
             result.upgrade,
             ticker=json_data.get("ticker"),
+            sample=result.sample,
         )
 
     def get_recent_earnings(

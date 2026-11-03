@@ -122,3 +122,70 @@ def test_dictionary_annotations_have_no_required_keys():
 def test_positional_construction_keeps_the_existing_arguments():
     assert GraphNode("phone", "Phone", "PRODUCT_OR_SERVICE").category is None
     assert OptionsSummary("2026-08-04", -0.12).listingStatus is None
+
+
+def test_sample_flag_survives_the_preview_envelope():
+    payload = {
+        "isPreview": False,
+        "sample": True,
+        "data": {"ticker": "AAPL", "companyName": "Apple Inc.", "kpis": []},
+    }
+    result = call_with_payload("get_company_kpis", payload, "AAPL")
+    assert result.sample is True
+    assert result.is_preview is False
+    assert result.ticker == "AAPL"
+
+
+def test_sample_flag_survives_the_earnings_summaries_subclass():
+    payload = {"isPreview": False, "sample": True, "ticker": "AAPL", "data": []}
+    result = call_with_payload("get_earnings_summaries", payload, "AAPL")
+    assert result.sample is True
+    assert result.ticker == "AAPL"
+
+
+def test_envelope_without_sample_still_parses():
+    payload = {
+        "isPreview": False,
+        "data": {"ticker": "AAPL", "companyName": "Apple Inc.", "kpis": []},
+    }
+    result = call_with_payload("get_company_kpis", payload, "AAPL")
+    assert result.sample is None
+    assert result.is_preview is False
+
+
+def test_sample_tickers_survive_in_the_upgrade_object():
+    payload = {
+        "isPreview": True,
+        "previewReason": "PRO_REQUIRED",
+        "upgrade": {"plan": "PRO", "message": "Upgrade", "sampleTickers": ["AAPL", "TSLA"]},
+        "data": {"ticker": "MSFT", "companyName": "Microsoft", "kpis": []},
+    }
+    result = call_with_payload("get_company_kpis", payload, "MSFT")
+    assert result.is_preview is True
+    assert result.sample is None
+    assert result.upgrade["sampleTickers"] == ["AAPL", "TSLA"]
+
+
+def test_upgrade_without_sample_tickers_still_parses():
+    payload = {
+        "isPreview": True,
+        "previewReason": "PRO_REQUIRED",
+        "upgrade": {"plan": "PRO", "message": "Upgrade"},
+        "data": {"ticker": "MSFT", "companyName": "Microsoft", "kpis": []},
+    }
+    result = call_with_payload("get_company_kpis", payload, "MSFT")
+    assert result.upgrade.get("sampleTickers") is None
+
+
+def test_kpi_coverage_rows_carry_the_sample_flag_when_present():
+    payload = {
+        "count": 2,
+        "tickers": [
+            {"ticker": "AAPL", "companyName": "Apple Inc.", "lastUpdated": "2026-04-30", "kpiCount": 8, "sample": True},
+            {"ticker": "TSLA", "companyName": "Tesla, Inc.", "lastUpdated": "2026-04-15", "kpiCount": 6},
+        ],
+    }
+    coverage = call_with_payload("list_kpi_coverage", payload)
+    assert coverage.tickers[0].sample is True
+    assert coverage.tickers[1].sample is None
+    assert coverage.tickers[1].kpiCount == 6
