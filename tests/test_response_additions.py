@@ -157,13 +157,13 @@ def test_sample_tickers_survive_in_the_upgrade_object():
     payload = {
         "isPreview": True,
         "previewReason": "PRO_REQUIRED",
-        "upgrade": {"plan": "PRO", "message": "Upgrade", "sampleTickers": ["AAPL", "TSLA"]},
+        "upgrade": {"plan": "PRO", "message": "Upgrade", "sampleTickers": ["TSLA", "MSFT"]},
         "data": {"ticker": "MSFT", "companyName": "Microsoft", "kpis": []},
     }
     result = call_with_payload("get_company_kpis", payload, "MSFT")
     assert result.is_preview is True
     assert result.sample is None
-    assert result.upgrade["sampleTickers"] == ["AAPL", "TSLA"]
+    assert result.upgrade["sampleTickers"] == ["TSLA", "MSFT"]
 
 
 def test_upgrade_without_sample_tickers_still_parses():
