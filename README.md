@@ -510,9 +510,11 @@ A ticker with no stored quarter answers with an empty list rather than a 404. A 
 
 ### Company KPIs (PRO)
 
+Full series are free for the sample companies (`TSLA`, `MSFT`, `NFLX`, `UBER`, `SPOT`, `ABNB`, `PYPL`, `COST`, `RDDT`, `DUOL`, `RBLX`); every other company returns metadata only on a free key and the full series on PRO. For example, `client.get_company_kpis("TSLA")` returns Tesla's full series on a free key.
+
 | Method | Description |
 |--------|-------------|
-| `get_company_kpis(ticker)` | Product metrics and segment revenue as time series. Free keys receive metadata only |
+| `get_company_kpis(ticker)` | Product metrics and segment revenue as time series. Free keys receive the full series for the sample companies and metadata only for the rest |
 | `list_kpi_coverage()` | Every ticker with curated KPI coverage (free, no quota cost) |
 | `get_kpi_types(ticker)` | The KPI metadata tuples for a ticker, without paying for the full series |
 
