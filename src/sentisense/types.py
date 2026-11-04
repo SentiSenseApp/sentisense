@@ -2387,16 +2387,8 @@ class KpiCoverageEntry(APIModel):
     companyName: str = ""
     lastUpdated: str = ""
     kpiCount: int = 0
-    # True for the sample companies (wire key ``sampleCompany``), None otherwise.
-    sample_company: Optional[bool] = None
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "KpiCoverageEntry":
-        if data is None:
-            return None  # type: ignore[return-value]
-        known = {f.name for f in dataclasses.fields(cls)} - {"sample_company"}
-        base = {k: v for k, v in data.items() if k in known}
-        return cls(**base, sample_company=data.get("sampleCompany"))
+    # True for the sample companies, None otherwise. Mirrors the wire key like its siblings.
+    sampleCompany: Optional[bool] = None
 
 
 @dataclass

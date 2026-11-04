@@ -186,8 +186,8 @@ def test_kpi_coverage_rows_carry_the_sample_flag_when_present():
         ],
     }
     coverage = call_with_payload("list_kpi_coverage", payload)
-    assert coverage.tickers[0].sample_company is True
-    assert coverage.tickers[1].sample_company is None
+    assert coverage.tickers[0].sampleCompany is True
+    assert coverage.tickers[1].sampleCompany is None
     assert coverage.tickers[1].kpiCount == 6
 
 
@@ -202,4 +202,5 @@ def test_the_retired_bare_sample_key_is_not_read():
     assert not hasattr(result, "sample")
     row = {"ticker": "AAPL", "kpiCount": 8, "sample": True}
     coverage = call_with_payload("list_kpi_coverage", {"count": 1, "tickers": [row]})
-    assert coverage.tickers[0].sample_company is None
+    assert coverage.tickers[0].sampleCompany is None
+    assert not hasattr(coverage.tickers[0], "sample")
