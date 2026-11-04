@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.70.0
+
+- Responses from endpoints that return a `PreviewResult` gain `.sample_company` (wire key
+  `sampleCompany`): `True` when a free key received full data because the ticker is one of the
+  sample companies, `None` otherwise. It never marks placeholder data.
+- On a `PRO_REQUIRED` preview, `.upgrade` may carry `sampleTickers`, the list of sample
+  companies whose full data a free key can read.
+- KPI coverage rows (`list_kpi_coverage()`) gain an optional `sampleCompany`, `True` on
+  the sample companies.
+
 ## 0.69.0
 
 - `EarningsEvent` (rows of `get_earnings_calendar()`) gains five optional fields:

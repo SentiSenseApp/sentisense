@@ -510,7 +510,7 @@ A ticker with no stored quarter answers with an empty list rather than a 404. A 
 
 ### Company KPIs (PRO)
 
-Full series are free for the sample companies (`TSLA`, `MSFT`, `NFLX`, `UBER`, `SPOT`, `ABNB`, `PYPL`, `COST`, `RDDT`, `DUOL`, `RBLX`); every other company returns metadata only on a free key and the full series on PRO. For example, `client.get_company_kpis("TSLA")` returns Tesla's full series on a free key.
+Full data on 11 sample companies, free, with a preview for every other company: a free key reads the full series for the sample companies and metadata only for the rest, and PRO reads the full series for all. Read `result.sample_company` to see whether a response is a sample, or `result.upgrade["sampleTickers"]` on a preview for the list. See [full sample responses](https://sentisense.ai/docs/api/#full-sample-responses-with-a-free-key). For example, `client.get_company_kpis("TSLA")` returns Tesla's full series on a free key.
 
 | Method | Description |
 |--------|-------------|
