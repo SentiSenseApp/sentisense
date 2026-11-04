@@ -122,8 +122,9 @@ class PreviewResult(Generic[T]):
     ``PRO_REQUIRED`` preview it may also carry ``sampleTickers``, a list of the
     sample companies whose full data a free key can read.
 
-    ``.sample`` is ``True`` only when a free key received the full response
-    because the ticker is one of the sample companies, and ``None`` otherwise.
+    ``.sample_company`` (wire key ``sampleCompany``) is ``True`` only when a free
+    key received real, full data because the ticker is one of the sample
+    companies, and ``None`` otherwise. It never marks placeholder data.
 
     For list-wrapped endpoints (e.g. ``get_politician_members()``), prefer
     ``result.data``, ``list(result)``, or ``for item in result`` over
@@ -137,14 +138,14 @@ class PreviewResult(Generic[T]):
         preview_reason: Optional[str],
         total_count: Optional[int] = None,
         upgrade: Optional[dict] = None,
-        sample: Optional[bool] = None,
+        sample_company: Optional[bool] = None,
     ):
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "is_preview", is_preview)
         object.__setattr__(self, "preview_reason", preview_reason)
         object.__setattr__(self, "total_count", total_count)
         object.__setattr__(self, "upgrade", upgrade)
-        object.__setattr__(self, "sample", sample)
+        object.__setattr__(self, "sample_company", sample_company)
 
     @property
     def data(self) -> T:
@@ -675,9 +676,9 @@ class EarningsSummariesResult(PreviewResult[List[EarningsQuarter]]):
         total_count: Optional[int] = None,
         upgrade: Optional[dict] = None,
         ticker: Optional[str] = None,
-        sample: Optional[bool] = None,
+        sample_company: Optional[bool] = None,
     ):
-        super().__init__(data, is_preview, preview_reason, total_count, upgrade, sample)
+        super().__init__(data, is_preview, preview_reason, total_count, upgrade, sample_company)
         object.__setattr__(self, "ticker", ticker)
 
 
@@ -2386,7 +2387,16 @@ class KpiCoverageEntry(APIModel):
     companyName: str = ""
     lastUpdated: str = ""
     kpiCount: int = 0
-    sample: Optional[bool] = None  # True for the sample companies, absent otherwise
+    # True for the sample companies (wire key ``sampleCompany``), None otherwise.
+    sample_company: Optional[bool] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "KpiCoverageEntry":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)} - {"sample_company"}
+        base = {k: v for k, v in data.items() if k in known}
+        return cls(**base, sample_company=data.get("sampleCompany"))
 
 
 @dataclass
