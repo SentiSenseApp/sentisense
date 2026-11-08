@@ -252,6 +252,14 @@ class TestDetailRequest:
         mock_get.assert_called_once_with(DETAIL_PATH, params={"limit": 10, "changeType": "SOLD_OUT"})
 
     @patch.object(SentiSenseClient, "_get")
+    def test_held_is_sent_as_given_alone_or_combined(self, mock_get, client):
+        mock_get.return_value = _mock_response(DETAIL_PAGE)
+        client.get_institution_detail("Berkshire-Hathaway", limit=5, change_type="HELD")
+        mock_get.assert_called_with(DETAIL_PATH, params={"limit": 5, "changeType": "HELD"})
+        client.get_institution_detail("Berkshire-Hathaway", limit=5, change_type=["HELD", "SOLD_OUT"])
+        mock_get.assert_called_with(DETAIL_PATH, params={"limit": 5, "changeType": "HELD,SOLD_OUT"})
+
+    @patch.object(SentiSenseClient, "_get")
     def test_zero_values_are_still_sent(self, mock_get, client):
         mock_get.return_value = _mock_response(DETAIL_PAGE)
         client.get_institution_detail("Berkshire-Hathaway", limit=5, offset=0, min_weight=0)

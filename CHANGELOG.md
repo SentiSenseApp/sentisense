@@ -9,8 +9,9 @@
   trimmed and exited (`None` otherwise, never zero). `tickers` accepts a list and adds
   `positions`: shares and value per filing for each ticker.
 - `get_institution_detail()` accepts optional `limit`, `offset`, `sort_by`, `sort_dir`,
-  `change_type`, `q` and `min_weight` to page, sort and filter the holdings. Calls without them
-  are unchanged.
+  `change_type`, `q` and `min_weight` to page, sort and filter the holdings. `change_type` also
+  accepts `"HELD"` (every position still held, whatever its change); values combine as a union.
+  Calls without them are unchanged.
 - The `InstitutionDetail` annotation gains `priorTotalValueUsd`, `priorPositionsHeld`, `scope`,
   `comparisonStatus` and `comparisonReportDate`. New `InstitutionHolding`
   (`priorValueUsd`, `priorPortfolioWeight`, `estimatedFlowUsd`) and `InstitutionScope`

@@ -950,8 +950,11 @@ class SentiSenseClient:
                 four place holdings without the field last in either direction.
             sort_dir: ``"desc"`` (server default) or ``"asc"``.
             change_type: Keep only holdings with these change types: one of ``NEW``,
-                ``INCREASED``, ``DECREASED``, ``SOLD_OUT``, ``UNCHANGED``, or a list of
-                them (sent comma-joined).
+                ``INCREASED``, ``DECREASED``, ``SOLD_OUT``, ``UNCHANGED`` or ``HELD``
+                (every position still held, whatever its change, including holdings
+                without a ``changeType``), or a list of them (sent comma-joined).
+                Values combine as a union. A holding's own ``changeType`` never
+                carries ``HELD``.
             q: Case-insensitive match on ticker or company name, up to 100 characters.
             min_weight: Keep holdings whose ``portfolioWeight`` or
                 ``priorPortfolioWeight`` is at least this percent.

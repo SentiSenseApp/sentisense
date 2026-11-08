@@ -390,7 +390,7 @@ detail = cast(InstitutionDetail, client.get_institution_detail("1067983").data)
 print(detail.get("positionsHeld"))  # None when an older response omits it
 ```
 
-Institution detail compares each filing with the quarter before it. When `comparisonStatus` is `AVAILABLE`, the payload carries `priorTotalValueUsd` and `priorPositionsHeld`, and each holding carries `priorValueUsd`, `priorPortfolioWeight` and `estimatedFlowUsd` (dollars bought, positive, or sold, negative, estimated from two quarter-end snapshots rather than a reported trade). Every one of these is absent when it does not apply. Pass `limit` to get a sorted page of holdings, with `sort_by`, `sort_dir`, `change_type` (a string or a list), `q` and `min_weight` to sort and filter it; those four only take effect together with `limit`. When a filter is set, `data["scope"]` sums every matching holding, not just the page:
+Institution detail compares each filing with the quarter before it. When `comparisonStatus` is `AVAILABLE`, the payload carries `priorTotalValueUsd` and `priorPositionsHeld`, and each holding carries `priorValueUsd`, `priorPortfolioWeight` and `estimatedFlowUsd` (dollars bought, positive, or sold, negative, estimated from two quarter-end snapshots rather than a reported trade). Every one of these is absent when it does not apply. Pass `limit` to get a sorted page of holdings, with `sort_by`, `sort_dir`, `change_type` (a string or a list; `"HELD"` keeps every position still held, whatever its change), `q` and `min_weight` to sort and filter it; those four only take effect together with `limit`. When a filter is set, `data["scope"]` sums every matching holding, not just the page:
 
 ```python
 # The ten biggest estimated buys of the latest quarter
