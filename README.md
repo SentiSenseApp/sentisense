@@ -345,7 +345,8 @@ The directory is the only one of these that is not tier-gated, and the only one 
 | `get_stock_holders(ticker, report_date=None, limit=None, offset=None, sort_by=None, sort_dir=None)` | Institutional holders of one stock. Omit the date for the ticker's latest settled quarter |
 | `get_stock_holders_history(ticker, quarters=None)` | One stock's institutional ownership quarter by quarter, newest first: holders, share of the class held, net shares bought or sold, dollar flow |
 | `get_activist_positions(report_date)` | Activist investor positions for a quarter |
-| `get_institution_detail(slug_or_cik)` | One filer's profile, summary stats and current-quarter holdings |
+| `get_institution_detail(slug_or_cik, limit=None, offset=None, sort_by=None, sort_dir=None, change_type=None, q=None, min_weight=None)` | One filer's profile, summary stats and current-quarter holdings, with the prior filing's figures and estimated flows. Optional paging, sorting and filtering of the holdings |
+| `get_institution_history(slug_or_cik, quarters=None, tickers=None)` | One filer's 13F book filing by filing, newest first: value, positions held, top-10 concentration and estimated dollars bought, trimmed and exited. Pass `tickers` for its shares and value in each ticker per filing |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Discover filers, AUM-ranked, rolled up by parent |
 
 The quarter list is newest first, and its first entry is usually still filing. Each
@@ -387,6 +388,31 @@ from sentisense import InstitutionDetail
 
 detail = cast(InstitutionDetail, client.get_institution_detail("1067983").data)
 print(detail.get("positionsHeld"))  # None when an older response omits it
+```
+
+Institution detail compares each filing with the quarter before it. When `comparisonStatus` is `AVAILABLE`, the payload carries `priorTotalValueUsd` and `priorPositionsHeld`, and each holding carries `priorValueUsd`, `priorPortfolioWeight` and `estimatedFlowUsd` (dollars bought, positive, or sold, negative, estimated from two quarter-end snapshots rather than a reported trade). Every one of these is absent when it does not apply. Pass `limit` to get a sorted page of holdings, with `sort_by`, `sort_dir`, `change_type` (a string or a list), `q` and `min_weight` to sort and filter it; those four only take effect together with `limit`. When a filter is set, `data["scope"]` sums every matching holding, not just the page:
+
+```python
+# The ten biggest estimated buys of the latest quarter
+page = client.get_institution_detail(
+    "Berkshire-Hathaway",
+    limit=10,
+    sort_by="estimatedFlowUsd",
+    change_type=["NEW", "INCREASED"],
+)
+for h in page.data["holdings"]:
+    print(h["ticker"], h.get("estimatedFlowUsd"))
+print(page.data["scope"]["estimatedFlowUsd"])  # every matching holding, not only these ten
+```
+
+Institution history returns one row per filing, newest first (`quarters` up to 40, 12 by default). Free keys see the newest four with `total_count` naming the window. The comparison fields (`newPositions`, `boughtUsd`, `netFlowUsd` and the rest) are `None` unless that filing's `comparisonStatus` is `AVAILABLE`, never zero. Pass `tickers` (a list, up to 100) to also get `positions`: each ticker's shares and value per filing, newest first, with filings where the institution did not hold it left out:
+
+```python
+history = client.get_institution_history("Renaissance-Technologies", quarters=8, tickers=["NVDA", "META"])
+for q in history.quarters:
+    print(q.label, q.totalValueUsd, q.netFlowUsd, q.priceEffectUsd)
+for point in history.positions["NVDA"]:
+    print(point.reportDate, point.shares, point.valueUsd)
 ```
 
 **Paging the holder list.** A widely held ticker returns thousands of rows: a megacap quarter is roughly 6,000 holders and 1.5 MB on the wire. Pass `limit` unless you really want the whole list. Omitting every paging argument sends the original unbounded request, so existing code keeps working.

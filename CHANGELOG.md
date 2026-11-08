@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.71.0
+
+- New `get_institution_history(slug_or_cik, quarters=None, tickers=None)`: an institution's 13F
+  book filing by filing, newest first, as `InstitutionHistory`. Each `InstitutionHistoryQuarter`
+  carries the reported value, positions held and top-10 concentration, and, when the filing
+  compares with the quarter before, the position counts and the estimated dollars bought,
+  trimmed and exited (`None` otherwise, never zero). `tickers` accepts a list and adds
+  `positions`: shares and value per filing for each ticker.
+- `get_institution_detail()` accepts optional `limit`, `offset`, `sort_by`, `sort_dir`,
+  `change_type`, `q` and `min_weight` to page, sort and filter the holdings. Calls without them
+  are unchanged.
+- The `InstitutionDetail` annotation gains `priorTotalValueUsd`, `priorPositionsHeld`, `scope`,
+  `comparisonStatus` and `comparisonReportDate`. New `InstitutionHolding`
+  (`priorValueUsd`, `priorPortfolioWeight`, `estimatedFlowUsd`) and `InstitutionScope`
+  annotations describe a holding row and the filtered-set totals. Every new field is optional
+  and absent when it does not apply.
+
 ## 0.70.0
 
 - Responses from endpoints that return a `PreviewResult` gain `.sample_company` (wire key

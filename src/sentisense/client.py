@@ -4,7 +4,7 @@ import math
 import os
 import random
 import time
-from typing import Any, Dict, List, Literal, Optional, Type, TypeVar
+from typing import Any, Dict, List, Literal, Optional, Sequence, Type, TypeVar, Union
 
 import requests
 
@@ -41,6 +41,7 @@ from sentisense.types import (
     InsiderTrade,
     InstitutionalFlow,
     InstitutionalFlows,
+    InstitutionHistory,
     KpiCoverage,
     KpiCoverageEntry,
     KpiSeries,
@@ -888,22 +889,149 @@ class SentiSenseClient:
             self._get("/api/v1/institutional/activist", params={"reportDate": report_date}).json(),
         )
 
-    def get_institution_detail(self, slug_or_cik: str) -> PreviewResult[Dict[str, Any]]:
+    def get_institution_detail(
+        self,
+        slug_or_cik: str,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        sort_by: Optional[
+            Literal[
+                "valueUsd",
+                "shares",
+                "portfolioWeight",
+                "sharesChangePct",
+                "valueChangeUsd",
+                "sharesChange",
+                "estimatedFlowUsd",
+                "priorValueUsd",
+            ]
+        ] = None,
+        sort_dir: Optional[Literal["asc", "desc"]] = None,
+        change_type: Optional[Union[str, Sequence[str]]] = None,
+        q: Optional[str] = None,
+        min_weight: Optional[float] = None,
+    ) -> PreviewResult[Dict[str, Any]]:
         """Get full profile, summary stats, and current-quarter holdings for an institutional filer.
 
         Auto-unwrapped. Check ``result.is_preview`` for tier status. PRO users
         receive the full holdings array; free users receive the top 10 holdings.
+        Omitting every optional argument sends the original request and returns the
+        whole holdings list.
 
         ``data["positionsHeld"]``, when present, counts the full portfolio's
         held positions: ``max(0, holdingsCount - soldOutPositions)``. The exported
         :class:`InstitutionDetail` is an optional-key dictionary annotation;
         the returned payload and signature remain unchanged.
 
+        When the filing compares with the preceding quarter (``comparisonStatus`` is
+        ``"AVAILABLE"``), the payload also carries ``priorTotalValueUsd`` and
+        ``priorPositionsHeld``, and each holding carries ``priorValueUsd``,
+        ``priorPortfolioWeight`` and ``estimatedFlowUsd``. The flow is an estimate
+        from two quarter-end snapshots, not a reported trade. Every one of these is
+        absent when it does not apply.
+
+        Paging and filtering (PRO; a free response ignores them). ``limit`` turns
+        ``holdings`` into a sorted page and adds ``returnedCount`` and ``offset`` to ``data`` and
+        the matching count to ``result.total_count``. ``sort_by``, ``sort_dir``, ``change_type``, ``q``
+        and ``min_weight`` only take effect together with ``limit``. When any of
+        ``change_type``, ``q`` or ``min_weight`` is given, the filters apply before
+        sorting and paging, and ``data["scope"]`` sums every matching holding, not
+        just the page. A bad value raises ``APIError`` with status 400.
+
         Args:
-            slug_or_cik: URL slug (e.g. ``"Berkshire-Hathaway"``) or numeric SEC CIK.
+            slug_or_cik: URL slug (e.g. ``"Berkshire-Hathaway"``) or SEC CIK of 1 to
+                10 digits, with or without leading zeros.
+            limit: Page size, 1 to 1000. Omit for the full list.
+            offset: Start position within the sorted holdings. Server default is 0.
+            sort_by: ``"valueUsd"`` (server default), ``"shares"``, ``"portfolioWeight"``,
+                ``"sharesChangePct"``, ``"valueChangeUsd"`` (``valueUsd - priorValueUsd``),
+                ``"sharesChange"``, ``"estimatedFlowUsd"`` or ``"priorValueUsd"``. The last
+                four place holdings without the field last in either direction.
+            sort_dir: ``"desc"`` (server default) or ``"asc"``.
+            change_type: Keep only holdings with these change types: one of ``NEW``,
+                ``INCREASED``, ``DECREASED``, ``SOLD_OUT``, ``UNCHANGED``, or a list of
+                them (sent comma-joined).
+            q: Case-insensitive match on ticker or company name, up to 100 characters.
+            min_weight: Keep holdings whose ``portfolioWeight`` or
+                ``priorPortfolioWeight`` is at least this percent.
         """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        if sort_by is not None:
+            params["sortBy"] = sort_by
+        if sort_dir is not None:
+            params["sortDir"] = sort_dir
+        if change_type is not None:
+            joined = change_type if isinstance(change_type, str) else ",".join(change_type)
+            if joined:
+                params["changeType"] = joined
+        if q is not None:
+            params["q"] = q
+        if min_weight is not None:
+            params["minWeight"] = min_weight
+        kwargs: Dict[str, Any] = {"params": params} if params else {}
         return self._unwrap(
-            self._get(f"/api/v1/institutional/institution/{slug_or_cik}").json(),
+            self._get(f"/api/v1/institutional/institution/{slug_or_cik}", **kwargs).json(),
+        )
+
+    def get_institution_history(
+        self,
+        slug_or_cik: str,
+        quarters: Optional[int] = None,
+        tickers: Optional[Union[str, Sequence[str]]] = None,
+    ) -> PreviewResult[InstitutionHistory]:
+        """Get an institution's 13F book filing by filing, newest first.
+
+        Auto-unwrapped into :class:`~sentisense.types.InstitutionHistory`. Read the
+        rows as ``result.quarters``; each is an
+        :class:`~sentisense.types.InstitutionHistoryQuarter` with the filing's
+        reported value, positions held and top-10 concentration, and, when the filing
+        compares with the quarter before (``comparisonStatus == "AVAILABLE"``), the
+        position counts and the estimated dollars bought, trimmed and exited. Those
+        comparison fields are ``None`` otherwise, never zero. The flows are estimates
+        from two quarter-end snapshots, not reported cash flow. A 13F covers long
+        US-listed equity only.
+
+        Pass ``tickers`` to also get ``result.positions``: each ticker maps to its
+        shares and value per filing, newest first. A filing in which the institution
+        did not hold the ticker is absent from its list.
+
+        Free keys receive the newest four filings with ``result.is_preview`` set and
+        ``result.total_count`` holding the number of filings in the requested window.
+        The first request for a large multi-filer institution can take a few seconds;
+        when too many such computations run at once the API answers 503 with a
+        ``Retry-After`` header.
+
+        Example::
+
+            history = client.get_institution_history("Renaissance-Technologies", quarters=8, tickers=["NVDA", "META"])
+            for q in history.quarters:
+                print(q.label, q.totalValueUsd, q.netFlowUsd)
+            for point in history.positions["NVDA"]:
+                print(point.reportDate, point.shares, point.valueUsd)
+
+        Args:
+            slug_or_cik: URL slug or SEC CIK, resolved as in :meth:`get_institution_detail`.
+            quarters: How many of the newest filings to return. Server default is 12;
+                values above 40 are capped server-side, and values below 1 are
+                rejected with a 400.
+            tickers: Up to 100 tickers, as a list (sent comma-joined) or an already
+                comma-joined string. A bad symbol or more than 100 is rejected with a 400.
+        """
+        params: Dict[str, Any] = {}
+        if quarters is not None:
+            params["quarters"] = quarters
+        if tickers is not None:
+            joined = tickers if isinstance(tickers, str) else ",".join(tickers)
+            if joined:
+                params["tickers"] = joined
+        return self._unwrap(
+            self._get(f"/api/v1/institutional/institution/{slug_or_cik}/history", params=params).json(),
+            item_cls=InstitutionHistory,
         )
 
     def list_institutions(

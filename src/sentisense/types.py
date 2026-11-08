@@ -43,12 +43,51 @@ class AnalystEstimates(TypedDict, total=False):
     surprises: List[AnalystEarningsSurprise]
 
 
+class InstitutionHolding(TypedDict, total=False):
+    """Optional wire keys for one row of an institution detail's ``holdings``.
+
+    The three ``prior`` and estimated-flow fields are present only when the
+    detail's ``comparisonStatus`` is ``AVAILABLE``. ``estimatedFlowUsd`` is an
+    estimate from two quarter-end snapshots, not a reported trade: positive is
+    dollars bought, negative is dollars sold.
+    """
+
+    ticker: Optional[str]
+    companyName: Optional[str]
+    shares: int
+    valueUsd: int
+    changeType: Optional[str]  # NEW, INCREASED, DECREASED, SOLD_OUT or UNCHANGED.
+    sharesChange: int
+    sharesChangePct: float
+    portfolioWeight: float  # Percent of the filer's portfolio.
+    priorValueUsd: int  # 0 for a NEW position.
+    priorPortfolioWeight: float  # Percent in the comparison filing.
+    estimatedFlowUsd: int
+
+
+class InstitutionScope(TypedDict, total=False):
+    """Optional wire keys for ``data["scope"]`` on a filtered institution detail.
+
+    Each figure is summed over every holding that matches the filters, not just the
+    page returned. ``priorValueUsd`` and ``estimatedFlowUsd`` are present only when
+    the detail's ``comparisonStatus`` is ``AVAILABLE``.
+    """
+
+    count: int
+    valueUsd: int
+    priorValueUsd: int
+    estimatedFlowUsd: int
+
+
 class InstitutionDetail(TypedDict, total=False):
     """Optional wire keys for the dictionary in an institution detail's ``data``.
 
     ``positionsHeld`` is ``max(0, holdingsCount - soldOutPositions)`` for the
-    full portfolio, even when ``holdings`` is paged or truncated. These types
-    are opt-in annotations; the client's return signature stays unchanged.
+    full portfolio, even when ``holdings`` is paged or truncated. ``priorTotalValueUsd``
+    and ``priorPositionsHeld`` describe the comparison filing and are present only
+    when ``comparisonStatus`` is ``AVAILABLE``; ``scope`` is present only on a
+    filtered page. These types are opt-in annotations; the client's return
+    signature stays unchanged.
     """
 
     filerCik: Optional[str]
@@ -63,14 +102,19 @@ class InstitutionDetail(TypedDict, total=False):
     increasedPositions: int
     decreasedPositions: int
     soldOutPositions: int
+    comparisonStatus: Optional[str]
+    comparisonReportDate: Optional[str]  # ISO calendar day, YYYY-MM-DD.
     multiCikRollup: Optional[bool]
     childCikCount: Optional[int]
     childCiks: Optional[List[str]]
-    holdings: Optional[List[Dict[str, Any]]]
+    holdings: Optional[List[InstitutionHolding]]
     optionPositions: List[Dict[str, Any]]
     returnedCount: int
     offset: int
     positionsHeld: int
+    priorTotalValueUsd: int
+    priorPositionsHeld: int
+    scope: InstitutionScope
 
 
 # ── Base ────────────────────────────────────────────────────
@@ -1468,6 +1512,99 @@ class HoldersHistory(APIModel):
         return cls(
             ticker=data.get("ticker", ""),
             quarters=[HoldersHistoryQuarter.from_dict(q) for q in data.get("quarters") or []],
+        )
+
+
+@dataclass
+class InstitutionPositionPoint(APIModel):
+    """One filing's holding of one ticker, from an institution's history."""
+
+    reportDate: str = ""
+    """Quarter end, ISO date (``YYYY-MM-DD``)."""
+    shares: int = 0
+    valueUsd: int = 0
+    """Position value in US dollars."""
+
+
+@dataclass
+class InstitutionHistoryQuarter(APIModel):
+    """One filing of an institution's 13F book.
+
+    Fields marked "AVAILABLE only" are ``None`` unless ``comparisonStatus`` is
+    ``"AVAILABLE"``, meaning the filing compares with the immediately preceding
+    quarter. They are absent, not zero, otherwise: a zero would claim the
+    institution did not trade. The flow figures are estimates from two quarter-end
+    snapshots, not reported cash flow.
+    """
+
+    reportDate: str = ""
+    """Quarter end, ISO date (``YYYY-MM-DD``)."""
+    value: str = ""
+    """Quarter id in ``YYYYQN`` form, e.g. ``"2026Q2"``."""
+    label: str = ""
+    """Display label, e.g. ``"Q2 2026"``."""
+    status: str = ""
+    """``"settled"`` once the quarter's filing deadline has passed, ``"filing"`` before."""
+    comparisonStatus: Optional[str] = None
+    """``"AVAILABLE"``, or one of the other values documented for the institution detail."""
+    comparisonReportDate: Optional[str] = None
+    """The preceding quarter used for the comparison; ``None`` when none applies."""
+    totalValueUsd: int = 0
+    """Reported equity value of the filing, in US dollars."""
+    positionsHeld: int = 0
+    top10Pct: Optional[float] = None
+    """Share of ``totalValueUsd`` in the ten largest positions, in percent."""
+    newPositions: Optional[int] = None
+    """AVAILABLE only. Positions opened."""
+    increasedPositions: Optional[int] = None
+    """AVAILABLE only. Positions added to."""
+    decreasedPositions: Optional[int] = None
+    """AVAILABLE only. Positions trimmed."""
+    soldOutPositions: Optional[int] = None
+    """AVAILABLE only. Positions exited."""
+    boughtUsd: Optional[int] = None
+    """AVAILABLE only. Shares added (new and increased positions) valued at this filing's prices."""
+    trimmedUsd: Optional[int] = None
+    """AVAILABLE only. Shares sold from positions still held, valued at this filing's prices."""
+    exitedUsd: Optional[int] = None
+    """AVAILABLE only. Positions exited, at the previous filing's value."""
+    netFlowUsd: Optional[int] = None
+    """AVAILABLE only. ``boughtUsd - trimmedUsd - exitedUsd``."""
+    priceEffectUsd: Optional[int] = None
+    """AVAILABLE only. The change in ``totalValueUsd`` since the previous filing minus
+    ``netFlowUsd``: the part of the change that came from prices rather than trading."""
+
+
+@dataclass
+class InstitutionHistory(APIModel):
+    """An institution's 13F book filing by filing, newest first.
+
+    ``positions`` is ``None`` unless tickers were requested. Each requested ticker
+    maps to its filings newest first; a filing in which the institution did not hold
+    the ticker is absent from the list.
+    """
+
+    filerCik: str = ""
+    urlSlug: str = ""
+    displayName: str = ""
+    quarters: List[InstitutionHistoryQuarter] = field(default_factory=list)
+    positions: Optional[Dict[str, List[InstitutionPositionPoint]]] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "InstitutionHistory":
+        raw_positions = data.get("positions")
+        positions = None
+        if isinstance(raw_positions, dict):
+            positions = {
+                ticker: [InstitutionPositionPoint.from_dict(p) for p in points or []]
+                for ticker, points in raw_positions.items()
+            }
+        return cls(
+            filerCik=data.get("filerCik", ""),
+            urlSlug=data.get("urlSlug", ""),
+            displayName=data.get("displayName", ""),
+            quarters=[InstitutionHistoryQuarter.from_dict(q) for q in data.get("quarters") or []],
+            positions=positions,
         )
 
 
