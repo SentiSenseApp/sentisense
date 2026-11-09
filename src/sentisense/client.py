@@ -1006,9 +1006,10 @@ class SentiSenseClient:
 
         Free keys receive the newest four filings with ``result.is_preview`` set and
         ``result.total_count`` holding the number of filings in the requested window.
-        The first request for a large multi-filer institution can take a few seconds;
-        when too many such computations run at once the API answers 503 with a
-        ``Retry-After`` header.
+        The first request for a large multi-filer institution can take up to about a
+        minute (later requests are fast), so pass a client ``timeout`` of 60 seconds or
+        more for cold calls; when too many such computations run at once the API answers
+        503 with a ``Retry-After`` header.
 
         Example::
 
