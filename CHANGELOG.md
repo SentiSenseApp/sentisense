@@ -6,7 +6,8 @@
   book filing by filing, newest first, as `InstitutionHistory`. Each `InstitutionHistoryQuarter`
   carries the reported value, positions held and top-10 concentration, and, when the filing
   compares with the quarter before, the position counts and the estimated dollars bought,
-  trimmed and exited (`None` otherwise, never zero). `tickers` accepts a list and adds
+  trimmed and exited (`None` otherwise, never zero); `priceEffectUsd` is the remainder after
+  `netFlowUsd`, mostly price moves. `tickers` accepts a list and adds
   `positions`: shares and value per filing for each ticker.
 - `get_institution_detail()` accepts optional `limit`, `offset`, `sort_by`, `sort_dir`,
   `change_type`, `q` and `min_weight` to page, sort and filter the holdings. `change_type` also

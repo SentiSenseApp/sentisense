@@ -1572,7 +1572,9 @@ class InstitutionHistoryQuarter(APIModel):
     """AVAILABLE only. ``boughtUsd - trimmedUsd - exitedUsd``."""
     priceEffectUsd: Optional[int] = None
     """AVAILABLE only. The change in ``totalValueUsd`` since the previous filing minus
-    ``netFlowUsd``: the part of the change that came from prices rather than trading."""
+    ``netFlowUsd``: the remainder after trading, mostly price moves. It also absorbs
+    rounding, the different price bases of exits (previous filing) and trades (this
+    filing), and positions whose change could not be restated."""
 
 
 @dataclass

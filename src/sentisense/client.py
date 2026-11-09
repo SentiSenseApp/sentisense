@@ -1001,7 +1001,8 @@ class SentiSenseClient:
 
         Pass ``tickers`` to also get ``result.positions``: each ticker maps to its
         shares and value per filing, newest first. A filing in which the institution
-        did not hold the ticker is absent from its list.
+        did not hold the ticker is absent from its list. Free keys receive positions
+        only for the institution's ten largest holdings; other tickers are left out.
 
         Free keys receive the newest four filings with ``result.is_preview`` set and
         ``result.total_count`` holding the number of filings in the requested window.
@@ -1024,6 +1025,8 @@ class SentiSenseClient:
                 rejected with a 400.
             tickers: Up to 100 tickers, as a list (sent comma-joined) or an already
                 comma-joined string. A bad symbol or more than 100 is rejected with a 400.
+                Free keys receive positions only for the institution's ten largest
+                holdings; other tickers are left out.
         """
         params: Dict[str, Any] = {}
         if quarters is not None:
