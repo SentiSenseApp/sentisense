@@ -12,7 +12,7 @@ from sentisense import (
     InstitutionHistoryQuarter,
     InstitutionHolding,
     InstitutionPositionPoint,
-    InstitutionScope,
+    InstitutionMatchTotals,
     SentiSenseClient,
 )
 
@@ -204,7 +204,7 @@ DETAIL_PAGE = {
         ],
         "returnedCount": 1,
         "offset": 0,
-        "scope": {"count": 5, "valueUsd": 900000, "priorValueUsd": 700000, "estimatedFlowUsd": 90000},
+        "matchTotals": {"count": 5, "valueUsd": 900000, "priorValueUsd": 700000, "estimatedFlowUsd": 90000},
     },
 }
 DETAIL_OLD = {
@@ -277,8 +277,8 @@ class TestDetailParsing:
         assert isinstance(detail, dict)
         assert detail["priorTotalValueUsd"] == 280000000000
         assert detail["priorPositionsHeld"] == 38
-        scope = cast(InstitutionScope, detail["scope"])
-        assert scope["estimatedFlowUsd"] == 90000
+        totals = cast(InstitutionMatchTotals, detail["matchTotals"])
+        assert totals["estimatedFlowUsd"] == 90000
         holding = cast(InstitutionHolding, detail["holdings"][0])
         assert holding["priorValueUsd"] == 330000
         assert holding["priorPortfolioWeight"] == 35.0
@@ -289,7 +289,7 @@ class TestDetailParsing:
     def test_a_response_without_the_new_fields_still_parses(self, mock_get, client):
         mock_get.return_value = _mock_response(DETAIL_OLD)
         detail = client.get_institution_detail("Berkshire-Hathaway").data
-        for key in ("priorTotalValueUsd", "priorPositionsHeld", "scope"):
+        for key in ("priorTotalValueUsd", "priorPositionsHeld", "matchTotals"):
             assert key not in detail
         holding = detail["holdings"][0]
         for key in ("priorValueUsd", "priorPortfolioWeight", "estimatedFlowUsd"):
@@ -298,10 +298,10 @@ class TestDetailParsing:
 
     def test_annotations_have_no_required_keys(self):
         assert InstitutionHolding.__total__ is False
-        assert InstitutionScope.__total__ is False
+        assert InstitutionMatchTotals.__total__ is False
         assert InstitutionHolding() == {}
-        assert InstitutionScope() == {}
-        for name in ("priorTotalValueUsd", "priorPositionsHeld", "scope"):
+        assert InstitutionMatchTotals() == {}
+        for name in ("priorTotalValueUsd", "priorPositionsHeld", "matchTotals"):
             assert name in InstitutionDetail.__annotations__
         for name in ("priorValueUsd", "priorPortfolioWeight", "estimatedFlowUsd"):
             assert name in InstitutionHolding.__annotations__

@@ -65,8 +65,8 @@ class InstitutionHolding(TypedDict, total=False):
     estimatedFlowUsd: int
 
 
-class InstitutionScope(TypedDict, total=False):
-    """Optional wire keys for ``data["scope"]`` on a filtered institution detail.
+class InstitutionMatchTotals(TypedDict, total=False):
+    """Optional wire keys for ``data["matchTotals"]`` on a filtered institution detail.
 
     Each figure is summed over every holding that matches the filters, not just the
     page returned. ``priorValueUsd`` and ``estimatedFlowUsd`` are present only when
@@ -85,7 +85,7 @@ class InstitutionDetail(TypedDict, total=False):
     ``positionsHeld`` is ``max(0, holdingsCount - soldOutPositions)`` for the
     full portfolio, even when ``holdings`` is paged or truncated. ``priorTotalValueUsd``
     and ``priorPositionsHeld`` describe the comparison filing and are present only
-    when ``comparisonStatus`` is ``AVAILABLE``; ``scope`` is present only on a
+    when ``comparisonStatus`` is ``AVAILABLE``; ``matchTotals`` is present only on a
     filtered page. These types are opt-in annotations; the client's return
     signature stays unchanged.
     """
@@ -114,7 +114,7 @@ class InstitutionDetail(TypedDict, total=False):
     positionsHeld: int
     priorTotalValueUsd: int
     priorPositionsHeld: int
-    scope: InstitutionScope
+    matchTotals: InstitutionMatchTotals
 
 
 # ── Base ────────────────────────────────────────────────────

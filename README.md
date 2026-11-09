@@ -390,7 +390,7 @@ detail = cast(InstitutionDetail, client.get_institution_detail("1067983").data)
 print(detail.get("positionsHeld"))  # None when an older response omits it
 ```
 
-Institution detail compares each filing with the quarter before it. When `comparisonStatus` is `AVAILABLE`, the payload carries `priorTotalValueUsd` and `priorPositionsHeld`, and each holding carries `priorValueUsd`, `priorPortfolioWeight` and `estimatedFlowUsd` (dollars bought, positive, or sold, negative, estimated from two quarter-end snapshots rather than a reported trade). Every one of these is absent when it does not apply. Pass `limit` to get a sorted page of holdings, with `sort_by`, `sort_dir`, `change_type` (a string or a list; `"HELD"` keeps every position still held, whatever its change), `q` and `min_weight` to sort and filter it; those four only take effect together with `limit`. When a filter is set, `data["scope"]` sums every matching holding, not just the page:
+Institution detail compares each filing with the quarter before it. When `comparisonStatus` is `AVAILABLE`, the payload carries `priorTotalValueUsd` and `priorPositionsHeld`, and each holding carries `priorValueUsd`, `priorPortfolioWeight` and `estimatedFlowUsd` (dollars bought, positive, or sold, negative, estimated from two quarter-end snapshots rather than a reported trade). Every one of these is absent when it does not apply. Pass `limit` to get a sorted page of holdings, with `sort_by`, `sort_dir`, `change_type` (a string or a list; `"HELD"` keeps every position still held, whatever its change), `q` and `min_weight` to sort and filter it; those four only take effect together with `limit`. When a filter is set, `data["matchTotals"]` sums every matching holding, not just the page:
 
 ```python
 # The ten biggest estimated buys of the latest quarter
@@ -402,7 +402,7 @@ page = client.get_institution_detail(
 )
 for h in page.data["holdings"]:
     print(h["ticker"], h.get("estimatedFlowUsd"))
-print(page.data["scope"]["estimatedFlowUsd"])  # every matching holding, not only these ten
+print(page.data["matchTotals"]["estimatedFlowUsd"])  # every matching holding, not only these ten
 ```
 
 Institution history returns one row per filing, newest first (`quarters` up to 40, 12 by default). Free keys see the newest four with `total_count` naming the window. The comparison fields (`newPositions`, `boughtUsd`, `netFlowUsd` and the rest) are `None` unless that filing's `comparisonStatus` is `AVAILABLE`, never zero. Pass `tickers` (a list, up to 100) to also get `positions`: each ticker's shares and value per filing, newest first, with filings where the institution did not hold it left out. Free keys receive `positions` only for the institution's ten largest holdings. `priceEffectUsd` is the remainder after `netFlowUsd`, mostly price moves; it also absorbs rounding, the different price bases of exits and trades, and positions whose change could not be restated:

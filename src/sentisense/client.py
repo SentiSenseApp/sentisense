@@ -936,7 +936,7 @@ class SentiSenseClient:
         the matching count to ``result.total_count``. ``sort_by``, ``sort_dir``, ``change_type``, ``q``
         and ``min_weight`` only take effect together with ``limit``. When any of
         ``change_type``, ``q`` or ``min_weight`` is given, the filters apply before
-        sorting and paging, and ``data["scope"]`` sums every matching holding, not
+        sorting and paging, and ``data["matchTotals"]`` sums every matching holding, not
         just the page. A bad value raises ``APIError`` with status 400.
 
         Args:

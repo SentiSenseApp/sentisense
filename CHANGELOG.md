@@ -13,9 +13,9 @@
   `change_type`, `q` and `min_weight` to page, sort and filter the holdings. `change_type` also
   accepts `"HELD"` (every position still held, whatever its change); values combine as a union.
   Calls without them are unchanged.
-- The `InstitutionDetail` annotation gains `priorTotalValueUsd`, `priorPositionsHeld`, `scope`,
+- The `InstitutionDetail` annotation gains `priorTotalValueUsd`, `priorPositionsHeld`, `matchTotals`,
   `comparisonStatus` and `comparisonReportDate`. New `InstitutionHolding`
-  (`priorValueUsd`, `priorPortfolioWeight`, `estimatedFlowUsd`) and `InstitutionScope`
+  (`priorValueUsd`, `priorPortfolioWeight`, `estimatedFlowUsd`) and `InstitutionMatchTotals`
   annotations describe a holding row and the filtered-set totals. Every new field is optional
   and absent when it does not apply.
 
