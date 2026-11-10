@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.72.0
+
+- `get_tracker()` accepts an optional `filter`, a dict such as `{"state": "TX", "category": "local"}`
+  or the wire string `"state:TX,category:local"`, to narrow a tracker that declares filters.
+  An unknown key or value raises `APIError` with `code == "invalid_filter"` and status 400.
+  Existing calls and keyword parameters such as `scope` are unchanged.
+- `TrackerListing` gains `filters`: a list of `TrackerFilter` (`key`, `values`), `None` on a
+  tracker with no filters.
+- `TrackerTableRow` gains the named cells `ticker`, `endsDate` (ISO date) and `statesNamed`, which
+  were previously dropped while parsing, and `raw`, the row as received. Any other named cell
+  (for example the `market-heatmap` columns) is now readable with `row.get("marketCap")` or
+  `row["marketCap"]`.
+- `TrackerFilter`, `TrackerListing`, `TrackerSnapshot` and `TrackerTableRow` are importable from
+  `sentisense`.
+
 ## 0.71.0
 
 - New `get_institution_history(slug_or_cik, quarters=None, tickers=None)`: an institution's 13F

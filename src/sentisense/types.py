@@ -2882,6 +2882,40 @@ class TrackerListing(APIModel):
     methodologyAnchor: str = ""
     refreshIntervalSeconds: int = 0
     canonicalUrl: str = ""
+    #: What this tracker accepts through ``get_tracker(..., filter=...)``: one
+    #: :class:`TrackerFilter` per key, each with the complete list of accepted
+    #: values. ``None`` on a tracker with no filters.
+    filters: Optional[List["TrackerFilter"]] = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TrackerListing":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = {f.name for f in dataclasses.fields(cls)} - {"filters"}
+        listing = cls(**{k: v for k, v in data.items() if k in known})
+        raw_filters = data.get("filters")
+        if raw_filters is not None:
+            listing.filters = [TrackerFilter.from_dict(f) for f in raw_filters if f is not None]
+        return listing
+
+
+@dataclass
+class TrackerFilter(APIModel):
+    """One filter a tracker accepts, as listed by ``client.list_trackers()``.
+
+    ``key`` is the filter name (e.g. ``"state"``) and ``values`` the complete
+    list of accepted values. Pass them to ``get_tracker`` as
+    ``filter={"state": "TX"}`` or ``filter="state:TX"``.
+    """
+
+    key: str = ""
+    values: List[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TrackerFilter":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return cls(key=data.get("key", ""), values=list(data.get("values") or []))
 
 
 @dataclass
@@ -2931,7 +2965,15 @@ class TrackerHeadlineMetric(APIModel):
 
 @dataclass
 class TrackerTableRow(APIModel):
-    """One row of a ``viewType: "table"`` tracker (e.g. a leaderboard cell)."""
+    """One row of a ``viewType: "table"`` tracker (e.g. a leaderboard cell).
+
+    Besides ``metrics``, a tracker may write named cells directly on the row.
+    The common ones are typed below and are ``None`` when a row has no such
+    value. Every other named cell (for example the ``market-heatmap`` columns
+    such as ``marketCap`` or ``changePercent``) is kept in ``raw``, the row as
+    received, and is readable with ``row.get("marketCap")`` or
+    ``row["marketCap"]``.
+    """
 
     rank: Optional[int] = None
     rowId: str = ""
@@ -2939,18 +2981,45 @@ class TrackerTableRow(APIModel):
     category: Optional[str] = None
     url: Optional[str] = None
     metrics: List[TrackerMetricValue] = field(default_factory=list)
+    #: The stock symbol the row is about, when it is about one company.
+    ticker: Optional[str] = None
+    #: ISO calendar day (``YYYY-MM-DD``) a row's stated term ends, when it has one.
+    endsDate: Optional[str] = None
+    #: Two-letter state codes a record names (``data-center-moratoriums``
+    #: company filings). A row appears under a ``state`` filter for each of them.
+    statesNamed: Optional[List[str]] = None
+    #: The row exactly as received, including named cells not typed above.
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
+
+    def __getitem__(self, key: str) -> Any:
+        if not hasattr(self, key) and key in self.raw:
+            return self.raw[key]
+        return getattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if not hasattr(self, key):
+            return self.raw.get(key, default)
+        return getattr(self, key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key) or key in self.raw
 
     @classmethod
     def from_dict(cls, data: dict) -> "TrackerTableRow":
         if data is None:
             return None  # type: ignore[return-value]
+        states = data.get("statesNamed")
         return cls(
             rank=data.get("rank"),
             rowId=data.get("rowId", ""),
             name=data.get("name", ""),
             category=data.get("category"),
             url=data.get("url"),
-            metrics=[TrackerMetricValue.from_dict(m) for m in data.get("metrics", []) if m is not None],
+            metrics=[TrackerMetricValue.from_dict(m) for m in (data.get("metrics") or []) if m is not None],
+            ticker=data.get("ticker"),
+            endsDate=data.get("endsDate"),
+            statesNamed=list(states) if states is not None else None,
+            raw=dict(data),
         )
 
 

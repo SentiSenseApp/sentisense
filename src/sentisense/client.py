@@ -4,7 +4,7 @@ import math
 import os
 import random
 import time
-from typing import Any, Dict, List, Literal, Optional, Sequence, Type, TypeVar, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Type, TypeVar, Union
 
 import requests
 
@@ -99,6 +99,19 @@ _RETRY_AFTER_STATUSES = frozenset({429, 503})
 # Error code of the monthly-allowance 429. Unlike the per-minute limit it carries no
 # Retry-After and does not clear until the next month, so retrying it only stalls the caller.
 _QUOTA_EXCEEDED_CODE = "quota_exceeded"
+
+
+def _tracker_filter_param(value: Union[str, Mapping[str, str]]) -> str:
+    """Serialize a tracker filter to the wire form ``key:value,key:value``.
+
+    A string passes through unchanged. A mapping keeps its order, so
+    ``{"state": "TX", "category": "local"}`` becomes ``"state:TX,category:local"``.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return ",".join(f"{key}:{val}" for key, val in value.items())
+    raise TypeError("filter must be a string like 'state:TX' or a dict like {'state': 'TX'}")
 
 
 def _is_quota_exceeded(response: "requests.Response") -> bool:
@@ -2751,6 +2764,8 @@ class SentiSenseClient:
     def get_tracker(
         self,
         tracker_id: str,
+        *,
+        filter: Optional[Union[str, Mapping[str, str]]] = None,
         **params: Any,
     ) -> PreviewResult:
         """Return the standardized snapshot envelope for one tracker.
@@ -2769,10 +2784,19 @@ class SentiSenseClient:
         Args:
             tracker_id: Slug from :meth:`list_trackers`, e.g.
                 ``"institution-concentration"``.
-            **params: Provider-specific query parameters (e.g. ``scope="us"``
-                for geographically-scoped trackers like hantavirus). Unknown
-                keys are ignored.
+            filter: Narrows a tracker that declares filters (see
+                ``TrackerListing.filters``). A dict such as
+                ``{"state": "TX", "category": "local"}`` or the wire string
+                ``"state:TX,category:local"``. An unknown key or value, or a
+                filter on a tracker with none, raises :class:`APIError` with
+                ``code == "invalid_filter"`` and ``status_code == 400``.
+            **params: Provider-specific query parameters, e.g.
+                ``scope="nasdaq100"`` for ``market-heatmap`` or ``category=""``
+                for the institution rankings. A ``scope`` the tracker does not
+                serve raises :class:`APIError` with ``code == "invalid_scope"``.
         """
+        if filter is not None:
+            params["filter"] = _tracker_filter_param(filter)
         body = self._get(f"/api/v1/trackers/{tracker_id}", params=params).json()
         return self._unwrap(body, item_cls=TrackerSnapshot)
 

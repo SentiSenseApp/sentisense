@@ -125,7 +125,11 @@ from sentisense.types import (
     StockRating,
     Story,
     StoryCluster,
+    TrackerFilter,
     TrackerListResponse,
+    TrackerListing,
+    TrackerSnapshot,
+    TrackerTableRow,
     WeightedConsensus,
     WeightedNetFlow,
 )
@@ -253,7 +257,11 @@ __all__ = [
     "StockRating",
     "Story",
     "StoryCluster",
+    "TrackerFilter",
     "TrackerListResponse",
+    "TrackerListing",
+    "TrackerSnapshot",
+    "TrackerTableRow",
     "WeightedConsensus",
     "WeightedNetFlow",
 ]

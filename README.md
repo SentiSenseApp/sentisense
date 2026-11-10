@@ -629,14 +629,25 @@ Prices are 15-minute delayed quotes, refreshed at request time during the regula
 | `list_indexes()` | Every published index, with the scale it lives on and its access tier |
 | `get_index(index_id)` | The latest reading for one index |
 | `get_index_history(index_id, days=180)` | An index's historical scalar series, for charting |
-| `list_trackers()` | Every publicly visible tracker, with a `viewType` renderer hint |
-| `get_tracker(tracker_id)` | The standardized snapshot envelope for one tracker |
+| `list_trackers()` | Every publicly visible tracker, with a `viewType` renderer hint and, on trackers that have them, the `filters` it accepts |
+| `get_tracker(tracker_id, filter=None)` | The standardized snapshot envelope for one tracker, optionally narrowed by `filter` |
 
 Iterate `list_indexes` rather than hardcoding ids. Two archetypes share one envelope: a basket index populates `constituents`, `basketSize`, `coverage` and `totalMentions`, while a composite index such as Market Mood returns `None` for all four by construction, because it is built from signals rather than entities. Check for `None` before iterating constituents. Market Mood's phase band, weekly change and sector map live on the mood method, and both report the same headline number.
 
 History point spacing follows the index rather than the calendar, and thin or low-coverage buckets are withheld, so a series can be shorter than the days you asked for and can contain gaps. Plot against each point's own `date`.
 
 For trackers, dispatch on `data.viewType` to pick a renderer: table rows arrive in `rows`, choropleth regions in `geo`.
+
+A tracker that declares `filters` in `list_trackers()` can be narrowed with `filter`, as a dict or as the wire string `"state:TX,category:local"`. The data center moratoriums tracker filters by `state` (a two-letter code, or `FEDERAL`) and `category` (`federal`, `state`, `local`, `governor`, `company-filing`):
+
+```python
+snap = client.get_tracker("data-center-moratoriums", filter={"state": "TX"})
+print(snap.total_count, "Texas records")
+for row in snap.data.rows:
+    print(row.rowId, row.name, row.ticker, row.endsDate, row.statesNamed)
+```
+
+Rows carry the named cells `ticker`, `url`, `endsDate` (ISO date) and `statesNamed` as typed fields, `None` when a row has none. Any other named cell, such as the `market-heatmap` columns, is in `row.raw` and readable with `row.get("marketCap")`. An unknown filter key or value raises `APIError` with `code == "invalid_filter"`, the same way a bad `scope` raises `code == "invalid_scope"`, so a call never comes back unfiltered by accident.
 
 ### Knowledge base
 
