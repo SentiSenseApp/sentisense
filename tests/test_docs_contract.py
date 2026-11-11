@@ -283,3 +283,9 @@ class TestShortSideUnitDocs:
         doc = SentiSenseClient.get_etf_holdings.__doc__ or ""
         assert "``asOfDate``" in doc and "``totalKnownHoldings``" in doc
         assert "as_of_date" not in doc and "total_known_holdings" not in doc
+
+    def test_stock_etfs_docstring_uses_camel_case_names(self):
+        doc = SentiSenseClient.get_stock_etfs.__doc__ or ""
+        for name in ("etfTicker", "etfName", "weightPct", "asOfDate"):
+            assert "``%s``" % name in doc
+        assert "etf_ticker" not in doc and "weight_pct" not in doc and "as_of_date" not in doc

@@ -2617,6 +2617,20 @@ class EtfHolding(APIModel):
 
 
 @dataclass
+class EtfMembership(APIModel):
+    """One ETF that holds a given stock. Returned by ``client.get_stock_etfs``."""
+
+    etfTicker: str = ""  # the fund's ticker
+    etfName: str = ""  # the fund's name; the fund ticker when no name is known
+    # The stock's weight in the fund as a percentage (0-100, so 7.1 means 7.1%). For a
+    # company with several listed share classes it is the combined weight of all classes.
+    weightPct: float = 0.0
+    # ISO date 'YYYY-MM-DD' of this fund's holdings file. Per fund, so it can differ
+    # between rows in one response. None when unknown.
+    asOfDate: Optional[str] = None
+
+
+@dataclass
 class EtfHoldings(APIModel):
     """Full composition for an ETF. Returned by ``client.get_etf_holdings``."""
 

@@ -33,6 +33,7 @@ from sentisense.types import (
     EtfHoldings,
     EtfInfo,
     EtfInsiderAggregate,
+    EtfMembership,
     EtfQuote,
     EtfSentimentAggregate,
     HoldersHistory,
@@ -488,6 +489,37 @@ class SentiSenseClient:
             limit: Maximum number of results (default 5).
         """
         return self._parse_list(self._get(f"/api/v1/stocks/{ticker}/similar", params={"limit": limit}).json(), SimilarStock)
+
+    def get_stock_etfs(self, ticker: str, limit: Optional[int] = None) -> List[EtfMembership]:
+        """List the ETFs that hold a stock, heaviest weight first.
+
+        Returns a bare list of :class:`EtfMembership` rows, not a preview envelope, on
+        every tier. Each row carries ``etfTicker``, ``etfName``, ``weightPct`` (the
+        stock's weight in that fund as a percentage, 0 to 100, so ``7.1`` means 7.1%)
+        and ``asOfDate`` (the ISO date of that fund's holdings file, ``None`` when
+        unknown). The date is per fund, so rows in one response can carry different
+        dates. For a company with several listed share classes (GOOGL and GOOG, BRK.B
+        and BRK.A) ``weightPct`` is the combined weight of all the classes in that fund,
+        and every class returns the same rows.
+
+        Rows are sorted by ``weightPct`` descending, then ``etfTicker`` ascending. A
+        ticker no tracked fund holds, or an unknown ticker, returns ``[]`` rather than
+        raising. Only funds SentiSense tracks with a holdings file are searched, and
+        some funds' holdings are partial, so the list is not every fund in the market.
+
+        Counts against the monthly quota like other data endpoints.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., ``"NVDA"``). Case-insensitive.
+            limit: Return at most this many rows. Omit it, or pass ``0`` or a negative
+                number, to get every row.
+        """
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        return self._parse_list(
+            self._get(f"/api/v1/stocks/{ticker}/etfs", params=params).json(), EtfMembership
+        )
 
     def get_stock_chart(self, ticker: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
         """Get OHLCV chart data for a stock.

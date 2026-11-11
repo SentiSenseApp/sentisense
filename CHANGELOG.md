@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.73.0
+
+- New `get_stock_etfs(ticker, limit=None)`: the ETFs SentiSense tracks that hold a stock, heaviest
+  weight first, as a list of `EtfMembership` (`etfTicker`, `etfName`, `weightPct`, `asOfDate`).
+  `weightPct` is a percentage (0 to 100), combined across share classes for a company with several;
+  `asOfDate` is an ISO date and is per fund. `limit` caps the rows; omit it for all of them. A
+  ticker no tracked fund holds returns `[]`. It returns a bare list on every tier.
+- `EtfMembership` is importable from `sentisense`.
+
 ## 0.72.0
 
 - `get_tracker()` accepts an optional `filter`, a dict such as `{"state": "TX", "category": "local"}`

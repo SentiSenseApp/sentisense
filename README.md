@@ -158,6 +158,7 @@ Every typed dataclass also supports dict-style access, so `price["currentPrice"]
 | `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products, organizations) |
 | `get_stock_graph(ticker, depth=1, cap=75)` | Company knowledge graph: people, products, product families and peers, keyed by slug, with typed relationships |
 | `get_similar_stocks(ticker, limit=5)` | Peer stocks with their current prices |
+| `get_stock_etfs(ticker, limit=None)` | The ETFs that hold a stock, heaviest weight first: `etfTicker`, `etfName`, `weightPct` and the fund's `asOfDate` |
 | `get_stock_ai_summary(ticker, depth="basic")` | Curated AI research report. `depth="deep"` returns the full report and consumes one report view |
 | `get_stock_chart(ticker, timeframe="1M")` | OHLCV bars, returned as a bare list, oldest first |
 | `get_all_stocks()` | The tracked universe: every ticker SentiSense covers |
@@ -167,6 +168,13 @@ Every typed dataclass also supports dict-style access, so `price["currentPrice"]
 Price fields carry `priceAsOf` in Unix milliseconds for the age of the market data. Read that for freshness rather than `timestamp`, which records when the response was served and therefore always reads as now. During pre-market and after-hours a nested `extendedHours` object appears next to the regular-session price.
 
 Chart timeframes are `1D`, `5D`, `1W`, `1M`, `3M`, `6M`, `1Y`, `5Y`, `10Y` and `MAX` (`ALL` is a legacy alias of `5Y`). Only `10Y` and `MAX` are dividend-adjusted; `5Y` and shorter are split-adjusted only, so do not compare a `10Y` close against a `1Y` close for the same day. Deep ranges answer `202` the first time a rarely-requested stock is asked for, which the SDK retries for you (see [Error Handling](#error-handling)).
+
+`get_stock_etfs` returns a bare list (no preview envelope) on every tier. `weightPct` is the stock's weight in the fund as a percentage (0 to 100), summed across share classes for a company with several; `asOfDate` is that fund's own holdings date, so it can differ between rows. It searches only the funds SentiSense tracks with a holdings file, some of which are partial, so it is not every fund in the market. A ticker no tracked fund holds returns `[]`. See the [API reference](https://sentisense.ai/docs/api/stocks/#get-stock-etfs).
+
+```python
+for fund in client.get_stock_etfs("NVDA", limit=3):
+    print(fund.etfTicker, fund.weightPct, fund.asOfDate)
+```
 
 Product nodes (`type == "PRODUCT_OR_SERVICE"`) in `get_stock_graph` now carry `category` when known. Other nodes and products without a category read as `None`.
 

@@ -12,6 +12,7 @@ from sentisense import (
     EtfInfo,
     EtfInsiderAggregate,
     EtfInsiderContributor,
+    EtfMembership,
     EtfQuote,
     EtfSentimentAggregate,
     ExtendedHoursInfo,
@@ -367,3 +368,79 @@ class TestGetEtfQuote:
         assert isinstance(q, EtfQuote)
         assert q.ticker == "QQQ"
         assert isinstance(q.extendedHours, ExtendedHoursInfo)
+
+
+STOCK_ETF_ROWS = [
+    {"etfTicker": "XLK", "etfName": "Technology Select Sector SPDR Fund", "weightPct": 14.2, "asOfDate": "2026-01-15"},
+    {"etfTicker": "VGT", "etfName": "Vanguard Information Technology ETF", "weightPct": 9.8, "asOfDate": "2026-01-10"},
+]
+
+
+def _json_response(payload):
+    resp = MagicMock()
+    resp.ok = True
+    resp.status_code = 200
+    resp.json.return_value = payload
+    return resp
+
+
+class TestEtfMembership:
+    def test_from_dict_full(self):
+        row = EtfMembership.from_dict(STOCK_ETF_ROWS[0])
+        assert row.etfTicker == "XLK"
+        assert row.etfName == "Technology Select Sector SPDR Fund"
+        assert row.weightPct == 14.2
+        assert row.asOfDate == "2026-01-15"
+        assert row["etfTicker"] == "XLK"
+
+    def test_missing_as_of_date_reads_none(self):
+        row = EtfMembership.from_dict({"etfTicker": "XLK", "etfName": "XLK", "weightPct": 3.0})
+        assert row.asOfDate is None
+
+    def test_unknown_fields_are_ignored(self):
+        row = EtfMembership.from_dict({**STOCK_ETF_ROWS[0], "futureField": 1})
+        assert row.etfTicker == "XLK"
+        assert not hasattr(row, "futureField")
+
+
+class TestGetStockEtfs:
+    def _client(self, payload):
+        client = SentiSenseClient("test-api-key")
+        client.session.get = MagicMock(return_value=_json_response(payload))
+        return client
+
+    def test_path_and_parsing(self):
+        client = self._client(STOCK_ETF_ROWS)
+        rows = client.get_stock_etfs("NVDA")
+        url = client.session.get.call_args.args[0]
+        assert url.endswith("/api/v1/stocks/NVDA/etfs")
+        assert len(rows) == 2
+        assert all(isinstance(r, EtfMembership) for r in rows)
+        assert [r.etfTicker for r in rows] == ["XLK", "VGT"]
+        assert rows[1].weightPct == 9.8
+        assert rows[1].asOfDate == "2026-01-10"
+
+    @pytest.mark.parametrize("ticker", ["NVDA", "nvda", "Nvda"])
+    def test_ticker_case_is_passed_through_for_the_server_to_normalise(self, ticker):
+        client = self._client([])
+        client.get_stock_etfs(ticker)
+        assert client.session.get.call_args.args[0].endswith("/api/v1/stocks/%s/etfs" % ticker)
+
+    def test_limit_is_not_sent_when_omitted(self):
+        client = self._client([])
+        client.get_stock_etfs("NVDA")
+        assert not client.session.get.call_args.kwargs.get("params")
+
+    @pytest.mark.parametrize("limit", [5, 0, -1])
+    def test_limit_is_sent_when_given(self, limit):
+        client = self._client([])
+        client.get_stock_etfs("NVDA", limit=limit)
+        assert client.session.get.call_args.kwargs["params"] == {"limit": limit}
+
+    def test_empty_list(self):
+        assert self._client([]).get_stock_etfs("ZZZZ") == []
+
+    def test_row_without_as_of_date(self):
+        rows = self._client([{"etfTicker": "XLK", "etfName": "XLK", "weightPct": 3.0}]).get_stock_etfs("NVDA")
+        assert rows[0].asOfDate is None
+        assert rows[0].weightPct == 3.0
