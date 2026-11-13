@@ -43,6 +43,33 @@ class AnalystEstimates(TypedDict, total=False):
     surprises: List[AnalystEarningsSurprise]
 
 
+class AnalystAction(TypedDict, total=False):
+    """Wire keys for one analyst rating action; the client keeps returning dictionaries.
+
+    Rows come from :meth:`SentiSenseClient.get_analyst_actions` and
+    :meth:`SentiSenseClient.get_analyst_market_activity`.
+
+    ``priceTarget`` is the price target the firm stated with this action, and
+    ``priorPriceTarget`` the target it moved from, both raw as the firm stated them
+    on the day. Read the pair as "400 to 200" when both are set. Each is ``None``
+    when the firm stated none or we do not hold it, never zero; ``priorPriceTarget``
+    is also ``None`` when the firm kept its target unchanged, and always ``None``
+    when ``priceTarget`` is. Both are PRO (and sample companies): every free
+    preview row carries ``None`` for both. Firms do not restate old targets after a
+    stock split, so per-ticker rows dated before a split carry ``None`` for both.
+    Both keys are absent on older responses, so read them with ``row.get(...)``.
+    """
+
+    ticker: str
+    actionDate: str  # ISO calendar day, YYYY-MM-DD.
+    firm: str
+    actionType: str  # UPGRADE, DOWNGRADE, INITIATE, REITERATE or OTHER.
+    fromGrade: Optional[str]
+    toGrade: Optional[str]
+    priceTarget: Optional[float]
+    priorPriceTarget: Optional[float]
+
+
 class InstitutionHolding(TypedDict, total=False):
     """Optional wire keys for one row of an institution detail's ``holdings``.
 

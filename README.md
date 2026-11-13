@@ -456,9 +456,9 @@ The price target cone (mean, high, low, upside percent) and the consensus are fr
 | `get_analyst_consensus(ticker)` | Price target band, analyst count, upside percent. Free for everyone, full data |
 | `get_analyst_consensus_history(ticker, from_date=None, to_date=None, limit=None)` | Daily consensus observations. Free: last 30 days with distribution fields null |
 | `get_analyst_called_it(ticker, limit=None)` | Recorded call history for moves of 20% or more over five sessions. Free: newest move, up to 5 calls, move counts intact |
-| `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrades and downgrades. Free: the 3 most recent |
+| `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrades and downgrades, each with the firm's price target and prior target (PRO). Free: the 3 most recent, targets `None` |
 | `get_analyst_estimates(ticker)` | Forward EPS estimates and surprise history. Free: 1 quarter. `data["ticker"]` names the listing the per-share figures are for (`BRK-A` answers `BRK.B`) |
-| `get_analyst_market_activity(lookback_days=30)` | Market-wide analyst actions across all covered tickers (PRO) |
+| `get_analyst_market_activity(lookback_days=30)` | Market-wide analyst actions across all covered tickers, same row keys as `get_analyst_actions` (PRO) |
 | `get_analyst_coverage(ticker, lookback_days=None)` | Who covers this stock, grouped by firm. Free: the 5 most recently active firms |
 | `get_analyst_profile(slug)` | One analyst: firms published under, and their coverage book. Free: 5 tickers |
 | `get_analyst_calls(slug, limit=None, offset=None)` | One analyst's price target notes, newest first, paged. Free: the first 25 |
@@ -493,6 +493,16 @@ for row in book["coverage"][:5]:
 Two shapes to read rather than assume. A firm can appear with `noteCount` 0, a `None` `latestNote` and a populated `firmRating`, because coverage means a price target **or** a rating action in the window. And a large, publisher-dependent share of notes name no individual, so an empty `analysts` list alongside a non-zero `noteCount` is normal: read `attributedNoteCount` and `unattributedNoteCount` on the response you received rather than hardcoding a rate. The response-level counts survive the free truncation, so they describe the whole window even when only 5 rows come back.
 
 `ratingBuckets` sizes the same book by rating tier: `buy`, `hold`, `sell`, `unrated` and `total`, counted over every covering firm before the free truncation, so `buy + hold + sell + unrated == total` and a free key reads the same numbers as a PRO one. `unrated` is a desk with no current rating on record, such as a price-target-only firm. These count the firms in this coverage book, a different population from the `strongBuy` through `strongSell` figures on `get_analyst_consensus`, which come from the provider's analyst survey. Read one or the other, do not reconcile them.
+
+Action rows carry `priceTarget`, the target the firm stated with the action, and `priorPriceTarget`, the target it moved from. Each is `None` when the firm stated none or we do not hold it, never zero; `priorPriceTarget` is also `None` when the firm kept its target unchanged, and always `None` when `priceTarget` is. Both are PRO (and sample companies): free preview rows carry `None` for both. Firms do not restate old targets after a stock split, so per-ticker rows dated before a split carry `None` for both; the market-wide feed skips that check, so read a stock that split from `get_analyst_actions`. Rows remain dictionaries; the exported `AnalystAction` type annotates them. Use `.get("priceTarget")` to support older responses.
+
+```python
+actions = client.get_analyst_actions("NVDA", lookback_days=7)
+for row in actions.data:
+    target, prior = row.get("priceTarget"), row.get("priorPriceTarget")
+    if target is not None and prior is not None and target < prior:
+        print(f"{row['actionDate']} {row['firm']} cut its target from {prior:g} to {target:g}")
+```
 
 Surprise rows now carry optional `surprisePct`, the signed true percent rounded half-up to two decimals: `(actualEps - estimateEps) * 100 / abs(estimateEps)`. It is `None` when either EPS is missing or the estimate is zero. The existing `surprisePercent` fraction is unchanged (`0.03` means about 3%). Rows remain dictionaries; the exported optional-key `AnalystEarningsSurprise` type can annotate them with `typing.cast`. Use `.get("surprisePct")` to support older responses.
 

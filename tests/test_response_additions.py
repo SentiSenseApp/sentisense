@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sentisense import (
+    AnalystAction,
     AnalystEarningsSurprise,
     GraphNode,
     InstitutionDetail,
@@ -204,3 +205,47 @@ def test_the_retired_bare_sample_key_is_not_read():
     coverage = call_with_payload("list_kpi_coverage", {"count": 1, "tickers": [row]})
     assert coverage.tickers[0].sampleCompany is None
     assert not hasattr(coverage.tickers[0], "sample")
+
+
+@pytest.mark.parametrize("method,args", [
+    ("get_analyst_actions", ("NVDA",)),
+    ("get_analyst_market_activity", ()),
+])
+def test_action_rows_carry_price_target_and_prior(method, args):
+    result = call_with_payload(method, PAYLOADS["analystActions"], *args)
+    rows = result.data
+    assert isinstance(rows, list)
+    assert all(isinstance(row, dict) for row in rows)
+    barclays, blair, bernstein = (cast(AnalystAction, row) for row in rows)
+    assert bernstein["firm"] == "Bernstein"
+    assert bernstein["priceTarget"] == 200.0
+    assert bernstein["priorPriceTarget"] == 400.0
+    # A kept target serves no prior; a row with no stated target serves neither.
+    assert barclays["priceTarget"] == 210.0
+    assert barclays["priorPriceTarget"] is None
+    assert blair["priceTarget"] is None
+    assert blair["priorPriceTarget"] is None
+
+
+def test_free_preview_action_rows_carry_null_targets():
+    result = call_with_payload("get_analyst_actions", PAYLOADS["analystActionsPreview"], "NVDA")
+    assert result.is_preview
+    row = result.data[0]
+    assert row["priceTarget"] is None
+    assert row["priorPriceTarget"] is None
+
+
+def test_action_rows_without_targets_still_parse():
+    result = call_with_payload("get_analyst_actions", PAYLOADS["analystActionsLegacy"], "NVDA")
+    row = result.data[0]
+    assert row["toGrade"] == "Market Perform"
+    assert row.get("priceTarget") is None
+    assert row.get("priorPriceTarget") is None
+
+
+def test_analyst_action_annotation_names_the_wire_keys():
+    keys = AnalystAction.__annotations__
+    for key in ("ticker", "actionDate", "firm", "actionType", "fromGrade", "toGrade",
+                "priceTarget", "priorPriceTarget"):
+        assert key in keys
+    assert AnalystAction.__total__ is False

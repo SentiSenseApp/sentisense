@@ -213,5 +213,71 @@
         "PRODUCT_OR_SERVICE": 2
       }
     }
+  },
+  "analystActions": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": [
+      {
+        "ticker": "NVDA",
+        "actionDate": "2026-11-13",
+        "firm": "Barclays",
+        "toGrade": "Overweight",
+        "fromGrade": "Overweight",
+        "actionType": "REITERATE",
+        "priceTarget": 210.0,
+        "priorPriceTarget": null
+      },
+      {
+        "ticker": "NVDA",
+        "actionDate": "2026-11-12",
+        "firm": "William Blair",
+        "toGrade": "Market Perform",
+        "fromGrade": "Outperform",
+        "actionType": "DOWNGRADE",
+        "priceTarget": null,
+        "priorPriceTarget": null
+      },
+      {
+        "ticker": "NVDA",
+        "actionDate": "2026-11-12",
+        "firm": "Bernstein",
+        "toGrade": "Market Perform",
+        "fromGrade": "Outperform",
+        "actionType": "DOWNGRADE",
+        "priceTarget": 200.0,
+        "priorPriceTarget": 400.0
+      }
+    ]
+  },
+  "analystActionsPreview": {
+    "isPreview": true,
+    "previewReason": "PRO_REQUIRED",
+    "data": [
+      {
+        "ticker": "NVDA",
+        "actionDate": "2026-11-12",
+        "firm": "Bernstein",
+        "toGrade": "Market Perform",
+        "fromGrade": "Outperform",
+        "actionType": "DOWNGRADE",
+        "priceTarget": null,
+        "priorPriceTarget": null
+      }
+    ]
+  },
+  "analystActionsLegacy": {
+    "isPreview": false,
+    "previewReason": null,
+    "data": [
+      {
+        "ticker": "NVDA",
+        "actionDate": "2026-11-12",
+        "firm": "Bernstein",
+        "toGrade": "Market Perform",
+        "fromGrade": "Outperform",
+        "actionType": "DOWNGRADE"
+      }
+    ]
   }
 }

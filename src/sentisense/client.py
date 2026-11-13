@@ -1968,6 +1968,16 @@ class SentiSenseClient:
 
         Free users receive the 3 most recent actions; PRO users receive the full list.
 
+        Each row is a dictionary with ``ticker``, ``actionDate`` (ISO date), ``firm``,
+        ``actionType``, ``fromGrade``, ``toGrade``, ``priceTarget`` and
+        ``priorPriceTarget``. ``priceTarget`` is the target the firm stated with the
+        action and ``priorPriceTarget`` the target it moved from; each is ``None`` when
+        the firm stated none or we do not hold it, and ``priorPriceTarget`` is ``None``
+        when the target was kept unchanged. Both are PRO: free preview rows carry
+        ``None`` for both. Rows dated before a split of the ticker carry ``None`` for
+        both, because firms do not restate old targets. The exported
+        :class:`AnalystAction` annotates these keys.
+
         Args:
             ticker: Stock ticker symbol.
             lookback_days: Days of history to return (default 90).
@@ -2027,6 +2037,12 @@ class SentiSenseClient:
         """Get market-wide recent analyst actions across all covered tickers.
 
         Free users receive the 5 most recent actions; PRO users receive the full list.
+
+        Rows have the same keys as :meth:`get_analyst_actions`, including
+        ``priceTarget`` and ``priorPriceTarget`` (PRO; ``None`` on free preview rows).
+        This feed does not check for stock splits, so for a stock that split inside
+        the window, read its targets from :meth:`get_analyst_actions`. The exported
+        :class:`AnalystAction` annotates these keys.
 
         Args:
             lookback_days: Days of history to return (default 30).

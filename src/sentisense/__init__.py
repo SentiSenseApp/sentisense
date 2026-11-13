@@ -12,6 +12,7 @@ from sentisense.exceptions import (
     TemporarilyUnavailable,
 )
 from sentisense.types import (
+    AnalystAction,
     AnalystEarningsSurprise,
     AnalystEstimates,
     AssetMetadata,
@@ -136,6 +137,7 @@ from sentisense.types import (
 )
 
 __all__ = [
+    "AnalystAction",
     "AnalystEarningsSurprise",
     "AnalystEstimates",
     "InstitutionDetail",

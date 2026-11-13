@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.74.0
+
+- Analyst action rows from `get_analyst_actions()` and `get_analyst_market_activity()` carry
+  `priceTarget`, the price target the firm stated with the action, and `priorPriceTarget`, the
+  target it moved from. Each is `None` when the firm stated none or the row is not covered, never
+  zero; `priorPriceTarget` is also `None` when the firm kept its target unchanged. Both are PRO:
+  free preview rows carry `None` for both. Rows dated before a split of the ticker carry `None`
+  for both on `get_analyst_actions()`. Rows remain dictionaries, and calls are unchanged.
+- New exported `AnalystAction` type annotates the keys of an action row.
+
 ## 0.73.0
 
 - New `get_stock_etfs(ticker, limit=None)`: the ETFs SentiSense tracks that hold a stock, heaviest
