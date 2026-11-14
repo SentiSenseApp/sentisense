@@ -4,23 +4,17 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/sentisense.svg)](https://pypi.org/project/sentisense/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Official Python SDK for the [SentiSense](https://sentisense.ai) market intelligence API: stock prices and fundamentals, news and social sentiment, the SentiSense Score, the SentiSense Rating, insider and congressional trading, institutional 13F flows, analyst ratings, earnings analysis, ETF aggregates, and a cross-signal screener.
+The official Python client for the [SentiSense](https://sentisense.ai) API. One client gets you prices and fundamentals, news and social sentiment, the SentiSense Score and Rating, insider and congressional trades, 13F holdings, analyst ratings, earnings, options positioning, ETFs and a screener that mixes all of them.
 
-- Typed dataclasses for every response, each one still readable with dict-style access
-- One flat client, so there are no resource namespaces to learn
-- Tier-gated responses are unwrapped for you, so preview and full data read the same way
-- Automatic retries on rate limits and on deep chart history, plus a typed exception hierarchy
-- Ships `py.typed`, supports Python 3.8 and up, and depends only on `requests`
-
-Get a free API key at [app.sentisense.ai/get-api-key](https://app.sentisense.ai/get-api-key). Full API docs at [sentisense.ai/docs/api](https://sentisense.ai/docs/api/).
+The client is one flat class with typed results. It retries rate limits and depends only on `requests` (Python 3.8+).
 
 ## Contents
 
 - [Install](#install)
 - [Quick Start](#quick-start)
 - [Authentication and Configuration](#authentication-and-configuration)
-- [Response Shapes](#response-shapes)
-- [API Reference](#api-reference)
+- [Reading responses](#reading-responses)
+- [What you can call](#what-you-can-call)
 - [Error Handling](#error-handling)
 
 ## Install
@@ -29,578 +23,297 @@ Get a free API key at [app.sentisense.ai/get-api-key](https://app.sentisense.ai/
 pip install sentisense
 ```
 
+You need an API key. The free one at [app.sentisense.ai/get-api-key](https://app.sentisense.ai/get-api-key) works with every endpoint. If you have Node, `npx sentisense init` gets you a temporary key without signing up.
+
 ## Quick Start
 
 ```python
 from sentisense import SentiSenseClient
 
-client = SentiSenseClient("your-api-key")
+client = SentiSenseClient()   # reads SENTISENSE_API_KEY from the environment
 
-# The tracked universe: every ticker SentiSense covers
-tickers = client.get_all_stocks()          # ["A", "AAL", "AAPL", ...]
-print(len(tickers), "stocks tracked")
-
-# Same universe with company names and knowledge base entity ids
+# Which stocks are covered, with names
+tickers = client.get_all_stocks()              # ["A", "AAL", "AAPL", ...]
 detailed = client.get_all_stocks_detailed()
-print(detailed[0].ticker, detailed[0].simpleName, detailed[0].kbEntityId)
+print(len(tickers), "stocks;", detailed[0].ticker, detailed[0].simpleName)
 
-# Latest price for one stock, and for several
-price = client.get_stock_price("AAPL")
+# A quick read on one stock
+price = client.get_stock_price("NVDA")
 print(price.currentPrice, price.changePercent)
-prices = client.get_stock_prices(["AAPL", "MSFT", "GOOGL"])
 
-# Is the market open right now
-status = client.get_market_status()
-
-# Latest news for a stock, and a search across news and social
-news = client.get_documents_by_ticker("TSLA", source="news", days=7)
-results = client.search_documents("AI earnings surprise")
-for doc in results.documents:
-    print(doc.url, doc.averageSentiment)
-
-# Mention volume over time (v2 metrics API)
-mentions = client.get_metrics("NVDA", metric_type="mentions")
-
-# Sentiment polarity over time, each reading in [-1, 1]
-sentiment = client.get_metrics("NVDA", metric_type="sentiment")
-
-# The SentiSense Score: sentiment weighted by attention, unbounded
 score = client.get_metrics("NVDA", metric_type="sentisense_score")
-print(score[-1]["value"])   # latest reading, e.g. 51.3
+print("SentiSense Score:", score[-1]["value"])
 
-# Daily App Store ratings for a product entity with an app (an entity slug, not a ticker)
-ratings = client.get_metrics("Instagram", metric_type="app_all_ratings_count")
+for story in client.get_stories_by_ticker("NVDA", limit=3):
+    print(story.cluster.title)
 
-# Share of mentions by source (valueType "SHARE_PERCENT")
-dist = client.get_metrics_distribution("NVDA", metric_type="mentions", dimension="source")
-
-# Mean sentiment by source, in [-1, 1] (valueType "MEAN")
-tone = client.get_metrics_distribution("NVDA", metric_type="sentiment", dimension="source")
+for trade in client.get_insider_trades("NVDA")[:5]:
+    print(trade.insiderName, trade.transactionCode, trade.sharesTransacted)
 ```
 
 ## Authentication and Configuration
 
-Every endpoint requires an API key. Generate one from the [Developer Console](https://app.sentisense.ai/get-api-key). Omit `api_key` and the client reads the `SENTISENSE_API_KEY` environment variable.
+Pass the key as the first argument, or leave it out and the client reads `SENTISENSE_API_KEY`. Keep it in the environment rather than in your code, so it never lands in git.
 
 ```python
-import os
-from sentisense import SentiSenseClient
-
-client = SentiSenseClient(
-    os.environ["SENTISENSE_API_KEY"],   # Get yours at app.sentisense.ai/get-api-key
-    base_url="https://app.sentisense.ai",
-    timeout=30.0,
-    max_retries=3,
-)
+client = SentiSenseClient(timeout=30.0, max_retries=3)
 ```
 
 | Argument | Default | What it does |
 |----------|---------|--------------|
-| `api_key` | optional, positional | Falls back to the `SENTISENSE_API_KEY` environment variable when omitted. Sent as the `X-SentiSense-API-Key` header on every request. |
-| `base_url` | `https://app.sentisense.ai` | Override for a non-production host. |
-| `timeout` | `30.0` | Per-request timeout in seconds. |
-| `max_retries` | `3` | Retries the per-minute 429 and 5xx. The monthly-allowance 429 is never retried. Set `0` to fail fast. |
+| `api_key` | `SENTISENSE_API_KEY` | Your key, sent as the `X-SentiSense-API-Key` header |
+| `base_url` | `https://app.sentisense.ai` | Change it only to point at another host |
+| `timeout` | `30.0` | Seconds per request |
+| `max_retries` | `3` | Retries for the per-minute 429 and server errors. Set `0` to handle them yourself |
 
-All three options are keyword-only. Retries honour a `Retry-After` header when the server sends one, clamped so an oversized value cannot wedge the calling thread, and fall back to exponential backoff with jitter otherwise. Since this client is synchronous, a retry blocks the thread that called it.
+## Reading responses
 
-Keep the key in the environment rather than in source. Committing a literal key leaks it into git history and into every registry security scan that reads your repo.
+Most methods return a typed object or a list of them. Every object also works like a dict, so `price.currentPrice` and `price["currentPrice"]` are the same.
 
-## Response Shapes
-
-Most methods hand back the payload directly. Two families wrap it, and one of the two is a proxy that mostly lets you forget it is there.
-
-**1. Tier-gated endpoints return a `PreviewResult`.** The payload is in `.data`, `.is_preview` says whether your tier saw a truncated view, `.preview_reason` says why, and `.total_count` is the size of the full set behind the response. It is a transparent proxy, so you can also iterate it, index it, and read the payload's own attributes straight off the wrapper.
+Endpoints with a free preview return a `PreviewResult`. You read it exactly like the full data, and it tells you whether you got a preview:
 
 ```python
-# Object-wrapped: attribute access reads through to the payload
-flows = client.get_institutional_flows()
-print(flows.reportDate, len(flows.inflows))
-for flow in flows.data.inflows:
-    print(flow.ticker, flow.netSharesChange)
-
-# List-wrapped: iterate the result, or read .data
 trades = client.get_insider_trades("NVDA")
-for trade in trades:
-    print(trade.insiderName, trade.transactionCode, trade.sharesTransacted)
-print(f"showing {len(trades)} of {trades.total_count}")
-
 if trades.is_preview:
-    print("Upgrade for the full history:", trades.preview_reason)
+    print(f"preview: {len(trades)} of {trades.total_count} trades")
+    print(trades.upgrade["message"])
 ```
 
-On a preview, `.total_count` is the size of the untruncated dataset, so you can render "showing N of total". On a paged endpoint it is the size of the whole matching set on every tier, PRO included, so compare it against the page you were handed to decide whether to fetch the next `offset`. It is `None` only on endpoints that return everything and therefore have no page to count past, never as a way of saying zero.
+Document searches return a `DocumentSearchResponse` with the rows in `.documents`. How previews, paging, retries and errors work across both SDKs is on one page: [Using the Python and Node SDKs](https://sentisense.ai/docs/support/using-the-python-and-node-sdks/).
 
-**2. Document endpoints return a `DocumentSearchResponse`.** This is not the preview envelope: the rows are in `.documents`, alongside `.totalCount` and the echoed query window, and there is no `is_preview`.
+## What you can call
 
-```python
-results = client.search_documents("NVDA earnings", days=7)
-print(f"{results.totalCount} matches")
-for doc in results.documents:
-    print(doc.url, doc.source, doc.averageSentiment)
-```
-
-Affected: `get_documents_by_ticker`, `get_documents_by_ticker_range`, `get_documents_by_entity`, `search_documents` and `get_documents_by_source`.
-
-**3. Everything else returns the value itself**, including `get_stock_price`, `get_stock_chart`, `get_stories` and `get_institutional_quarters`. The two discovery methods, `list_institutions` and `get_politician_directory`, return the plain payload dictionary rather than a wrapper.
-
-Every typed dataclass also supports dict-style access, so `price["currentPrice"]` and `price.currentPrice` both work and code written against an earlier untyped release keeps running.
-
-## API Reference
+Each section lists the methods and links to the API docs page that explains every field.
 
 ### Stocks
 
 | Method | Description |
 |--------|-------------|
-| `get_stock_price(ticker)` | Latest price for a single stock, delayed 15 minutes |
+| `get_stock_price(ticker)` | Latest price, delayed 15 minutes |
 | `get_stock_prices(tickers)` | Latest prices for several stocks in one call |
-| `get_stock_quote(ticker)` | Fuller snapshot: day OHLC, 52-week range, market cap, P/E, EPS TTM, dividend yield |
+| `get_stock_quote(ticker)` | Day range, 52-week range, market cap, P/E, EPS, dividend yield |
 | `get_stock_profile(ticker)` | Company profile |
-| `get_stock_entities(ticker)` | Tracked entities related to a stock (executives, products, organizations) |
-| `get_stock_graph(ticker, depth=1, cap=75)` | Company knowledge graph: people, products, product families and peers, keyed by slug, with typed relationships |
-| `get_similar_stocks(ticker, limit=5)` | Peer stocks with their current prices |
-| `get_stock_etfs(ticker, limit=None)` | The ETFs that hold a stock, heaviest weight first: `etfTicker`, `etfName`, `weightPct` and the fund's `asOfDate` |
-| `get_stock_ai_summary(ticker, depth="basic")` | Curated AI research report. `depth="deep"` returns the full report and consumes one report view |
-| `get_stock_chart(ticker, timeframe="1M")` | OHLCV bars, returned as a bare list, oldest first |
-| `get_all_stocks()` | The tracked universe: every ticker SentiSense covers |
-| `get_all_stocks_detailed()` | The same universe with company names, entity ids and social dominance. A multi-class company's primary row lists its classes in `shareClasses` |
-| `get_market_status()` | Market open or closed |
+| `get_stock_entities(ticker)` | People, products and organizations linked to a stock |
+| `get_stock_graph(ticker, depth=1, cap=75)` | The company's knowledge graph: people, products and peers |
+| `get_similar_stocks(ticker, limit=5)` | Peers with their prices |
+| `get_stock_etfs(ticker, limit=None)` | The ETFs that hold a stock, heaviest weight first |
+| `get_stock_ai_summary(ticker, depth="basic")` | Our research report on the stock. `depth="deep"` is the full report, capped monthly on free keys |
+| `get_stock_chart(ticker, timeframe="1M")` | Price bars, oldest first |
+| `get_all_stocks()` | Every ticker we cover |
+| `get_all_stocks_detailed()` | The same, with names and entity ids |
+| `get_market_status()` | Whether the market is open |
 
-Price fields carry `priceAsOf` in Unix milliseconds for the age of the market data. Read that for freshness rather than `timestamp`, which records when the response was served and therefore always reads as now. During pre-market and after-hours a nested `extendedHours` object appears next to the regular-session price.
-
-Chart timeframes are `1D`, `5D`, `1W`, `1M`, `3M`, `6M`, `1Y`, `5Y`, `10Y` and `MAX` (`ALL` is a legacy alias of `5Y`). Only `10Y` and `MAX` are dividend-adjusted; `5Y` and shorter are split-adjusted only, so do not compare a `10Y` close against a `1Y` close for the same day. Deep ranges answer `202` the first time a rarely-requested stock is asked for, which the SDK retries for you (see [Error Handling](#error-handling)).
-
-`get_stock_etfs` returns a bare list (no preview envelope) on every tier. `weightPct` is the stock's weight in the fund as a percentage (0 to 100), summed across share classes for a company with several; `asOfDate` is that fund's own holdings date, so it can differ between rows. It searches only the funds SentiSense tracks with a holdings file, some of which are partial, so it is not every fund in the market. A ticker no tracked fund holds returns `[]`. See the [API reference](https://sentisense.ai/docs/api/stocks/#get-stock-etfs).
-
-```python
-for fund in client.get_stock_etfs("NVDA", limit=3):
-    print(fund.etfTicker, fund.weightPct, fund.asOfDate)
-```
-
-Product nodes (`type == "PRODUCT_OR_SERVICE"`) in `get_stock_graph` now carry `category` when known. Other nodes and products without a category read as `None`.
+For a fund, use `get_etf_quote`. `get_stock_quote` accepts a fund ticker but leaves out AUM, NAV and expense ratio. Only the `10Y` and `MAX` charts are dividend-adjusted, so don't compare their closes with a `1Y` chart. [Stocks API docs](https://sentisense.ai/docs/api/stocks/)
 
 ### Fundamentals
 
 | Method | Description |
 |--------|-------------|
 | `get_fundamentals(ticker, timeframe="quarterly")` | Income statement, balance sheet and cash flow, as filed |
-| `get_current_fundamentals(ticker)` | Most recent fundamentals snapshot |
-| `get_fundamentals_periods(ticker)` | Available SEC reporting periods with fiscal labels, for driving a period picker |
-| `get_historical_revenue(ticker)` | Historical revenue series |
-| `get_short_interest(ticker)` | Short interest, from bi-monthly settlement data |
-| `get_float(ticker)` | Shares available for public trading |
-| `get_short_volume(ticker)` | Daily short-sale volume, distinct from short interest |
+| `get_current_fundamentals(ticker)` | The latest snapshot |
+| `get_fundamentals_periods(ticker)` | The reporting periods we hold |
+| `get_historical_revenue(ticker)` | Revenue over time |
+| `get_short_interest(ticker)` | Short interest by settlement date |
+| `get_float(ticker)` | Shares available to trade |
+| `get_short_volume(ticker)` | Daily short-sale volume |
 
-Short interest (`shortInterest`, `avgDailyVolume` in shares, `daysToCover` in days) and short volume (`shortVolume`, `totalVolume` in shares, `shortVolumeRatio` in percentage points) arrive newest first in `dataPoints`, the 24 most recent settlement dates and the 90 most recent trading days respectively. Short volume counts the reporting venues only, so `totalVolume` reads lower than consolidated volume. Float carries `freeFloat` in shares (0 for a symbol with no free float, such as a fund) and `freeFloatPercent` in percentage points. An uncovered ticker returns empty `dataPoints`, or `None` float fields, rather than an error.
-
-Statement figures are reported in the filer's own currency, named by `reportedCurrency`, and are never converted to US dollars. An absent key means the currency is unknown, not that it is USD. For non-USD filers the API serves `peRatio`, `psRatio` and `pbRatio` as `None` on purpose, because a USD share price over a home-currency per-share figure is a unit mismatch; do not recompute them client-side.
-
-Cash flow keys are `operatingCashFlow`, `investingCashFlow`, `financingCashFlow`, `capitalExpenditure` (signed as filed, so normally negative) and `freeCashFlow`, which is `None` rather than a guess when capital expenditure is unavailable. Do not substitute `operatingCashFlow + investingCashFlow`: investing cash flow also carries securities and acquisition activity, and can flip the sign.
+Figures are in the company's own currency (`reportedCurrency`), never converted. [Fundamentals in the Stocks API docs](https://sentisense.ai/docs/api/stocks/)
 
 ### Sentiment and metrics
 
 | Method | Description |
 |--------|-------------|
-| `get_stock_sentiment(ticker)` | The headline sentiment picture in one call: Score, 30-day regime, mention volume, per-source tone, drivers and narrative |
-| `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | Time series for one metric |
-| `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | A metric broken down by dimension, for example mentions or sentiment by source |
+| `get_stock_sentiment(ticker)` | The headline picture in one call: Score, mentions, tone by source, what's driving it |
+| `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | One metric over time |
+| `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | One metric split by source |
 
-Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance`, `creators`, `app_review_count`, `app_rating`, `app_all_ratings_count` and `app_all_ratings_avg`. `sentisense` is an alias for `sentisense_score`; either spelling returns the same series, and keys are case-insensitive. Responses always name the canonical type, so a `sentisense` request answers with `SENTISENSE_SCORE`. `start_time` and `end_time` are epoch **milliseconds**, unlike the epoch-second timestamps elsewhere in this SDK. Both metric methods accept a knowledge base entity slug as well as a ticker; slugs are case-insensitive and discoverable via `get_stock_entities`. `sentisense_rating` carries the SentiSense Rating score and is a time series only: it has no source breakdown, so `get_metrics_distribution` answers with an empty distribution for it. In a distribution, `valueType` says what each number is. For a count metric such as `mentions` or `creators` it is `"SHARE_PERCENT"`: each value is that source's percentage share of the total, summing to about 100. For `sentiment` it is `"MEAN"`: each value is that source's mean polarity over the window, in [-1, 1]. `sentisense_score` has no per-source split and answers with an empty distribution.
+Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance`, `creators`, `app_review_count`, `app_rating`, `app_all_ratings_count` and `app_all_ratings_avg`.
 
-The four `app_` metrics are daily Apple App Store series for product entities that have an app, so pass an entity slug such as `"Instagram"` rather than a ticker. `app_review_count` and `app_rating` cover the written reviews published that day, a small share of all ratings whose stars skew lower; `app_all_ratings_count` and `app_all_ratings_avg` cover every new rating, star-only and written together, and have no point on a day with no net new ratings or when the store's totals fell. Over a range, weight each day's `app_all_ratings_avg` by `app_all_ratings_count` for the period average. Each point's flat `value` is the count or the average stars.
-
-Sentiment polarity and the SentiSense Score are different readings. Polarity sits in `[-1, 1]`; the Score is sentiment weighted by attention, is unbounded, and is banded at 5, 13 and 23 either side of zero. Two fields in the headline response are in different units on purpose: `mentionShare` is a whole-number percent, rounded per source, so the per-source list sums to about 100 rather than exactly 100 and should not be used to reconstruct counts; `socialDominance` is a fraction, where `0.021` means 2.1%.
+Sentiment runs from -1 to 1. The SentiSense Score is sentiment weighted by attention and has no fixed range. `start_time` and `end_time` are epoch milliseconds. [Metrics API docs](https://sentisense.ai/docs/api/metrics/)
 
 ### SentiSense Rating
 
-Where a stock ranks against the other stocks rated that day, as a score, a letter and a percentile, plus the seven dimensions the rank is blended from. It is a relative research signal for informational and educational purposes, not financial, investment or trading advice, and not a recommendation about any security. Every response carries the wording to display alongside a grade in `disclaimer`. [Methodology](https://sentisense.ai/methodology/#sentisense-rating).
-
 | Method | Description |
 |--------|-------------|
-| `get_rating(ticker)` | One stock's score, letter, percentile, dimensions and flags |
+| `get_rating(ticker)` | Today's score, letter grade and percentile, with the seven dimensions behind it |
 
 ```python
 rating = client.get_rating("AAPL")
 if rating.rated:
-    print(rating.letter, rating.score, "percentile", rating.percentile, "of", rating.ratedCount)
-    for adj in rating.riskAdjustments:
-        print(" ", adj.condition, "cost", adj.points)
-    for dim in rating.dimensions:
-        if dim.present:
-            print(" ", dim.label, dim.percentile)
+    print(rating.letter, rating.score, "percentile", rating.percentile)
 else:
     print("no grade today:", rating.reason)
 ```
 
-**Branch on `rated`, not on the presence of a field.** A rated stock carries `score`, `letter`, `percentile`, `composite`, `ratedCount` and `methodologyVersion`; an unrated one leaves them `None` and carries `reason`, `dimensionsPresent` and `presentDimensions` instead. Not being rated is a normal `200`, not an error: ETFs and tickers outside the swept universe answer that way. `reason` is one of `stale`, `not_rated_today`, `insufficient_dimensions` or `insufficient_coverage_weight`.
-
-`dimensions` always holds all seven rows in a fixed order, including the ones with no data, which arrive with `present` false and a `None` percentile. Read `present` first and never substitute zero for a missing percentile: zero is the bottom of the cross-section, absence is not a position on it. Only the smart-money dimension carries `subLegs`.
-
-**`score` is not `percentile`.** `percentile` is the rank of the blended signals against the day's rated set. `score = percentile - sum(a.points for a in riskAdjustments)`, floored at 10 when fewer than five dimensions are available, and it is the number `letter` bands (A 90, B 70, C 30, D 10). `bucketLetter` is the band the percentile alone would give, so the two letters differ by exactly what the conditions cost. `riskAdjustments` itemises that cost, `penaltyPoints` totals it, and `riskConditions` names the active ones from `thin_coverage`, `weak_dimension`, `unprofitable`, `no_fundamentals`, `high_leverage`, `unseasoned_listing`, `small_market_cap`, `thin_liquidity`, `extended_price`, `insider_selling` and `institutional_outflow`.
-
-All five are optional: a response served before they shipped omits them. For the daily history of a stock's score, ask `get_metrics` for the `sentisense_rating` metric.
+Check `rated` first, because an unrated stock comes back as a normal response. Each response carries a `disclaimer` to show next to the grade. [Rating API docs](https://sentisense.ai/docs/api/sentisense-rating/)
 
 ### News and documents
 
 | Method | Description |
 |--------|-------------|
-| `get_documents_by_ticker(ticker, source=None, days=None, hours=None, limit=None)` | News and social posts for a stock |
-| `get_documents_by_ticker_range(ticker, start_date, end_date)` | Documents inside a date range |
-| `get_documents_by_entity(entity_id)` | Documents for a knowledge base entity |
-| `search_documents(query, source=None, days=None, limit=None)` | Natural language search across news and social |
-| `get_documents_by_source(source, days=None, hours=None, limit=None, sort=None)` | Latest from one source |
-| `get_stories(limit=None, days=None, offset=None, filter_hours=None)` | AI-curated news story clusters |
-| `search_stories(query, days=7, limit=20)` | Free-text search across AI-curated stories, newest first |
-| `get_story_detail(story_id)` | One story in full: title, summary, narrative body, bullish and bearish views |
-| `get_stories_by_ticker(ticker, limit=None)` | Story clusters for one stock |
-| `get_market_summary()` | The AI-generated market summary |
+| `get_documents_by_ticker(ticker, source=None, days=None, hours=None, limit=None)` | News and social posts about a stock |
+| `get_documents_by_ticker_range(ticker, start_date, end_date)` | The same, for a date range |
+| `get_documents_by_entity(entity_id)` | Posts about a person, product or company |
+| `search_documents(query, source=None, days=None, limit=None)` | Search news and social in plain language |
+| `get_documents_by_source(source, days=None, hours=None, limit=None, sort=None)` | The latest from one source |
+| `get_stories(limit=None, days=None, offset=None, filter_hours=None)` | Today's stories, each a cluster of related coverage |
+| `search_stories(query, days=7, limit=20)` | Search stories, newest first |
+| `get_story_detail(story_id)` | One story in full, with the bull and bear views |
+| `get_stories_by_ticker(ticker, limit=None)` | Stories about one stock |
+| `get_market_summary()` | Our written market summary |
 
-Sources are `news`, `reddit`, `x`, `substack` and `youtube`. Documents carry derived analytics (sentiment, entities, reliability) plus safe metadata such as the URL, source and timestamps.
-
-On a story, `tickers` holds bare symbols and `displayTickers` holds the formatted ones, so pick the field that matches what you are doing rather than reformatting either.
-
-The story cluster also tells you where the story came from and whether it has settled.
-`cluster.storySource` is `"ORIGINAL"` for an editorially authored SentiSense Original and
-`"AI"` for a pipeline-generated story, and `cluster.isLive` is true while the story is
-still being revised as the event develops. Both read `None` against an API build that
-predates them, so treat `None` as "not known" rather than as `"AI"` or `False`.
+Sources are `news`, `reddit`, `x`, `substack` and `youtube`. Documents carry sentiment, entities and a link, not the article text. [Documents API docs](https://sentisense.ai/docs/api/documents/)
 
 ### Insights
 
 | Method | Description |
 |--------|-------------|
-| `get_stock_insights(ticker, urgency=None, insight_type=None)` | Generated signals for one stock |
-| `get_stock_insights_range(ticker, start_date, end_date)` | The same, bounded by an inclusive date range |
-| `get_market_insights()` | Market-level signals |
-| `get_latest_insights(limit=50, urgency=None)` | Newest signals across the tracked universe. Free keys receive the top 5 |
-| `get_user_insights(limit=20, category=None)` | Signals biased toward the authenticated key's watchlist and portfolio |
-| `get_insight_types(ticker)` | The insight type strings available for a stock |
+| `get_stock_insights(ticker, urgency=None, insight_type=None)` | Signals for one stock |
+| `get_stock_insights_range(ticker, start_date, end_date)` | The same, for a date range |
+| `get_market_insights()` | Market-wide signals |
+| `get_latest_insights(limit=50, urgency=None)` | The newest signals across every stock. Free keys get the top 5 |
+| `get_user_insights(limit=20, category=None)` | Signals for your watchlist and portfolio |
+| `get_insight_types(ticker)` | Which signal types exist for a stock |
+
+[Insights API docs](https://sentisense.ai/docs/api/insights/)
 
 ### Insider trading (Form 4)
 
 | Method | Description |
 |--------|-------------|
-| `get_insider_activity(lookback_days=90)` | Market-wide buying and selling, aggregated by ticker |
-| `get_insider_trades(ticker, lookback_days=90)` | Individual filed transactions for one stock |
-| `get_insider_cluster_buys(lookback_days=90)` | Stocks where three or more distinct insiders bought recently |
+| `get_insider_activity(lookback_days=90)` | Buying and selling across the market, by ticker |
+| `get_insider_trades(ticker, lookback_days=90)` | Each filed trade in one stock |
+| `get_insider_cluster_buys(lookback_days=90)` | Stocks where three or more insiders bought recently |
 
-Each trade row carries both the raw SEC `transactionCode` and a simplified `transactionType`. Only codes `P` and `S` are open-market trades. Awards, gifts, exercises and code `F`, which is shares withheld by the issuer to cover taxes at vest, are corporate mechanics rather than a decision to trade, and code `F` arrives typed as `SELL`. So filtering on `transactionType` alone overstates selling: read `transactionCode` when you tally discretionary buying or selling. The market-wide activity endpoint already excludes code `F` from its sells server-side.
+Count real buying and selling by `transactionCode` (`P` and `S` are open-market trades). `transactionType` also labels shares withheld for taxes, code `F`, as `SELL`. [Insider API docs](https://sentisense.ai/docs/api/insider-trading/)
 
 ### Options
 
-End-of-day options positioning: where implied volatility, put/call flow and skew are unusual today, and how one name's readings have trended.
-
 | Method | Description |
 |--------|-------------|
-| `get_options_overview()` | Market-wide radar, ranked, stocks and ETFs as separate boards |
-| `get_stock_options_summary(ticker)` | One name's dossier: aggregate, percentiles, walls, unusual contracts |
-| `get_stock_options_history(ticker, window="1y")` | That name's daily aggregates as a series, `1y`, `2y` or `5y` |
-| `get_stock_options_intraday_history(ticker, session=None)` | That name's numbers at every 15-minute cycle of one session's intraday board (PRO) |
+| `get_options_overview()` | Where options activity is unusual today, stocks and ETFs ranked separately |
+| `get_stock_options_summary(ticker)` | One stock's options picture: volatility, put/call, walls, unusual contracts |
+| `get_stock_options_history(ticker, window="1y")` | The same readings as a daily series |
+| `get_stock_options_intraday_history(ticker, session=None)` | Every 15-minute reading from one session (PRO) |
 
-The radar carries two separately-ranked boards, `rows` for stocks and `etfRows` for ETFs, each with its own aggregates. Keep them apart: every reading behind a row's `interestScore` is a percentile of that ticker's own trailing history, so a ranking built across both boards compares numbers measured against different baselines. A row whose baseline is still building carries its raw readings with the percentiles and `interestScore` omitted, which means "not enough history yet" rather than "nothing interesting".
-
-During the trading session the dossier and the radar also carry a few intraday fields, the same on every tier: `intradayFlow` (a count of the ticker's unusual contracts so far, when the first one was flagged, and the board's own clock), `largePrintCount` and `largestPrintPctl` on the dossier, and `intradayActiveCount` with `intradayRanking` on the radar. They carry no contract, strike, price or premium, and are `None` before the day's first board. On the radar, `intradayAsOf` (epoch seconds) and `intradayAsOfEt` date the board the ranking was read from. `capabilities.intradayBoard` says where the contract-level board lives; its rows are served in the SentiSense app, not by the API.
-
-`get_stock_options_intraday_history` keeps every cycle of that board for one ticker, so you can test an intraday signal against what the board showed at each point in the day and then compare it with the session's end-of-day row from `get_stock_options_history`:
-
-```python
-day = client.get_stock_options_intraday_history("NVDA", session="2026-10-14")
-if day.is_preview:
-    print(day.upgrade["message"])          # PRO only: a free key gets no series
-else:
-    for point in day.series:              # oldest cycle first
-        print(point.asOfEt, point.callVol, point.putVol, point.pcVol, point.unusualCount, point.atmIv)
-```
-
-Each point carries call and put volume so far, the put/call ratio, the unusual-contract count, the percentile of the largest qualifying contract against the ticker's own year (`maxPremiumPctl1y`) and the ATM implied volatility; readings that are unavailable are `None`, never zero. Omit `session` for the session the board ran most recently, and read `result.session` for the date served. A ticker appears only on cycles where it was on the board, so gaps show in each point's `cycle`, and `missingCycles` lists cycles whose stored point could not be read. A weekend, a holiday, a ticker outside the board and an unknown symbol all return an empty `series`, not `None`. A malformed or future date raises `APIError` with `code == "invalid_session"`.
-
-A free key that has spent its ten monthly dossiers receives a headline preview from `get_stock_options_summary`: `asOf`, `sentiment` and six flat readings, `ivRank1y`, `atmIv`, `expectedMove1d`, `pcVol`, `pcVolPctl1y` and `maxPain`, with `latest`, `context` and `oiWalls` left `None`. On a full dossier those six are `None` and the same readings live in the nested objects, so branch on `result.is_preview`.
-
-The two per-ticker methods report no coverage differently, which is worth knowing before you write the check. `get_stock_options_summary` returns a `None` payload for an uncovered or unknown ticker, so `result.data is None` is the explicit check; the wrapper itself is falsy in that case and has a length of 0, so `if not result:` works too. `get_stock_options_history` returns a populated object with an empty `series` instead. The history also echoes the `window` the server actually served, which need not be the one you asked for: an unrecognised value clamps to `1y`, and so does any free key.
-
-On a delisted symbol, the options summary carries `listingStatus == "DELISTED"` and, when known, `delistedDate` (YYYY-MM-DD). This marks a frozen last dossier, so read `asOf` before treating it as current. Listed and pending symbols leave both fields `None`.
+Apart from the intraday history, these are end-of-day readings, each measured against the stock's own past year. For an uncovered ticker the summary's `data` is `None`. [Options API docs](https://sentisense.ai/docs/api/options/)
 
 ### Congressional trading
 
 | Method | Description |
 |--------|-------------|
-| `get_politician_activity(lookback_days=90, limit=None, offset=None)` | Market-wide STOCK Act disclosures |
+| `get_politician_activity(lookback_days=90, limit=None, offset=None)` | Recent trades disclosed by members of Congress |
 | `get_politician_filings(ticker, lookback_days=90)` | Disclosed trades in one stock |
-| `get_politician_members()` | Tracked members currently in office, with trading summary statistics |
-| `get_politician_member(slug, limit=None, offset=None)` | One member's profile, recent trades and top tickers |
-| `get_politician_directory(q=None, limit=50, offset=0)` | Discover slugs, including members who have left Congress |
+| `get_politician_members()` | Members in office, with trading stats |
+| `get_politician_member(slug, limit=None, offset=None)` | One member's profile and trades |
+| `get_politician_directory(q=None, limit=50, offset=0)` | Find a member's slug, including former members |
 
-**Paging.** A 90-day window is routinely well over a thousand disclosures, and the activity feed answers with the first page only, with nothing in the payload to say it stopped. Read `.total_count` for the real size on every tier and walk it with `limit` and `offset`; omitting both sends exactly the unpaged request earlier releases sent.
+The activity feed comes back a page at a time, so walk it with `limit` and `offset` until you reach `total_count`:
 
 ```python
-first = client.get_politician_activity(lookback_days=365, limit=500)
-print(f"{len(first)} of {first.total_count} disclosures")
-
-more = client.get_politician_activity(lookback_days=365, limit=500, offset=500)
-for trade in more:
-    print(trade.politicianName, trade.ticker, trade.transactionType)
+page = client.get_politician_activity(lookback_days=365, limit=500)
+print(f"{len(page)} of {page.total_count} disclosures")
 ```
 
-`recentTrades` on a single member is a page too. Most members have a few dozen disclosures and arrive complete in one call, but a handful have thousands. The profile and top-tickers blocks always describe the whole history whatever page you asked for, so `profile.totalTrades` does not shrink with a small `limit`.
-
-The directory is the only one of these that is not tier-gated, and the only one that lists former members, who carry `former` and `servedUntil`. The members roster lists who currently holds office, so a former member is otherwise reachable only if you already know the slug.
+[Politicians API docs](https://sentisense.ai/docs/api/politicians/)
 
 ### Institutional flows (13F)
 
 | Method | Description |
 |--------|-------------|
-| `get_institutional_quarters()` | Available 13F reporting quarters |
-| `get_institutional_flows(report_date=None, limit=50)` | Fund flows for a quarter, split into inflows and outflows. Omit the date for the latest |
-| `get_stock_holders(ticker, report_date=None, limit=None, offset=None, sort_by=None, sort_dir=None)` | Institutional holders of one stock. Omit the date for the ticker's latest settled quarter |
-| `get_stock_holders_history(ticker, quarters=None)` | One stock's institutional ownership quarter by quarter, newest first: holders, share of the class held, net shares bought or sold, dollar flow |
-| `get_activist_positions(report_date)` | Activist investor positions for a quarter |
-| `get_institution_detail(slug_or_cik, limit=None, offset=None, sort_by=None, sort_dir=None, change_type=None, q=None, min_weight=None)` | One filer's profile, summary stats and current-quarter holdings, with the prior filing's figures and estimated flows. Optional paging, sorting and filtering of the holdings |
-| `get_institution_history(slug_or_cik, quarters=None, tickers=None)` | One filer's 13F book filing by filing, newest first: value, positions held, top-10 concentration and estimated dollars bought, trimmed and exited. Pass `tickers` for its shares and value in each ticker per filing |
-| `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Discover filers, AUM-ranked, rolled up by parent |
+| `get_institutional_quarters()` | The 13F quarters we hold, newest first |
+| `get_institutional_flows(report_date=None, limit=50)` | The quarter's biggest inflows and outflows |
+| `get_stock_holders(ticker, report_date=None, limit=None, offset=None, sort_by=None, sort_dir=None)` | Who holds a stock |
+| `get_stock_holders_history(ticker, quarters=None)` | A stock's institutional ownership, quarter by quarter |
+| `get_activist_positions(report_date)` | Activist positions for a quarter |
+| `get_institution_detail(slug_or_cik, limit=None, offset=None, sort_by=None, sort_dir=None, change_type=None, q=None, min_weight=None)` | One fund's holdings and what changed since its last filing |
+| `get_institution_history(slug_or_cik, quarters=None, tickers=None)` | One fund's book, filing by filing |
+| `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Find funds, largest first |
 
-The quarter list is newest first, and its first entry is usually still filing. Each
-`Quarter` carries `pending`, `ownershipEligible` and `ownershipEligibleAt`, so pick a
-quarter by the flag rather than by position:
+The newest quarter is often incomplete, so pick one by its `pending` flag rather than taking the first. A widely held stock has thousands of holders, so pass `limit` to `get_stock_holders`.
 
 ```python
-quarters = client.get_institutional_quarters()
-filed = [q for q in quarters if not q.get("pending")]
-holders = client.get_stock_holders("AAPL", filed[0]["reportDate"], limit=25)
-```
-
-The holders dictionary also says how its quarter was chosen (`selection`), reports a newer
-still-filing quarter separately (`earlyFilersStatus`, `earlyFilers`), lists well-known
-institutions matched against the full roster (`notableHolders`), and summarizes the
-quarter-over-quarter comparison (`comparisonReportDate`, `comparisonStatus`). Each holder row
-carries its own `comparisonStatus`; only `AVAILABLE` on that row supports its change figures.
-
-Ownership history returns one row per quarter for a stock, newest first, covering the 12
-newest quarters by default (`quarters` up to 20). Free keys see the newest four. The newest
-row can still be filing (`status == "filing"`), in which case it covers only the institutions
-that have filed so far. `sharesOutstanding`, `institutionalOwnershipPct`, `avgClosePrice` and
-`dollarFlowUsd` are `None` when they cannot be computed, never zero:
-
-```python
-history = client.get_stock_holders_history("AAPL", quarters=8)
-for q in history.quarters:
-    print(q.label, q.status, q.holderCount, q.institutionalOwnershipPct, q.netSharesChange)
-```
-
-`positionsHeld` on an institution detail counts the full portfolio's held positions:
-`max(0, holdingsCount - soldOutPositions)`, even when the holdings list is truncated.
-The client still returns a dictionary in `result.data`; the exported `InstitutionDetail`
-type is an optional-key annotation for callers who want it:
-
-```python
-from typing import cast
-from sentisense import InstitutionDetail
-
-detail = cast(InstitutionDetail, client.get_institution_detail("1067983").data)
-print(detail.get("positionsHeld"))  # None when an older response omits it
-```
-
-Institution detail compares each filing with the quarter before it. When `comparisonStatus` is `AVAILABLE`, the payload carries `priorTotalValueUsd` and `priorPositionsHeld`, and each holding carries `priorValueUsd`, `priorPortfolioWeight` and `estimatedFlowUsd` (dollars bought, positive, or sold, negative, estimated from two quarter-end snapshots rather than a reported trade). Every one of these is absent when it does not apply. Pass `limit` to get a sorted page of holdings, with `sort_by`, `sort_dir`, `change_type` (a string or a list; `"HELD"` keeps every position still held, whatever its change), `q` and `min_weight` to sort and filter it; those four only take effect together with `limit`. When a filter is set, `data["matchTotals"]` sums every matching holding, not just the page:
-
-```python
-# The ten biggest estimated buys of the latest quarter
-page = client.get_institution_detail(
-    "Berkshire-Hathaway",
-    limit=10,
-    sort_by="estimatedFlowUsd",
-    change_type=["NEW", "INCREASED"],
-)
-for h in page.data["holdings"]:
-    print(h["ticker"], h.get("estimatedFlowUsd"))
-print(page.data["matchTotals"]["estimatedFlowUsd"])  # every matching holding, not only these ten
-```
-
-Institution history returns one row per filing, newest first (`quarters` up to 40, 12 by default). Free keys see the newest four with `total_count` naming the window. The comparison fields (`newPositions`, `boughtUsd`, `netFlowUsd` and the rest) are `None` unless that filing's `comparisonStatus` is `AVAILABLE`, never zero. Pass `tickers` (a list, up to 100) to also get `positions`: each ticker's shares and value per filing, newest first, with filings where the institution did not hold it left out. Free keys receive `positions` only for the institution's ten largest holdings. `priceEffectUsd` is the remainder after `netFlowUsd`, mostly price moves; it also absorbs rounding, the different price bases of exits and trades, and positions whose change could not be restated:
-
-```python
-history = client.get_institution_history("Renaissance-Technologies", quarters=8, tickers=["NVDA", "META"])
-for q in history.quarters:
-    print(q.label, q.totalValueUsd, q.netFlowUsd, q.priceEffectUsd)
-for point in history.positions["NVDA"]:
-    print(point.reportDate, point.shares, point.valueUsd)
-```
-
-**Paging the holder list.** A widely held ticker returns thousands of rows: a megacap quarter is roughly 6,000 holders and 1.5 MB on the wire. Pass `limit` unless you really want the whole list. Omitting every paging argument sends the original unbounded request, so existing code keeps working.
-
-| Argument | Values |
-|----------|--------|
-| `limit` | Maximum rows to return. Must be >= 1; values above 1000 are capped server-side. Omit for the full list. |
-| `offset` | Row offset to start from, used with `limit`. Server default is 0. |
-| `sort_by` | `"shares"` (server default), `"valueUsd"`, or `"sharesChangePct"`. |
-| `sort_dir` | `"desc"` (server default) or `"asc"`. |
-
-```python
-# Top 10 holders by position value, largest first
-top = client.get_stock_holders(
-    "AAPL", "2026-03-31", limit=10, sort_by="valueUsd", sort_dir="desc"
-)
+filed = [q for q in client.get_institutional_quarters() if not q.get("pending")]
+top = client.get_stock_holders("AAPL", filed[0]["reportDate"], limit=10, sort_by="valueUsd")
 for holder in top.holders:
     print(holder["filerName"], holder["valueUsd"])
-
-# Walk the list a page at a time
-page = client.get_stock_holders("AAPL", "2026-03-31", limit=100, offset=100)
-print(f"{page.returnedCount} rows from offset {page.offset} of {page.holderCount}")
 ```
 
-Paged responses carry `returnedCount` and `offset` next to the holder rows, so you can walk the list without re-counting it yourself. Institutions are rolled up by parent filer, so a multi-filer manager appears once with combined AUM.
+[13F API docs](https://sentisense.ai/docs/api/institutional-flows/)
 
 ### Analyst ratings
 
-The price target cone (mean, high, low, upside percent) and the consensus are free for everyone, with full data over the API. Upgrade and downgrade feeds and forward EPS estimates are limited on free and unlimited on PRO.
-
 | Method | Description |
 |--------|-------------|
-| `get_analyst_consensus(ticker)` | Price target band, analyst count, upside percent. Free for everyone, full data |
-| `get_analyst_consensus_history(ticker, from_date=None, to_date=None, limit=None)` | Daily consensus observations. Free: last 30 days with distribution fields null |
-| `get_analyst_called_it(ticker, limit=None)` | Recorded call history for moves of 20% or more over five sessions. Free: newest move, up to 5 calls, move counts intact |
-| `get_analyst_actions(ticker, lookback_days=90)` | Recent upgrades and downgrades, each with the firm's price target and prior target (PRO). Free: the 3 most recent, targets `None` |
-| `get_analyst_estimates(ticker)` | Forward EPS estimates and surprise history. Free: 1 quarter. `data["ticker"]` names the listing the per-share figures are for (`BRK-A` answers `BRK.B`) |
-| `get_analyst_market_activity(lookback_days=30)` | Market-wide analyst actions across all covered tickers, same row keys as `get_analyst_actions` (PRO) |
-| `get_analyst_coverage(ticker, lookback_days=None)` | Who covers this stock, grouped by firm. Free: the 5 most recently active firms |
-| `get_analyst_profile(slug)` | One analyst: firms published under, and their coverage book. Free: 5 tickers |
-| `get_analyst_calls(slug, limit=None, offset=None)` | One analyst's price target notes, newest first, paged. Free: the first 25 |
+| `get_analyst_consensus(ticker)` | Price target range, analyst count and upside. Free keys get the price target range |
+| `get_analyst_consensus_history(ticker, from_date=None, to_date=None, limit=None)` | The consensus day by day |
+| `get_analyst_called_it(ticker, limit=None)` | Which analysts called the stock's big moves |
+| `get_analyst_actions(ticker, lookback_days=90)` | Upgrades and downgrades, with each firm's price target |
+| `get_analyst_estimates(ticker)` | EPS estimates and past surprises |
+| `get_analyst_market_activity(lookback_days=30)` | Analyst actions across every stock |
+| `get_analyst_coverage(ticker, lookback_days=None)` | Who covers a stock and what they said last |
+| `get_analyst_profile(slug)` | One analyst and the stocks they cover |
+| `get_analyst_calls(slug, limit=None, offset=None)` | One analyst's price target notes, newest first |
 
-Coverage answers "who covers this stock and what did they say" in one call, and it is the entry point into the per-analyst surfaces: every named analyst carries the slug that addresses their profile and their calls.
-
-```python
-result = client.get_analyst_coverage("NVDA", lookback_days=365)
-book = result.data
-
-print(f"{book['firmCount']} firms, {book['namedAnalystCount']} named analysts")
-print(f"{book['attributedNoteCount']} of {book['noteCount']} notes name someone")
-
-buckets = book["ratingBuckets"]
-print(f"{buckets['buy']} buy, {buckets['hold']} hold, {buckets['sell']} sell, "
-      f"{buckets['unrated']} unrated of {buckets['total']}")
-
-for row in book["coverage"][:5]:
-    if row["noteCount"] == 0:
-        # A desk can cover a stock on rating actions alone, with no price target.
-        print(f"{row['firm']}: rating only, {row['firmRating']['rating']}")
-        continue
-    note = row["latestNote"]
-    who = note["analyst"] or "unattributed"
-    print(f"{row['firm']}: {note['priceTarget']} ({who}, {note['publishedDate']})")
-
-    for analyst in row["analysts"]:
-        calls = client.get_analyst_calls(analyst["slug"], limit=10)
-        print(f"  {analyst['name']}: {calls.total_count} notes on record")
-```
-
-Two shapes to read rather than assume. A firm can appear with `noteCount` 0, a `None` `latestNote` and a populated `firmRating`, because coverage means a price target **or** a rating action in the window. And a large, publisher-dependent share of notes name no individual, so an empty `analysts` list alongside a non-zero `noteCount` is normal: read `attributedNoteCount` and `unattributedNoteCount` on the response you received rather than hardcoding a rate. The response-level counts survive the free truncation, so they describe the whole window even when only 5 rows come back.
-
-`ratingBuckets` sizes the same book by rating tier: `buy`, `hold`, `sell`, `unrated` and `total`, counted over every covering firm before the free truncation, so `buy + hold + sell + unrated == total` and a free key reads the same numbers as a PRO one. `unrated` is a desk with no current rating on record, such as a price-target-only firm. These count the firms in this coverage book, a different population from the `strongBuy` through `strongSell` figures on `get_analyst_consensus`, which come from the provider's analyst survey. Read one or the other, do not reconcile them.
-
-Action rows carry `priceTarget`, the target the firm stated with the action, and `priorPriceTarget`, the target it moved from. Each is `None` when the firm stated none or we do not hold it, never zero; `priorPriceTarget` is also `None` when the firm kept its target unchanged, and always `None` when `priceTarget` is. Both are PRO (and sample companies): free preview rows carry `None` for both. Firms do not restate old targets after a stock split, so per-ticker rows dated before a split carry `None` for both; the market-wide feed skips that check, so read a stock that split from `get_analyst_actions`. Rows remain dictionaries; the exported `AnalystAction` type annotates them. Use `.get("priceTarget")` to support older responses.
-
-```python
-actions = client.get_analyst_actions("NVDA", lookback_days=7)
-for row in actions.data:
-    target, prior = row.get("priceTarget"), row.get("priorPriceTarget")
-    if target is not None and prior is not None and target < prior:
-        print(f"{row['actionDate']} {row['firm']} cut its target from {prior:g} to {target:g}")
-```
-
-Surprise rows now carry optional `surprisePct`, the signed true percent rounded half-up to two decimals: `(actualEps - estimateEps) * 100 / abs(estimateEps)`. It is `None` when either EPS is missing or the estimate is zero. The existing `surprisePercent` fraction is unchanged (`0.03` means about 3%). Rows remain dictionaries; the exported optional-key `AnalystEarningsSurprise` type can annotate them with `typing.cast`. Use `.get("surprisePct")` to support older responses.
+Action rows are plain dicts. `priceTarget` is `None` when the firm gave none. [Analyst API docs](https://sentisense.ai/docs/api/analyst-ratings/)
 
 ### Earnings
 
-The earnings analysis report is the assembled version of a quarter: one object per fiscal period carrying the editorial headline, the KPI cards with year-over-year deltas, the guidance language as management phrased it, and a summary of the earnings call. Pair it with the recent-reporters feed to drive a post-earnings sweep.
-
 | Method | Description |
 |--------|-------------|
-| `get_earnings_calendar(ticker=None, week=None, date_from=None, date_to=None)` | Scheduled dates and consensus EPS. Free: the current week. PRO: the full forward window |
-| `get_earnings_summaries(ticker, limit=None)` | Per-quarter analysis, newest first. Free: the latest quarter, shaped. PRO: every hydrated quarter in full |
-| `get_recent_earnings(days=None, limit=None)` | Which covered companies reported in a recent window. Full window on every key |
-| `get_earnings_reactions(ticker)` | Up to twelve measured post-report session moves for one ticker. Full series on every key |
-| `get_earnings_statistics(window=None)` | Market-wide outcome and reaction rates, with baseline, deviation, thresholds, and coverage |
-| `get_ranked_earnings(reported_days=None, reported_limit=None, upcoming_days=None, upcoming_limit=None)` | Important recent reporters and upcoming events. Free: first 3 rows per section. PRO: full ranking |
+| `get_earnings_calendar(ticker=None, week=None, date_from=None, date_to=None)` | Upcoming report dates and EPS estimates |
+| `get_earnings_summaries(ticker, limit=None)` | Each quarter written up: headline, KPIs, guidance, call summary |
+| `get_recent_earnings(days=None, limit=None)` | Who reported recently |
+| `get_earnings_reactions(ticker)` | How the stock moved after each of its last reports |
+| `get_earnings_statistics(window=None)` | Beat rates and reactions across the market |
+| `get_ranked_earnings(reported_days=None, reported_limit=None, upcoming_days=None, upcoming_limit=None)` | The reports that mattered most, past and upcoming |
 
 ```python
-result = client.get_earnings_summaries("AAPL", limit=1)
-if result.data:
-    quarter = result.data[0]
-    print(quarter.fiscalPeriod, quarter.reportDate)
-    print(quarter.headline)
-    for kpi in quarter.kpiHighlights:
-        print(f"  {kpi.label}: {kpi.value} ({kpi.yoy or 'no YoY'})")
-
-    if result.is_preview:
-        # Free key: section titles stand in for the bodies.
-        print("Summary covers:", ", ".join(quarter.summaryTopics))
-    else:
-        print(quarter.summaryMd)
+for quarter in client.get_earnings_summaries("AAPL", limit=1):
+    print(quarter.fiscalPeriod, quarter.headline)
 ```
 
-```python
-ranking = client.get_ranked_earnings(reported_days=14, upcoming_days=7)
-for row in ranking.reported.rows:
-    history = client.get_earnings_reactions(row.ticker)
-    latest_move = history.reactions[0].movePct if history.reactions else None
-    print(row.ticker, row.outcome, latest_move)
-
-statistics = client.get_earnings_statistics(window="last_completed_week")
-print(statistics.beat.rate, statistics.coverageRatio)
-```
-
-A ticker with no stored quarter answers with an empty list rather than a 404. A quarter can gain its call summary on a later read, so branch on `hasTranscript` and compare `transcriptGeneratedAt` against `generatedAt` rather than assuming a fixed lag. The calendar is the forward-looking half of this family and the recent-reporters feed the backward-looking one; the window there is bounded by report date, so a quarter reported inside it appears even when its call summary lands later.
-
-`get_earnings_summaries` exposes the envelope count as `result.total_count` on both PRO and FREE. It counts indexed quarters; returned rows can be fewer because of `limit` or an unavailable body. Older responses without the count still read as `None`.
-
-`result.ticker` names the listing the quarters' per-share figures are quoted for: `BRK-A` answers `BRK.B` and `GOOG` answers `GOOGL`. It reads `None` on older responses.
+[Earnings API docs](https://sentisense.ai/docs/api/earnings/)
 
 ### Company KPIs (PRO)
 
-Full data on 11 sample companies, free, with a preview for every other company: a free key reads the full series for the sample companies and metadata only for the rest, and PRO reads the full series for all. Read `result.sample_company` to see whether a response is a sample, or `result.upgrade["sampleTickers"]` on a preview for the list. See [full sample responses](https://sentisense.ai/docs/api/#full-sample-responses-with-a-free-key). For example, `client.get_company_kpis("TSLA")` returns Tesla's full series on a free key.
-
 | Method | Description |
 |--------|-------------|
-| `get_company_kpis(ticker)` | Product metrics and segment revenue as time series. Free keys receive the full series for the sample companies and metadata only for the rest |
-| `list_kpi_coverage()` | Every ticker with curated KPI coverage (free, no quota cost) |
-| `get_kpi_types(ticker)` | The KPI metadata tuples for a ticker, without paying for the full series |
+| `get_company_kpis(ticker)` | Product and segment metrics over time, like iPhone revenue or Tesla deliveries |
+| `list_kpi_coverage()` | Which companies have KPIs (free, no quota cost) |
+| `get_kpi_types(ticker)` | Which KPIs a company has |
+
+Free keys get the full series for the [sample companies](https://sentisense.ai/docs/api/#full-sample-responses-with-a-free-key), such as TSLA, and a preview for the rest.
 
 ### ETFs (beta)
 
-Composition data is public. The holdings-weighted aggregate views follow the same preview pattern as analyst and insider data: they synthesize a fund-level view from each constituent's per-stock data, weighted by allocation. Every aggregate response carries a `coverage` block so you can see how much of the fund's weight the underlying data actually covered.
-
 | Method | Description |
 |--------|-------------|
-| `list_etfs()` | Every ETF tracked: ticker, fund name, issuer, tracked index, asset class |
-| `get_etf_quote(ticker)` | Quote snapshot for an ETF: day OHLC, 52-week range, AUM, expense ratio, NAV, inception date |
-| `get_etf_holdings(ticker)` | Full composition with per-holding weights and freshness metadata |
-| `get_etf_analyst_aggregate(ticker)` | Holdings-weighted analyst consensus, with per-holding contributions in `topContributors` |
-| `get_etf_insider_aggregate(ticker, lookback_days=30)` | Holdings-weighted Form 4 net flow over a trailing window, clamped to 90 days |
-| `get_etf_sentiment_aggregate(ticker)` | Two Score readings side by side: constituent-weighted and direct |
+| `list_etfs()` | Every ETF we track |
+| `get_etf_quote(ticker)` | A fund's quote with AUM, expense ratio and NAV |
+| `get_etf_holdings(ticker)` | What the fund holds, with weights |
+| `get_etf_analyst_aggregate(ticker)` | Analyst consensus across the holdings, by weight |
+| `get_etf_insider_aggregate(ticker, lookback_days=30)` | Insider buying and selling across the holdings |
+| `get_etf_sentiment_aggregate(ticker)` | The fund's Score, from its holdings and from talk about the fund itself |
 
-`get_stock_quote` answers an ETF ticker with an HTTP 400 `ticker_is_etf` error, so quote funds with `get_etf_quote`. Its `expenseRatio` and `dividendYield` are fractions (`0.0009` means 0.09%), `aum` is in US dollars, and a field the API cannot fill is omitted and reads as `None`.
+[ETF API docs](https://sentisense.ai/docs/api/etfs/)
 
 ### Screener
 
-Filter the tracked universe on the SentiSense Score, attention, analyst consensus, technicals, price and end-of-day options readings in one query. Screening on analyst ratings alone is something a dozen free tools do; screening on analyst ratings *where the Score disagrees* is not.
-
 | Method | Description |
 |--------|-------------|
-| `get_screener_fields()` | Every filterable field, with units, operators and descriptions, for both universes |
-| `list_screens()` | The curated screens shipped in the product, each with a runnable plan |
-| `run_screen(plan, tickers=None, limit=None)` | Run a screen against the stock universe |
-| `run_etf_screen(plan, tickers=None, limit=None)` | Run a screen against the ETF universe |
+| `get_screener_fields()` | Every field you can filter on |
+| `list_screens()` | Our ready-made screens |
+| `run_screen(plan, tickers=None, limit=None)` | Run a screen over stocks |
+| `run_etf_screen(plan, tickers=None, limit=None)` | Run a screen over ETFs |
 
 ```python
-# Run a curated screen as-is
-screen = next(s for s in client.list_screens() if s.id == "crowd-vs-street")
-res = client.run_screen(screen.plan, limit=25)
-print(f"{res.matched} matched, showing {len(res.results)}")
-
-# Or build your own: bullish Score, thin analyst enthusiasm
+# High 7-day Score, few analyst buy ratings
 res = client.run_screen(
     {
         "filters": [
             {"fieldName": "SENTI_SCORE_7D", "op": "GTE", "value": 13},
             {"fieldName": "ANALYST_BUY_RATIO_PCT", "op": "LTE", "value": 30},
-            {"fieldName": "ANALYST_COUNT", "op": "GTE", "value": 5},
         ],
         "sort": {"fieldName": "SENTI_SCORE_7D", "dir": "DESC"},
     },
@@ -608,116 +321,67 @@ res = client.run_screen(
 )
 for row in res.results:
     print(row.ticker, row.sentiSenseScore7D, row.analystBuyRatioPct)
-
-# Options positioning: implied volatility in the top quarter of its own year
-res = client.run_screen(
-    {
-        "filters": [{"fieldName": "IV_RANK_1Y", "op": "GTE", "value": 75}],
-        "sort": {"fieldName": "IV_RANK_1Y", "dir": "DESC"},
-    },
-    limit=25,
-)
-for row in res.results:
-    print(row.ticker, row.ivRank1y, row.expectedMove20d, row.optionsAsOf)
 ```
 
-`limit` rides next to the plan rather than inside it, because a plan is a stored object and paging is a transport concern. It defaults to 100 and caps at 500. `matched` is the count before `limit` was applied, so truncation is visible. `tickers` is optional: omit it to screen the whole tracked universe, pass a list to screen a watchlist.
-
-Three field semantics are worth stating outright, because guessing them wrong produces a screen that looks fine and means nothing:
-
-- **`ANALYST_RATING_MEAN` is inverted.** It is the vendor's 1-to-5 scale where **1.0 is strong buy**, so bullish is `LTE 2.5`. Prefer `ANALYST_BUY_RATIO_PCT`, which runs the intuitive direction.
-- **`MA_CROSS_STATE` is ordinal**, not a percentage: `1` golden cross, `-1` death cross, `0` neither. Use `EQ`.
-- **`SENTIMENT_DIRECTION` is the sign of the 7-day SentiSense Score** (`1` / `0` / `-1`) with a neutral band of plus-or-minus 5. Despite the name it is not sentiment polarity, and `0` matches only an exact zero.
-
-The Score fields (`SENTI_SCORE_7D`, `SENTI_SCORE_1M`, `SCORE_CHANGE_7D`) are the SentiSense Score, not polarity: unbounded, banded at 5 / 13 / 23 either side of zero. Filter on those band edges, not on values like `0.5`, which behave as "any positive score". Nulls never match in either direction, so `RETURN_1Y >= 0` and `RETURN_1Y < 0` do not partition the universe: a stock listed four months ago is in neither result. If a screen returns fewer rows than you expect, check coverage before you check your thresholds.
-
-On the ETF side, `CONSTITUENTS_WEIGHTED_SENTISENSE` is the holdings-weighted Score across what the fund owns and is usually the one you want; `DIRECT_SENTISENSE` is the Score from chatter about the fund ticker itself. `WEIGHT_COVERED_PCT` tells you how much of the fund's weight had constituent data behind the weighted number.
-
-Every stock row carries `priceAsOf`, when the market data behind `currentPrice`, `change` and `changePercent` is from, in epoch milliseconds (the same unit as `get_stock_price`). It is `None` outside regular hours, on a previous-close fallback and when no quote was available, so read `None` as unknown rather than fresh, and judge a price's age from `priceAsOf`, not `lastUpdated`. Rated stocks also carry `ratingLetter`, `ratingScore` and `ratingPercentile`; all three are `None` for an unrated one.
-
-Stock rows also carry seven end-of-day options readings, `ivRank1y`, `pcVol`, `pcVolPctl1y`, `skew25dPctl1y`, `optionsInterestScore`, `maxUnusualPremium` and `expectedMove20d`, plus `optionsAsOf`, the session date they are from. `expectedMove20d` is a fraction of price (`0.2` is 20%) and `optionsAsOf` is a `YYYY-MM-DD` date; filter on the options fields with names like `IV_RANK_1Y`.
-
-Prices are 15-minute delayed quotes, refreshed at request time during the regular session from a cache at most 5 minutes old. Everything else on a row comes from a snapshot rebuilt about every 20 minutes during the session, so this is not a quote feed: use `get_stock_quote` for one ticker's current quote.
+`ANALYST_RATING_MEAN` runs backwards (1 is strong buy), so prefer `ANALYST_BUY_RATIO_PCT`. [Screener API docs](https://sentisense.ai/docs/api/screener/)
 
 ### Market mood, indexes and trackers
 
 | Method | Description |
 |--------|-------------|
-| `get_market_mood(days=180)` | The Market Mood composite: latest score, daily history, per-signal breakdown, per-sector summaries |
-| `list_indexes()` | Every published index, with the scale it lives on and its access tier |
-| `get_index(index_id)` | The latest reading for one index |
-| `get_index_history(index_id, days=180)` | An index's historical scalar series, for charting |
-| `list_trackers()` | Every publicly visible tracker, with a `viewType` renderer hint and, on trackers that have them, the `filters` it accepts |
-| `get_tracker(tracker_id, filter=None)` | The standardized snapshot envelope for one tracker, optionally narrowed by `filter` |
+| `get_market_mood(days=180)` | Market Mood, from fear to greed, with its history |
+| `list_indexes()` | Our indexes |
+| `get_index(index_id)` | One index today |
+| `get_index_history(index_id, days=180)` | One index over time |
+| `list_trackers()` | Our trackers |
+| `get_tracker(tracker_id, filter=None)` | One tracker's data, optionally filtered |
 
-Iterate `list_indexes` rather than hardcoding ids. Two archetypes share one envelope: a basket index populates `constituents`, `basketSize`, `coverage` and `totalMentions`, while a composite index such as Market Mood returns `None` for all four by construction, because it is built from signals rather than entities. Check for `None` before iterating constituents. Market Mood's phase band, weekly change and sector map live on the mood method, and both report the same headline number.
-
-History point spacing follows the index rather than the calendar, and thin or low-coverage buckets are withheld, so a series can be shorter than the days you asked for and can contain gaps. Plot against each point's own `date`.
-
-For trackers, dispatch on `data.viewType` to pick a renderer: table rows arrive in `rows`, choropleth regions in `geo`.
-
-A tracker that declares `filters` in `list_trackers()` can be narrowed with `filter`, as a dict or as the wire string `"state:TX,category:local"`. The data center moratoriums tracker filters by `state` (a two-letter code, or `FEDERAL`) and `category` (`federal`, `state`, `local`, `governor`, `company-filing`):
-
-```python
-snap = client.get_tracker("data-center-moratoriums", filter={"state": "TX"})
-print(snap.total_count, "Texas records")
-for row in snap.data.rows:
-    print(row.rowId, row.name, row.ticker, row.endsDate, row.statesNamed)
-```
-
-Rows carry the named cells `ticker`, `url`, `endsDate` (ISO date) and `statesNamed` as typed fields, `None` when a row has none. Any other named cell, such as the `market-heatmap` columns, is in `row.raw` and readable with `row.get("marketCap")`. An unknown filter key or value raises `APIError` with `code == "invalid_filter"`, the same way a bad `scope` raises `code == "invalid_scope"`, so a call never comes back unfiltered by accident.
+Tracker rows keep any column we don't type yet, so `row.get("marketCap")` works. [Trackers API docs](https://sentisense.ai/docs/api/trackers/)
 
 ### Knowledge base
 
 | Method | Description |
 |--------|-------------|
-| `get_popular_kb_entities()` | The most-tracked entities, useful for search suggestions |
+| `get_popular_kb_entities()` | The most-followed people, products and companies |
 
 ## Error Handling
 
 ```python
-from sentisense import SentiSenseClient, AuthenticationError, RateLimitError
-
-client = SentiSenseClient("your-api-key")
+from sentisense import SentiSenseClient, NotFoundError, RateLimitError
 
 try:
     price = client.get_stock_price("AAPL")
-except AuthenticationError:
-    print("Invalid or missing API key")
+except NotFoundError as exc:
+    print("Not covered:", exc.code)
 except RateLimitError as exc:
-    if exc.code == "quota_exceeded":
-        print(exc.message)  # monthly allowance used up; says when it resets
-    else:
-        print("Rate limited, retry after", exc.retry_after)
+    print(exc.message)
 ```
 
-| Exception | HTTP Status | Description |
-|-----------|-------------|-------------|
-| `AuthenticationError` | 401, 403 | Invalid or missing API key, or insufficient tier |
-| `NotFoundError` | 404 | Resource not found |
-| `RateLimitError` | 429 | Per-minute limit (`.code == "rate_limit_exceeded"`, carries `.retry_after`) or monthly allowance used up (`.code == "quota_exceeded"`) |
-| `DeepHistoryUnavailable` | 202 | Deep chart history (`10Y`, `MAX`) is still being assembled; retry shortly |
-| `APIError` | Other 4xx/5xx | General API error |
+| Exception | HTTP Status | When |
+|-----------|-------------|------|
+| `AuthenticationError` | 401, 403 | The key is missing or wrong |
+| `NotFoundError` | 404 | We don't track that symbol, or hold nothing of that kind for it |
+| `RateLimitError` | 429 | The per-minute limit (`.retry_after`) or the monthly allowance (`.code == "quota_exceeded"`) |
+| `DeepHistoryUnavailable` | 202 | A `10Y` or `MAX` chart is still being built. Try again shortly |
+| `TemporarilyUnavailable` | 503 | The server asked for a longer wait than the client allows |
+| `APIError` | other | Anything else |
 
-All exceptions inherit from `SentiSenseError` and carry `.status_code`, `.message`, `.code` (the API's error code, or `None`) and `.response`.
-
-The client retries the per-minute 429 and 5xx responses on your behalf up to `max_retries`, so an exception here means the retries were exhausted or the status was not retryable. The monthly-allowance 429 (`quota_exceeded`) is raised on the first response, since waiting cannot clear it before the allowance resets. Deep chart ranges are retried separately: they answer `202` while a cold stock's history is assembled, and the SDK never substitutes a shorter range, so a successful call always carries the timeframe you asked for.
+All of them inherit from `SentiSenseError` and carry `.status_code`, `.message`, `.code` and `.response`. The client already retried what it could before raising.
 
 ## Not yet in the Python SDK
 
-A few low-traffic and discovery-convenience endpoints have no wrapper method yet. Call them
-directly over HTTP if you need them: `/api/v1/stocks/images`, `/api/v1/stocks/descriptions`,
-`/api/v1/stocks/popular`, `/api/v1/documents/stories/{clusterId}` (single-story detail), and
+A few endpoints have no method yet. Call them over HTTP if you need them: `/api/v1/stocks/images`,
+`/api/v1/stocks/descriptions`, `/api/v1/stocks/popular`, `/api/v1/kb/entities/search` and
 `/api/v1/stocks/{ticker}/metrics/{metricType}/breakdown`.
 
 ## Links
 
-- Get a free API key: [app.sentisense.ai/get-api-key](https://app.sentisense.ai/get-api-key)
-- API documentation: [sentisense.ai/docs/api](https://sentisense.ai/docs/api/)
+- API docs: [sentisense.ai/docs/api](https://sentisense.ai/docs/api/)
+- Help with keys, limits and previews: [sentisense.ai/docs/support](https://sentisense.ai/docs/support/)
 - Changelog: [CHANGELOG.md](./CHANGELOG.md)
 
 SentiSense provides research data for informational and educational purposes, not investment advice.
 
 ## License
 
-MIT - see [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).

@@ -54,7 +54,11 @@ class TestReadmeMethodTables:
 
     def test_unwrapped_endpoints_are_listed_as_such(self, readme):
         section = readme.split("## Not yet in the Python SDK", 1)[1]
-        assert "/api/v1/documents/stories/{clusterId}" in section
+        # Single-story detail is wrapped by get_story_detail, so it must not be listed as
+        # missing (it was, for several releases after the method shipped).
+        assert "/api/v1/documents/stories/{clusterId}" not in section
+        assert hasattr(SentiSenseClient, "get_story_detail")
+        assert "/api/v1/stocks/images" in section
         # get_stock_entities has shipped since 0.30.0, so its endpoint must not still
         # be advertised as unavailable.
         assert "/api/v1/stocks/{ticker}/entities" not in section
