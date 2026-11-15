@@ -70,3 +70,37 @@ class TestStoryProvenanceFields:
         cluster = StoryCluster.from_dict(_LIST_ENTRY["cluster"])
         assert cluster["storySource"] == "ORIGINAL"
         assert cluster.get("isLive") is True
+
+
+class TestStoryId:
+    """``id`` is the story id; the deprecated ``clusterId`` is a copy of it."""
+
+    def test_both_names_hold_the_id(self):
+        story = Story.from_dict(_LIST_ENTRY)
+        assert story.id == story.clusterId == story.cluster.id == "cluster-abc123"
+
+    def test_deprecated_name_still_works_when_the_response_omits_it(self):
+        payload = {k: v for k, v in _LIST_ENTRY.items() if k != "clusterId"}
+        story = Story.from_dict(payload)
+        assert story.id == "cluster-abc123"
+        assert story.clusterId == "cluster-abc123"
+
+    def test_deprecated_name_is_not_read_from_the_response(self):
+        # Whatever the response says under the old name, the model answers with ``id``.
+        story = Story.from_dict(dict(_LIST_ENTRY, clusterId="something-else"))
+        assert story.clusterId == story.id == "cluster-abc123"
+
+    def test_id_falls_back_to_the_cluster_summary(self):
+        payload = {k: v for k, v in _LIST_ENTRY.items() if k not in ("id", "clusterId")}
+        story = Story.from_dict(payload)
+        assert story.id == story.clusterId == "cluster-abc123"
+
+    def test_old_name_alone_does_not_supply_an_id(self):
+        payload = {k: v for k, v in _LIST_ENTRY.items() if k not in ("id", "cluster")}
+        story = Story.from_dict(payload)
+        assert story.id is None and story.clusterId is None
+
+    def test_no_id_anywhere_stays_none(self):
+        payload = {k: v for k, v in _LIST_ENTRY.items() if k not in ("id", "clusterId", "cluster")}
+        story = Story.from_dict(payload)
+        assert story.id is None and story.clusterId is None

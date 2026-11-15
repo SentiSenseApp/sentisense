@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.75.1
+
+- `Story.clusterId` is deprecated: read `Story.id`. The attribute stays and existing code keeps
+  working. It is now a copy of `id` and is no longer read from the response.
+- `Story.id` falls back to the cluster summary's id when a response has no top-level `id`.
+
 ## 0.75.0
 
 - Typed models keep the response keys they do not declare. A field the API adds before this

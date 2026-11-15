@@ -1444,10 +1444,11 @@ class Story(APIModel):
     """AI-curated news story with impact score and tickers."""
 
     cluster: Optional[StoryCluster] = None
-    #: Stable story id, the same value as ``cluster.id`` and as ``clusterId``. Pass
-    #: it to :meth:`SentiSenseClient.get_story_detail` for the full narrative.
+    #: Stable story id. Pass it to :meth:`SentiSenseClient.get_story_detail` for the
+    #: full narrative.
     id: Optional[str] = None
-    #: Alias of :attr:`id`, kept because the API returns both names.
+    #: Deprecated: read :attr:`id`. Kept so existing code keeps working; it is a copy
+    #: of ``id`` and is not read from the response.
     clusterId: Optional[str] = None
     #: Human-formatted labels for display, e.g. ``"Apple Inc (AAPL)"``. For display
     #: only; do not parse symbols out of these. Use ``tickers`` programmatically.
@@ -1464,6 +1465,12 @@ class Story(APIModel):
         cluster = StoryCluster.from_dict(data["cluster"]) if data.get("cluster") else None
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "cluster"}
+        # The story id comes from ``id``, or from the cluster summary when a response
+        # has no top-level id. ``clusterId`` is deprecated: it is set to that same id
+        # and the response's own ``clusterId`` key is not read.
+        story_id = base.get("id") or (cluster.id if cluster else None) or None
+        base["id"] = story_id
+        base["clusterId"] = story_id
         return _with_extra(cls(**base, cluster=cluster), data)
 
 
