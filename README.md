@@ -79,6 +79,8 @@ if trades.is_preview:
     print(trades.upgrade["message"])
 ```
 
+`trades.sample_company` is `True` when a free key got the full data because the ticker is a sample company.
+
 Document searches return a `DocumentSearchResponse` with the rows in `.documents`. How previews, paging, retries and errors work across both SDKs is on one page: [Using the Python and Node SDKs](https://sentisense.ai/docs/support/using-the-python-and-node-sdks/).
 
 ## What you can call
@@ -230,7 +232,7 @@ print(f"{len(page)} of {page.total_count} disclosures")
 | `get_institution_history(slug_or_cik, quarters=None, tickers=None)` | One fund's book, filing by filing |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Find funds, largest first |
 
-The newest quarter is often incomplete, so pick one by its `pending` flag rather than taking the first. A widely held stock has thousands of holders, so pass `limit` to `get_stock_holders`.
+The newest quarter is often incomplete, so pick one by its `pending` flag rather than taking the first. A widely held stock has thousands of holders, so pass `limit` to `get_stock_holders`. On `get_stock_holders` and `get_institution_detail`, the sort and filter arguments are ignored without `limit`.
 
 ```python
 filed = [q for q in client.get_institutional_quarters() if not q.get("pending")]
