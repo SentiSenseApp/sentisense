@@ -8,6 +8,7 @@ import pytest
 from sentisense import (
     SentiSenseClient,
     AuthenticationError,
+    EarningsEvent,
     NotFoundError,
     RateLimitError,
     APIError,
@@ -823,8 +824,10 @@ class TestCalendarEndpoints:
         assert e.earningsDate == "2026-04-30"
         assert e["earningsTime"] == "after_close"
         assert e.estimatedEps == 1.62
-        # internal provider attribution must not survive into the typed model
-        assert not hasattr(e, "source")
+        # A provider attribution on the row is never promoted to a declared field. Like
+        # any key the model does not declare, it stays readable only as an extra.
+        assert "source" not in EarningsEvent.__dataclass_fields__
+        assert dict(e.extra_fields) == {"source": "provider+web"}
         assert cal.metadata.windowStart == "2026-04-20"
         assert cal.metadata.generatedAt == 1776528000
         # result fields are optional: absent on this row, so they default to None

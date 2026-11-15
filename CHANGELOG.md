@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.75.0
+
+- Typed models keep the response keys they do not declare. A field the API adds before this
+  package declares it stays readable with `obj.get("name")`, `obj["name"]`, `"name" in obj` or
+  `obj.name`, at the top level and inside nested models, and `obj.extra_fields` lists those keys
+  as a read-only mapping. Earlier versions discarded them. Declared fields always win; equality,
+  `repr()` and `dataclasses.asdict()` stay field-based, and an object built with its constructor
+  has no extra fields. `PreviewResult` passes the same access through and now supports `in`.
+- New `get_fundamentals_history(ticker, timeframe=None, limit=None)`: up to 40 quarters or 20
+  years of full statements, newest first, returned as the API sends them. A period served from an
+  SEC-backed record carries `source` (`SEC`, `PROVIDER` or `CURATED`), `lineSources` (the lines
+  read from the company's SEC filing, each with its accession number and filing date),
+  `sourceRef` and `secFiled`; the four keys are absent on every other period. New opt-in
+  annotations `FundamentalsHistory`, `FundamentalsStatement` and `FundamentalsLineSource` type
+  the keys.
+- Newly declared fields, each `None` when the response omits it: `latestReported` on
+  `EarningsCalendar` (a typed `EarningsEvent`, on ticker-filtered requests), `ticker` on
+  `Insight`, `seeInstead` on `StockQuote`, `companyName` and `betaNotice` on `StockRating`, and
+  `surpriseFlag` on `RankedReportedEarnings`.
+- The `get_etf_quote` docstring no longer says `get_stock_quote` answers a fund ticker with an
+  HTTP 400; both docstrings now describe the `200` answer and its `seeInstead`.
+
 ## 0.74.0
 
 - Analyst action rows from `get_analyst_actions()` and `get_analyst_market_activity()` carry

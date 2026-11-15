@@ -2,13 +2,31 @@
 
 All models support both attribute access (``price.ticker``) and dict-style
 access (``price["ticker"]``) for backward compatibility.
+
+A model built from a response also keeps the response keys it does not declare,
+so a field the API adds before this package declares it is still readable:
+``obj.get("key")``, ``obj["key"]``, ``"key" in obj`` and ``obj.key`` all reach
+it, and ``obj.extra_fields`` lists every such key. Declared fields always win.
 """
 
 from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generic, Iterator, List, Optional, TypedDict, TypeVar
+from types import MappingProxyType
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    FrozenSet,
+    Generic,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    TypedDict,
+    TypeVar,
+)
 
 T = TypeVar("T")
 
@@ -147,26 +165,103 @@ class InstitutionDetail(TypedDict, total=False):
 # ── Base ────────────────────────────────────────────────────
 
 
+#: Instance attribute holding the response keys a model does not declare. It is
+#: not a dataclass field, so ``==``, ``repr()`` and ``dataclasses.asdict()`` stay
+#: field-based. Set only when there is at least one such key.
+_EXTRA_ATTR = "_extra_fields"
+_NO_EXTRA: Mapping[str, Any] = MappingProxyType({})
+_DECLARED: Dict[type, FrozenSet[str]] = {}
+
+
+def _declared_fields(cls: type) -> FrozenSet[str]:
+    names = _DECLARED.get(cls)
+    if names is None:
+        names = frozenset(f.name for f in dataclasses.fields(cls))
+        _DECLARED[cls] = names
+    return names
+
+
+def _extra_of(obj: Any) -> Mapping[str, Any]:
+    # Read the instance dict directly: this runs inside ``__getattr__``, so it must
+    # never trigger attribute lookup itself (no recursion on half-built objects).
+    try:
+        return object.__getattribute__(obj, "__dict__").get(_EXTRA_ATTR) or _NO_EXTRA
+    except AttributeError:
+        return _NO_EXTRA
+
+
+def _with_extra(obj: Any, data: Any) -> Any:
+    """Keep the keys of ``data`` that ``obj``'s class does not declare.
+
+    Every ``from_dict`` returns through this helper, so a key the API adds before
+    the model declares it stays readable instead of being dropped. Nested models
+    keep their own keys through their own ``from_dict``.
+    """
+    if obj is None or not isinstance(data, dict):
+        return obj
+    declared = _declared_fields(type(obj))
+    extra = {k: v for k, v in data.items() if k not in declared}
+    if extra:
+        object.__setattr__(obj, _EXTRA_ATTR, extra)
+    return obj
+
+
 @dataclass
 class APIModel:
-    """Base class providing dict-style access on dataclass instances."""
+    """Base class providing dict-style access on dataclass instances.
+
+    Keys the response carries but the model does not declare are kept: read them
+    with ``obj.get("key")``, ``obj["key"]``, ``"key" in obj`` or ``obj.key``, or
+    list them with :attr:`extra_fields`. Declared fields always take precedence.
+    An object built with its constructor rather than ``from_dict`` has none.
+    """
 
     def __getitem__(self, key: str) -> Any:
+        extra = _extra_of(self)
+        if key in extra:
+            return extra[key]
         return getattr(self, key)
 
     def get(self, key: str, default: Any = None) -> Any:
+        extra = _extra_of(self)
+        if key in extra:
+            return extra[key]
         return getattr(self, key, default)
 
     def __contains__(self, key: str) -> bool:
-        return hasattr(self, key)
+        return key in _extra_of(self) or hasattr(self, key)
+
+    if not TYPE_CHECKING:
+        # Hidden from type checkers so a misspelled declared field is still flagged;
+        # typed code reads undeclared keys with ``.get()`` or ``extra_fields``.
+        def __getattr__(self, name: str) -> Any:
+            # Runs only after normal lookup failed, so declared fields, methods and
+            # properties always win. Private and dunder names are never answered from
+            # the response, which keeps copy, pickle and hasattr probes ordinary.
+            if not name.startswith("_"):
+                extra = _extra_of(self)
+                if name in extra:
+                    return extra[name]
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+
+    @property
+    def extra_fields(self) -> Mapping[str, Any]:
+        """The response keys this model does not declare, as received.
+
+        A read-only mapping, empty when there are none. A key here is reachable but
+        not yet part of the typed model, so read it with ``.get()``.
+        """
+        return MappingProxyType(dict(_extra_of(self)))
 
     @classmethod
     def from_dict(cls, data: dict) -> "APIModel":
-        """Construct from a JSON dict, ignoring unknown keys."""
+        """Construct from a JSON dict, keeping undeclared keys in :attr:`extra_fields`."""
         if data is None:
             return None  # type: ignore[return-value]
-        known = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in known})
+        known = _declared_fields(cls)
+        return _with_extra(cls(**{k: v for k, v in data.items() if k in known}), data)
 
 
 # ── Preview wrapper ─────────────────────────────────────────
@@ -237,6 +332,12 @@ class PreviewResult(Generic[T]):
 
     def __getitem__(self, key: Any) -> Any:
         return self._data[key]  # type: ignore[index]
+
+    def __contains__(self, key: Any) -> bool:
+        # Membership follows the payload: a key of an object or dict payload, an
+        # item of a list payload. A None payload contains nothing.
+        data = self._data
+        return False if data is None else key in data  # type: ignore[operator]
 
     def __iter__(self) -> Iterator:
         data = self._data
@@ -376,6 +477,10 @@ class StockQuote(APIModel):
     delistedDate: Optional[str] = None
     # Why it delisted: "acquired", "take_private", "bankruptcy", "exchange_rule", "merged".
     delistingReason: Optional[str] = None
+    # Set on a fund ticker the ETF endpoints cover: API paths with the fund view, for
+    # example ``["/api/v1/etfs/SPY/quote"]``, which adds AUM, expense ratio, NAV and
+    # inception date (see ``get_etf_quote``). ``None`` for stocks and uncovered funds.
+    seeInstead: Optional[List[str]] = None
 
 
 @dataclass
@@ -490,13 +595,13 @@ class GraphEdge(APIModel):
     def from_dict(cls, data: dict) -> "GraphEdge":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             source=data.get("source", ""),
             target=data.get("target", ""),
             type=data.get("type", ""),
             direction=data.get("direction", ""),
             properties=dict(data.get("properties") or {}),
-        )
+        ), data)
 
 
 @dataclass
@@ -523,7 +628,7 @@ class GraphGroups(APIModel):
     def from_dict(cls, data: dict) -> "GraphGroups":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             people=list(data.get("people") or []),
             products=list(data.get("products") or []),
             productFamilies=[
@@ -533,7 +638,7 @@ class GraphGroups(APIModel):
             organizations=list(data.get("organizations") or []),
             publishers=list(data.get("publishers") or []),
             topics=list(data.get("topics") or []),
-        )
+        ), data)
 
 
 @dataclass
@@ -573,7 +678,7 @@ class StockGraph(APIModel):
     def from_dict(cls, data: dict) -> "StockGraph":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             root=data.get("root", ""),
             depth=data.get("depth", 1),
@@ -584,7 +689,7 @@ class StockGraph(APIModel):
             groups=GraphGroups.from_dict(data["groups"]) if data.get("groups") is not None else None,
             nodes=[GraphNode.from_dict(n) for n in (data.get("nodes") or [])],
             edges=[GraphEdge.from_dict(e) for e in (data.get("edges") or [])],
-        )
+        ), data)
 
 
 # ── Calendar types ──────────────────────────────────────────
@@ -624,18 +729,27 @@ class CalendarMeta(APIModel):
 class EarningsCalendar(APIModel):
     """Upcoming earnings calendar: events plus window metadata.
 
+    ``latestReported`` is set only on a request filtered to one ticker: the most
+    recent calendar row for that ticker dated on or before today (US Eastern),
+    with the same fields as an event in ``earnings``. It is independent of the
+    ``earnings`` window and its filters, so it can be present while ``earnings`` is
+    empty. ``None`` when no row qualifies, and on market-wide requests.
+
     Note: no ``data`` field by design (it would shadow ``PreviewResult.data``).
     """
 
     earnings: List[EarningsEvent] = field(default_factory=list)
     metadata: Optional[CalendarMeta] = None
+    latestReported: Optional[EarningsEvent] = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "EarningsCalendar":
-        return cls(
+        latest = data.get("latestReported")
+        return _with_extra(cls(
             earnings=[EarningsEvent.from_dict(e) for e in data.get("earnings", [])],
             metadata=CalendarMeta.from_dict(data.get("metadata") or {}),
-        )
+            latestReported=EarningsEvent.from_dict(latest) if isinstance(latest, dict) else None,
+        ), data)
 
 
 # ── Earnings analysis report types ──────────────────────────
@@ -715,7 +829,7 @@ class EarningsQuarter(APIModel):
         known = {f.name for f in dataclasses.fields(cls)}
         nested = {"kpiHighlights", "transcriptHighlights", "sources"}
         base = {k: v for k, v in data.items() if k in known and k not in nested}
-        return cls(
+        return _with_extra(cls(
             **base,
             kpiHighlights=[
                 EarningsKpiHighlight.from_dict(k) for k in (data.get("kpiHighlights") or [])
@@ -725,7 +839,7 @@ class EarningsQuarter(APIModel):
                 for k in (data.get("transcriptHighlights") or [])
             ],
             sources=[EarningsSource.from_dict(s) for s in (data.get("sources") or [])],
-        )
+        ), data)
 
 
 class EarningsSummariesResult(PreviewResult[List[EarningsQuarter]]):
@@ -786,13 +900,13 @@ class EarningsReactions(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "EarningsReactions":
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             asOf=data.get("asOf", ""),
             reactions=[
                 EarningsReaction.from_dict(row) for row in data.get("reactions", [])
             ],
-        )
+        ), data)
 
 
 @dataclass
@@ -836,10 +950,10 @@ class EarningsStatisticsBaseline(APIModel):
     def from_dict(cls, data: dict) -> "EarningsStatisticsBaseline":
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "window"}
-        return cls(
+        return _with_extra(cls(
             **base,
             window=EarningsStatisticsWindow.from_dict(data.get("window") or {}),
-        )
+        ), data)
 
 
 @dataclass
@@ -904,7 +1018,7 @@ class EarningsStatistics(APIModel):
         base = {k: v for k, v in data.items() if k in known and k not in nested}
         baseline = data.get("baseline")
         deviation = data.get("deviation")
-        return cls(
+        return _with_extra(cls(
             **base,
             window=EarningsStatisticsWindow.from_dict(data.get("window") or {}),
             beat=EarningsOutcomeStatistics.from_dict(data.get("beat") or {}),
@@ -923,7 +1037,7 @@ class EarningsStatistics(APIModel):
             thresholds=EarningsStatisticsThresholds.from_dict(
                 data.get("thresholds") or {}
             ),
-        )
+        ), data)
 
 
 @dataclass
@@ -947,6 +1061,11 @@ class RankedReportedEarnings(APIModel):
     sentisenseScore7d: Optional[float] = None  # 7-day average Score, signed and unbounded
     scoreChange7d: Optional[float] = None  # 7-day average minus 30-day average, score units
     importance: float = 0.0  # 0 to 1
+    # "SIGN_FLIP" when the estimate and the reported EPS sit on opposite sides of zero,
+    # "OUTSIZED" when the surprise exceeds 100% of the absolute estimate or the estimate
+    # is zero. When set, surprisePct is None: the estimate and the reported EPS are usually
+    # on different bases, while estimateEps, actualEps and outcome are still served.
+    surpriseFlag: Optional[str] = None
 
 
 @dataclass
@@ -992,10 +1111,10 @@ class RankedEarnings(APIModel):
     def from_dict(cls, data: dict) -> "RankedEarnings":
         reported = data.get("reported") or {}
         upcoming = data.get("upcoming") or {}
-        return cls(
+        return _with_extra(cls(
             asOf=data.get("asOf", 0),
             rankingVersion=data.get("rankingVersion", ""),
-            reported=RankedEarningsSection(
+            reported=_with_extra(RankedEarningsSection(
                 windowStart=reported.get("windowStart", ""),
                 windowEnd=reported.get("windowEnd", ""),
                 totalInWindow=reported.get("totalInWindow", 0),
@@ -1003,8 +1122,8 @@ class RankedEarnings(APIModel):
                     RankedReportedEarnings.from_dict(row)
                     for row in reported.get("rows", [])
                 ],
-            ),
-            upcoming=RankedEarningsSection(
+            ), reported),
+            upcoming=_with_extra(RankedEarningsSection(
                 windowStart=upcoming.get("windowStart", ""),
                 windowEnd=upcoming.get("windowEnd", ""),
                 totalInWindow=upcoming.get("totalInWindow", 0),
@@ -1012,8 +1131,8 @@ class RankedEarnings(APIModel):
                     RankedUpcomingEarnings.from_dict(row)
                     for row in upcoming.get("rows", [])
                 ],
-            ),
-        )
+            ), upcoming),
+        ), data)
 
 
 # ── Insider types ───────────────────────────────────────────
@@ -1043,10 +1162,10 @@ class InsiderActivity(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "InsiderActivity":
-        return cls(
+        return _with_extra(cls(
             buys=[InsiderActivitySummary.from_dict(b) for b in data.get("buys", [])],
             sells=[InsiderActivitySummary.from_dict(s) for s in data.get("sells", [])],
-        )
+        ), data)
 
 
 @dataclass
@@ -1158,7 +1277,7 @@ class CongressTrade(APIModel):
         kwargs = {k: v for k, v in data.items() if k in known}
         if data.get("assetMetadata"):
             kwargs["assetMetadata"] = AssetMetadata.from_dict(data["assetMetadata"])
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 @dataclass
@@ -1198,11 +1317,11 @@ class PoliticianDetail(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "PoliticianDetail":
-        return cls(
+        return _with_extra(cls(
             profile=PoliticianSummary.from_dict(data["profile"]) if data.get("profile") else None,
             recentTrades=[CongressTrade.from_dict(t) for t in data.get("recentTrades", [])],
             topTickers=data.get("topTickers", []),
-        )
+        ), data)
 
 
 # ── Insight types ───────────────────────────────────────────
@@ -1228,6 +1347,8 @@ class Insight(APIModel):
     insightId: Optional[str] = None
     category: Optional[str] = None  # "SENTIMENT", "TRENDING", "TECHNICAL", "FUNDAMENTAL", "PERSONALIZED"
     docRefs: Optional[List[InsightDocRef]] = None
+    #: The ticker the insight is about. ``None`` for a market-wide insight.
+    ticker: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "Insight":
@@ -1236,7 +1357,7 @@ class Insight(APIModel):
             doc_refs = [InsightDocRef.from_dict(r) for r in data["docRefs"]]
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "docRefs"}
-        return cls(**base, docRefs=doc_refs)
+        return _with_extra(cls(**base, docRefs=doc_refs), data)
 
 
 # ── Document types ──────────────────────────────────────────
@@ -1273,7 +1394,7 @@ class Document(APIModel):
             sentiments = [SentimentEntry.from_dict(s) for s in data["sentiment"]]
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "sentiment"}
-        return cls(**base, sentiment=sentiments)
+        return _with_extra(cls(**base, sentiment=sentiments), data)
 
 
 @dataclass
@@ -1289,14 +1410,14 @@ class DocumentSearchResponse(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "DocumentSearchResponse":
-        return cls(
+        return _with_extra(cls(
             documents=[Document.from_dict(d) for d in data.get("documents", [])],
             totalCount=data.get("totalCount", 0),
             searchTicker=data.get("searchTicker"),
             source=data.get("source"),
             startDate=data.get("startDate"),
             endDate=data.get("endDate"),
-        )
+        ), data)
 
 
 @dataclass
@@ -1343,7 +1464,7 @@ class Story(APIModel):
         cluster = StoryCluster.from_dict(data["cluster"]) if data.get("cluster") else None
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "cluster"}
-        return cls(**base, cluster=cluster)
+        return _with_extra(cls(**base, cluster=cluster), data)
 
 
 # ── Market types ────────────────────────────────────────────
@@ -1449,14 +1570,14 @@ class InstitutionalFlows(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "InstitutionalFlows":
-        return cls(
+        return _with_extra(cls(
             inflows=[InstitutionalFlow.from_dict(f) for f in data.get("inflows", [])],
             outflows=[InstitutionalFlow.from_dict(f) for f in data.get("outflows", [])],
             reportDate=data.get("reportDate"),
             isPending=data.get("isPending"),
             filerCount=data.get("filerCount"),
             baselineFilerCount=data.get("baselineFilerCount"),
-        )
+        ), data)
 
 
 @dataclass
@@ -1536,10 +1657,10 @@ class HoldersHistory(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "HoldersHistory":
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             quarters=[HoldersHistoryQuarter.from_dict(q) for q in data.get("quarters") or []],
-        )
+        ), data)
 
 
 @dataclass
@@ -1628,13 +1749,13 @@ class InstitutionHistory(APIModel):
                 ticker: [InstitutionPositionPoint.from_dict(p) for p in points or []]
                 for ticker, points in raw_positions.items()
             }
-        return cls(
+        return _with_extra(cls(
             filerCik=data.get("filerCik", ""),
             urlSlug=data.get("urlSlug", ""),
             displayName=data.get("displayName", ""),
             quarters=[InstitutionHistoryQuarter.from_dict(q) for q in data.get("quarters") or []],
             positions=positions,
-        )
+        ), data)
 
 
 # ── Options types ───────────────────────────────────────────
@@ -1729,7 +1850,7 @@ class OptionsAggregate(APIModel):
         kwargs = {k: v for k, v in data.items() if k in known and k != "unusualOi"}
         if data.get("unusualOi") is not None:
             kwargs["unusualOi"] = [OptionsOiFollowUp.from_dict(u) for u in data["unusualOi"]]
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 @dataclass
@@ -1787,7 +1908,7 @@ class OptionsOiWalls(APIModel):
     def from_dict(cls, data: dict) -> "OptionsOiWalls":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             expiry=data.get("expiry"),
             maxPain=data.get("maxPain"),
             callWalls=[OptionsWall.from_dict(w) for w in (data.get("callWalls") or [])],
@@ -1796,7 +1917,7 @@ class OptionsOiWalls(APIModel):
             totalPutOi=data.get("totalPutOi"),
             maxPainCallOi=data.get("maxPainCallOi"),
             maxPainPutOi=data.get("maxPainPutOi"),
-        )
+        ), data)
 
 
 @dataclass
@@ -1884,9 +2005,9 @@ class OptionsCapabilities(APIModel):
     def from_dict(cls, data: dict) -> "OptionsCapabilities":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             intradayBoard=OptionsIntradayBoardCapability.from_dict(data.get("intradayBoard")),
-        )
+        ), data)
 
 
 @dataclass
@@ -1954,7 +2075,7 @@ class OptionsSummary(APIModel):
         # `context: {}`, an empty-but-present object. Treated as falsy that becomes a None
         # context, which reads as "the server said nothing about percentiles" when it in
         # fact said "there are none yet". Same for the other nested objects.
-        return cls(
+        return _with_extra(cls(
             asOf=data.get("asOf"),
             sentiment=data.get("sentiment"),
             latest=(
@@ -1993,7 +2114,7 @@ class OptionsSummary(APIModel):
             pcVol=data.get("pcVol"),
             pcVolPctl1y=data.get("pcVolPctl1y"),
             maxPain=data.get("maxPain"),
-        )
+        ), data)
 
 
 @dataclass
@@ -2017,11 +2138,11 @@ class OptionsHistory(APIModel):
     def from_dict(cls, data: dict) -> "OptionsHistory":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker"),
             window=data.get("window"),
             series=[OptionsAggregate.from_dict(s) for s in (data.get("series") or [])],
-        )
+        ), data)
 
 
 @dataclass
@@ -2183,7 +2304,7 @@ class OptionsOverview(APIModel):
         kwargs["etfHighlights"] = [
             OptionsHighlight.from_dict(h) for h in (data.get("etfHighlights") or [])
         ]
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 @dataclass
@@ -2257,7 +2378,7 @@ class OptionsIntradayHistory(APIModel):
         if data is None:
             return None  # type: ignore[return-value]
         missing = data.get("missingCycles")
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker"),
             session=data.get("session"),
             live=data.get("live"),
@@ -2269,7 +2390,7 @@ class OptionsIntradayHistory(APIModel):
                 for p in (data.get("series") or [])
                 if p is not None
             ],
-        )
+        ), data)
 
 
 # ── SentiSense Rating types ─────────────────────────────────
@@ -2338,7 +2459,7 @@ class RatingDimension(APIModel):
         known = {f.name for f in dataclasses.fields(cls)}
         kwargs = {k: v for k, v in data.items() if k in known and k != "subLegs"}
         kwargs["subLegs"] = [RatingSubLeg.from_dict(s) for s in (data.get("subLegs") or [])]
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 @dataclass
@@ -2465,6 +2586,12 @@ class StockRating(APIModel):
     flags: List[RatingFlag] = field(default_factory=list)
     disclaimer: Optional[str] = None
     """The standard financial disclaimer. Display it alongside the grade."""
+    companyName: Optional[str] = None
+    """The company the ticker resolved to. ``None`` when no name is held for it."""
+    betaNotice: Optional[str] = None
+    """Present while the Rating is in Beta, on every shape: the response shape is
+    stable, while a stock's score can shift between ``methodologyVersion`` values.
+    ``None`` once the Beta ends."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "StockRating":
@@ -2488,7 +2615,7 @@ class StockRating(APIModel):
             RatingDimension.from_dict(d) for d in (data.get("dimensions") or [])
         ]
         kwargs["flags"] = [RatingFlag.from_dict(f) for f in (data.get("flags") or [])]
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 # ── KPI types ───────────────────────────────────────────────
@@ -2524,7 +2651,7 @@ class KpiSeries(APIModel):
         values = [KpiDataPoint.from_dict(v) for v in data.get("values", [])]
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "values"}
-        return cls(**base, values=values)
+        return _with_extra(cls(**base, values=values), data)
 
 
 @dataclass
@@ -2542,7 +2669,7 @@ class CompanyKpis(APIModel):
         kpis = [KpiSeries.from_dict(k) for k in data.get("kpis", [])]
         known = {f.name for f in dataclasses.fields(cls)}
         base = {k: v for k, v in data.items() if k in known and k != "kpis"}
-        return cls(**base, kpis=kpis)
+        return _with_extra(cls(**base, kpis=kpis), data)
 
 
 @dataclass
@@ -2566,10 +2693,10 @@ class KpiCoverage(APIModel):
 
     @classmethod
     def from_dict(cls, data: dict) -> "KpiCoverage":
-        return cls(
+        return _with_extra(cls(
             count=data.get("count", 0),
             tickers=[KpiCoverageEntry.from_dict(t) for t in data.get("tickers", [])],
-        )
+        ), data)
 
 
 @dataclass
@@ -2602,6 +2729,113 @@ class FundamentalsPeriod(APIModel):
     periodEndDate: str = ""          # ISO date, e.g. "2025-10-26"
     filingDate: Optional[str] = None  # ISO date the report was filed
     timeframe: Optional[str] = None  # "quarterly" or "annual"
+
+
+class FundamentalsLineSource(TypedDict, total=False):
+    """Where one statement line of a period was read from, in ``lineSources``.
+
+    Only lines read from the company's own SEC filing are listed.
+    """
+
+    source: str  # Always "SEC".
+    accession: str  # SEC accession number of the filing, "0000000000-00-000000".
+    filed: str  # ISO calendar day the filing was filed, YYYY-MM-DD.
+
+
+class FundamentalsStatement(TypedDict, total=False):
+    """Wire keys of one period from :meth:`SentiSenseClient.get_fundamentals_history`.
+
+    ``get_fundamentals`` returns the same object for a single period. The client
+    returns dictionaries; this type is an opt-in annotation. Amounts are in
+    ``reportedCurrency`` (absent when unknown, never implicitly USD) and a ``None``
+    value means unavailable, never zero. The trailing, price and market fields at
+    the end are ``None`` on every history row and filled only by ``get_fundamentals``.
+
+    Provenance: ``source``, ``sourceRef``, ``secFiled`` and ``lineSources`` are
+    present only on a period served from an SEC-backed record and are absent, not
+    ``None``, on every other period, so read them with ``.get()``. ``source`` is
+    ``"SEC"`` when at least one line comes from the company's own SEC filing,
+    ``"PROVIDER"`` when every line comes from the data provider and ``"CURATED"``
+    when a reviewed correction set the row. ``lineSources`` lists the SEC-sourced
+    lines only, keyed by field name; a line not listed came from the data provider.
+    ``sourceRef`` (an accession number) and ``secFiled`` (ISO date) name the newest
+    filing behind those lines and are present only when ``lineSources`` is.
+    """
+
+    ticker: str
+    fiscalPeriod: Optional[str]  # "Q1".."Q4" on quarterly rows, "FY" on annual rows.
+    fiscalYear: Optional[str]  # The filer's own fiscal-year label.
+    periodEndDate: Optional[str]  # ISO calendar day, YYYY-MM-DD.
+    periodMonths: Optional[int]  # 3, 6 or 12.
+    filingDate: Optional[str]  # ISO calendar day, YYYY-MM-DD.
+    companyName: Optional[str]
+    revenue: Optional[float]
+    costOfRevenue: Optional[float]
+    grossProfit: Optional[float]
+    operatingIncome: Optional[float]
+    netIncome: Optional[float]
+    bottomLineNetIncome: Optional[float]
+    eps: Optional[float]
+    epsBasic: Optional[float]
+    epsDiluted: Optional[float]
+    weightedAverageSharesBasic: Optional[int]
+    weightedAverageSharesDiluted: Optional[int]
+    sharesOutstanding: Optional[int]  # Deprecated: stops being populated on 2026-12-15.
+    totalAssets: Optional[float]
+    totalLiabilities: Optional[float]
+    totalEquity: Optional[float]
+    currentAssets: Optional[float]
+    currentLiabilities: Optional[float]
+    cash: Optional[float]
+    debt: Optional[float]
+    longTermDebt: Optional[float]
+    operatingCashFlow: Optional[float]
+    investingCashFlow: Optional[float]
+    financingCashFlow: Optional[float]
+    capitalExpenditure: Optional[float]  # Negative as an outflow.
+    freeCashFlow: Optional[float]
+    grossMargin: Optional[float]  # Percent.
+    operatingMargin: Optional[float]  # Percent.
+    netMargin: Optional[float]  # Percent.
+    currentRatio: Optional[float]
+    debtToEquity: Optional[float]
+    roe: Optional[float]  # Percent.
+    roa: Optional[float]  # Percent.
+    reportedCurrency: str
+    fetchedAt: int  # Epoch seconds.
+    dataSource: Optional[str]  # Deprecated, always "".
+    preIpoFiling: Optional[Dict[str, Any]]
+    epsBasisRepair: Optional[Dict[str, Any]]
+    source: str
+    sourceRef: str
+    secFiled: str  # ISO calendar day, YYYY-MM-DD.
+    lineSources: Dict[str, FundamentalsLineSource]
+    revenueTTM: Optional[float]
+    netIncomeTTM: Optional[float]
+    epsTTM: Optional[float]
+    quartersIncluded: Optional[int]
+    peRatio: Optional[float]
+    pbRatio: Optional[float]
+    psRatio: Optional[float]
+    marketCap: Optional[float]
+    currentPrice: Optional[float]
+
+
+class FundamentalsHistory(TypedDict, total=False):
+    """Wire keys of the dictionary :meth:`SentiSenseClient.get_fundamentals_history` returns.
+
+    ``periods`` is newest first by ``periodEndDate`` and ``count`` is its length. A
+    ticker with no statements (an ETF or fund, a very recent listing, an unknown
+    symbol) answers with ``count`` 0, empty ``periods`` and an explanatory
+    ``reason``. ``dataSource`` is deprecated and carries no information.
+    """
+
+    ticker: str
+    timeframe: str
+    count: int
+    dataSource: Optional[str]
+    reason: Optional[str]
+    periods: List[FundamentalsStatement]
 
 
 # ── ETF types ────────────────────────────────────────────────
@@ -2676,7 +2910,7 @@ class EtfHoldings(APIModel):
     def from_dict(cls, data: dict) -> "EtfHoldings":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             issuer=data.get("issuer", ""),
             issuerEndpoint=data.get("issuerEndpoint"),
@@ -2687,7 +2921,7 @@ class EtfHoldings(APIModel):
             holdings=[EtfHolding.from_dict(h) for h in data.get("holdings", [])],
             partial=data.get("partial"),
             totalKnownHoldings=data.get("totalKnownHoldings"),
-        )
+        ), data)
 
 
 @dataclass
@@ -2748,7 +2982,7 @@ class EtfQuote(APIModel):
         values["extendedHours"] = (
             ExtendedHoursInfo.from_dict(extended) if isinstance(extended, dict) else None
         )
-        return cls(**values)
+        return _with_extra(cls(**values), data)
 
 
 @dataclass
@@ -2802,14 +3036,14 @@ class EtfAnalystAggregate(APIModel):
         if data is None:
             return None  # type: ignore[return-value]
         tc = data.get("topContributors") or []
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             asOfDate=data.get("asOfDate", ""),
             computedAt=data.get("computedAt"),
             coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
             weightedConsensus=WeightedConsensus.from_dict(data.get("weightedConsensus")) if data.get("weightedConsensus") else None,
             topContributors=[EtfAnalystContributor.from_dict(c) for c in tc],
-        )
+        ), data)
 
 
 @dataclass
@@ -2853,7 +3087,7 @@ class EtfInsiderAggregate(APIModel):
         if data is None:
             return None  # type: ignore[return-value]
         tc = data.get("topContributors") or []
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             asOfDate=data.get("asOfDate", ""),
             computedAt=data.get("computedAt"),
@@ -2861,7 +3095,7 @@ class EtfInsiderAggregate(APIModel):
             coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
             weightedNetFlow=WeightedNetFlow.from_dict(data.get("weightedNetFlow")) if data.get("weightedNetFlow") else None,
             topContributors=[EtfInsiderContributor.from_dict(c) for c in tc],
-        )
+        ), data)
 
 
 @dataclass
@@ -2891,14 +3125,14 @@ class EtfSentimentAggregate(APIModel):
     def from_dict(cls, data: dict) -> "EtfSentimentAggregate":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             ticker=data.get("ticker", ""),
             asOfDate=data.get("asOfDate", ""),
             computedAt=data.get("computedAt"),
             coverage=EtfAggregateCoverage.from_dict(data.get("coverage")) if data.get("coverage") else None,
             constituentsWeighted=EtfSentimentReading.from_dict(data.get("constituentsWeighted")) if data.get("constituentsWeighted") else None,
             direct=EtfSentimentReading.from_dict(data.get("direct")) if data.get("direct") else None,
-        )
+        ), data)
 
 
 # ── Trackers ────────────────────────────────────────────────
@@ -2937,7 +3171,7 @@ class TrackerListing(APIModel):
         raw_filters = data.get("filters")
         if raw_filters is not None:
             listing.filters = [TrackerFilter.from_dict(f) for f in raw_filters if f is not None]
-        return listing
+        return _with_extra(listing, data)
 
 
 @dataclass
@@ -2956,7 +3190,7 @@ class TrackerFilter(APIModel):
     def from_dict(cls, data: dict) -> "TrackerFilter":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(key=data.get("key", ""), values=list(data.get("values") or []))
+        return _with_extra(cls(key=data.get("key", ""), values=list(data.get("values") or [])), data)
 
 
 @dataclass
@@ -2969,7 +3203,7 @@ class TrackerListResponse(APIModel):
     def from_dict(cls, data: dict) -> "TrackerListResponse":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(trackers=[TrackerListing.from_dict(t) for t in data.get("trackers", [])])
+        return _with_extra(cls(trackers=[TrackerListing.from_dict(t) for t in data.get("trackers", [])]), data)
 
 
 @dataclass
@@ -3050,7 +3284,7 @@ class TrackerTableRow(APIModel):
         if data is None:
             return None  # type: ignore[return-value]
         states = data.get("statesNamed")
-        return cls(
+        return _with_extra(cls(
             rank=data.get("rank"),
             rowId=data.get("rowId", ""),
             name=data.get("name", ""),
@@ -3061,7 +3295,7 @@ class TrackerTableRow(APIModel):
             endsDate=data.get("endsDate"),
             statesNamed=list(states) if states is not None else None,
             raw=dict(data),
-        )
+        ), data)
 
 
 @dataclass
@@ -3078,13 +3312,13 @@ class TrackerGeoEntry(APIModel):
     def from_dict(cls, data: dict) -> "TrackerGeoEntry":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             geoId=data.get("geoId"),
             isoCode=data.get("isoCode"),
             fips=data.get("fips"),
             name=data.get("name", ""),
             metrics=[TrackerMetricValue.from_dict(m) for m in data.get("metrics", []) if m is not None],
-        )
+        ), data)
 
 
 @dataclass
@@ -3115,7 +3349,7 @@ class TrackerSnapshot(APIModel):
     def from_dict(cls, data: dict) -> "TrackerSnapshot":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             trackerId=data.get("trackerId", ""),
             scope=data.get("scope"),
             schemaVersion=data.get("schemaVersion", ""),
@@ -3130,7 +3364,7 @@ class TrackerSnapshot(APIModel):
             geo=[TrackerGeoEntry.from_dict(g) for g in (data.get("geo") or []) if g is not None],
             rows=[TrackerTableRow.from_dict(r) for r in (data.get("rows") or []) if r is not None],
             raw=data,
-        )
+        ), data)
 
 
 # ── Indexes ─────────────────────────────────────────────────
@@ -3166,7 +3400,7 @@ class IndexListResponse(APIModel):
     def from_dict(cls, data: dict) -> "IndexListResponse":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(indexes=[IndexListing.from_dict(i) for i in (data.get("indexes") or []) if i is not None])
+        return _with_extra(cls(indexes=[IndexListing.from_dict(i) for i in (data.get("indexes") or []) if i is not None]), data)
 
 
 @dataclass
@@ -3236,7 +3470,7 @@ class IndexSnapshot(APIModel):
             None if raw is None
             else [IndexConstituent.from_dict(c) for c in raw if c is not None]
         )
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 @dataclass
@@ -3269,13 +3503,13 @@ class IndexHistoryResponse(APIModel):
     def from_dict(cls, data: dict) -> "IndexHistoryResponse":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             indexId=data.get("indexId", ""),
             displayName=data.get("displayName", ""),
             scale=data.get("scale", ""),
             days=data.get("days", 0),
             history=[IndexHistoryPoint.from_dict(p) for p in (data.get("history") or []) if p is not None],
-        )
+        ), data)
 
 
 # ── Screener ─────────────────────────────────────────────────
@@ -3337,7 +3571,7 @@ class ScreenerField(APIModel):
             None if raw is None
             else [ScreenerFieldOption.from_dict(o) for o in raw if o is not None]
         )
-        return cls(**kwargs)
+        return _with_extra(cls(**kwargs), data)
 
 
 @dataclass
@@ -3356,10 +3590,10 @@ class ScreenerFieldCatalog(APIModel):
     def from_dict(cls, data: dict) -> "ScreenerFieldCatalog":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             stock=[ScreenerField.from_dict(f) for f in (data.get("stock") or []) if f is not None],
             etf=[ScreenerField.from_dict(f) for f in (data.get("etf") or []) if f is not None],
-        )
+        ), data)
 
 
 @dataclass
@@ -3551,11 +3785,11 @@ class ScreenerResults(APIModel):
     def from_dict(cls, data: dict) -> "ScreenerResults":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             results=[ScreenerRow.from_dict(r) for r in (data.get("results") or []) if r is not None],
             matched=data.get("matched", 0),
             limit=data.get("limit", 0),
-        )
+        ), data)
 
 
 @dataclass
@@ -3574,8 +3808,8 @@ class EtfScreenerResults(APIModel):
     def from_dict(cls, data: dict) -> "EtfScreenerResults":
         if data is None:
             return None  # type: ignore[return-value]
-        return cls(
+        return _with_extra(cls(
             results=[EtfScreenerRow.from_dict(r) for r in (data.get("results") or []) if r is not None],
             matched=data.get("matched", 0),
             limit=data.get("limit", 0),
-        )
+        ), data)

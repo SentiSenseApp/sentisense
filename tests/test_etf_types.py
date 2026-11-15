@@ -348,10 +348,12 @@ class TestEtfQuote:
         assert q.extendedHours.changePercent == pytest.approx(0.4096, abs=1e-4)
         assert q.priceAsOf == 1790841200000
 
-    def test_unknown_fields_are_ignored(self):
+    def test_unknown_fields_are_kept_but_not_declared(self):
         q = EtfQuote.from_dict({**SPY_QUOTE, "futureField": 1})
         assert q.ticker == "SPY"
-        assert not hasattr(q, "futureField")
+        assert "futureField" not in EtfQuote.__dataclass_fields__
+        assert dict(q.extra_fields) == {"futureField": 1}
+        assert q.get("futureField") == 1
 
     def test_none_payload(self):
         assert EtfQuote.from_dict(None) is None
@@ -397,10 +399,12 @@ class TestEtfMembership:
         row = EtfMembership.from_dict({"etfTicker": "XLK", "etfName": "XLK", "weightPct": 3.0})
         assert row.asOfDate is None
 
-    def test_unknown_fields_are_ignored(self):
+    def test_unknown_fields_are_kept_but_not_declared(self):
         row = EtfMembership.from_dict({**STOCK_ETF_ROWS[0], "futureField": 1})
         assert row.etfTicker == "XLK"
-        assert not hasattr(row, "futureField")
+        assert "futureField" not in EtfMembership.__dataclass_fields__
+        assert dict(row.extra_fields) == {"futureField": 1}
+        assert row["futureField"] == 1
 
 
 class TestGetStockEtfs:

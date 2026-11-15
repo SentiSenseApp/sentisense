@@ -44,10 +44,11 @@ class TestCongressTrade:
         })
         assert trade.assetMetadata is None
 
-    def test_unknown_keys_ignored(self):
+    def test_unknown_keys_are_kept_but_not_declared(self):
         trade = CongressTrade.from_dict({
             "ticker": "AAPL",
-            "someFutureField": "ignored",
+            "someFutureField": "kept",
         })
         assert trade.ticker == "AAPL"
-        assert not hasattr(trade, "someFutureField")
+        assert "someFutureField" not in CongressTrade.__dataclass_fields__
+        assert dict(trade.extra_fields) == {"someFutureField": "kept"}

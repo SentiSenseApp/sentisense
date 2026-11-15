@@ -181,11 +181,14 @@ class TestFullResponse:
         result = client.get_stock_holders_history("ZZZZ")
         assert result.quarters == []
 
-    def test_unknown_keys_are_ignored(self):
+    def test_unknown_keys_are_kept_but_not_declared(self):
         row = dict(UNPRICED_ROW, someFutureField=1)
         history = HoldersHistory.from_dict({"ticker": "BRK.B", "quarters": [row], "extra": True})
         assert history.quarters[0].holderCount == 4895
-        assert not hasattr(history.quarters[0], "someFutureField")
+        declared = {f.name for f in dataclasses.fields(HoldersHistoryQuarter)}
+        assert "someFutureField" not in declared
+        assert dict(history.quarters[0].extra_fields) == {"someFutureField": 1}
+        assert dict(history.extra_fields) == {"extra": True}
 
     def test_payload_type_has_no_data_field(self):
         # PreviewResult.data would shadow a field of that name.

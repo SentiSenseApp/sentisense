@@ -2,9 +2,9 @@
 
 Two contracts are gated here because both fail quietly rather than loudly:
 
-* ``storySource`` and ``isLive`` are parsed off the cluster summary. The base
-  ``from_dict`` drops keys it does not know, so a field added to the wire but not to
-  the dataclass disappears with no error and reads as "the API does not send it".
+* ``storySource`` and ``isLive`` are parsed off the cluster summary as declared
+  fields. A key the dataclass does not declare is kept only as an untyped extra, so a
+  field missing from the dataclass would lose its type and its documentation.
 * Both are optional. An API build that predates them omits them, and the payload must
   still parse, with the fields reading ``None`` rather than defaulting to ``"AI"`` or
   ``False``. A caller that sees ``False`` cannot tell "not live" from "not known".

@@ -68,7 +68,7 @@ client = SentiSenseClient(timeout=30.0, max_retries=3)
 
 ## Reading responses
 
-Most methods return a typed object or a list of them. Every object also works like a dict, so `price.currentPrice` and `price["currentPrice"]` are the same.
+Most methods return a typed object or a list of them. Every object also works like a dict, so `price.currentPrice` and `price["currentPrice"]` are the same. A field the API sends that the object does not declare yet is still there: read it with `price.get("name")`, and `price.extra_fields` lists them.
 
 Endpoints with a free preview return a `PreviewResult`. You read it exactly like the full data, and it tells you whether you got a preview:
 
@@ -114,6 +114,7 @@ For a fund, use `get_etf_quote`. `get_stock_quote` accepts a fund ticker but lea
 | `get_fundamentals(ticker, timeframe="quarterly")` | Income statement, balance sheet and cash flow, as filed |
 | `get_current_fundamentals(ticker)` | The latest snapshot |
 | `get_fundamentals_periods(ticker)` | The reporting periods we hold |
+| `get_fundamentals_history(ticker, timeframe=None, limit=None)` | Up to 40 quarters or 20 years of statements, newest first, with each period's SEC sources when we hold them |
 | `get_historical_revenue(ticker)` | Revenue over time |
 | `get_short_interest(ticker)` | Short interest by settlement date |
 | `get_float(ticker)` | Shares available to trade |

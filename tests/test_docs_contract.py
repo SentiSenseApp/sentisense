@@ -293,3 +293,19 @@ class TestShortSideUnitDocs:
         for name in ("etfTicker", "etfName", "weightPct", "asOfDate"):
             assert "``%s``" % name in doc
         assert "etf_ticker" not in doc and "weight_pct" not in doc and "as_of_date" not in doc
+
+
+class TestFundQuoteWording:
+    """A fund ticker on the stock quote answers 200 with ``seeInstead``, not an error.
+
+    The ETF quote's docstring promised an HTTP 400 ``ticker_is_etf`` for several
+    releases after the API stopped sending it, so a caller waiting for that error to
+    switch endpoints never switched.
+    """
+
+    @pytest.mark.parametrize("method", ["get_stock_quote", "get_etf_quote"])
+    def test_docstring_describes_see_instead_not_the_retired_error(self, method):
+        doc = getattr(SentiSenseClient, method).__doc__ or ""
+        assert "seeInstead" in doc
+        assert "ticker_is_etf" not in doc
+        assert "400" not in doc.split("Raises:")[0]

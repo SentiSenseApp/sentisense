@@ -321,6 +321,10 @@ class SentiSenseClient:
         after-hours, the response includes a nested ``extendedHours`` object; see
         :meth:`get_stock_price` for the shape.
 
+        A fund ticker also gets a quote here, without AUM, NAV or expense ratio. When
+        the ETF endpoints cover the fund, ``seeInstead`` lists the fund quote's path;
+        use :meth:`get_etf_quote` for those.
+
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
@@ -689,6 +693,54 @@ class SentiSenseClient:
         return self._get(
             "/api/v1/stocks/fundamentals/current", params={"ticker": ticker}
         ).json()
+
+    def get_fundamentals_history(
+        self,
+        ticker: str,
+        timeframe: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Get several periods of full financial statements for a stock, newest first.
+
+        Returns ``{ticker, timeframe, count, dataSource, reason, periods}``. Each
+        entry of ``periods`` is the same period object :meth:`get_fundamentals`
+        returns for one period (income statement, balance sheet, cash flow and
+        derived ratios, keyed camelCase as on the wire), with the trailing-twelve-
+        month, price-ratio and market fields left ``None``. Annotate it with
+        :class:`~sentisense.types.FundamentalsHistory` if you want the keys typed.
+
+        Figures are as reported in the filer's own currency (``reportedCurrency``,
+        absent when unknown), and ``None`` means unavailable, never zero. A ticker
+        with no statements (an ETF or fund, a very recent listing, an unknown
+        symbol) returns ``count`` 0, an empty ``periods`` and a ``reason``, not an
+        error.
+
+        Provenance: a period served from an SEC-backed record carries ``source``
+        (``"SEC"`` when at least one line comes from the company's own SEC filing,
+        ``"PROVIDER"`` when every line comes from the data provider, ``"CURATED"``
+        when a reviewed correction set the row), ``lineSources`` (the SEC-sourced
+        lines only, keyed by field name, each ``{"source", "accession", "filed"}``),
+        and ``sourceRef`` and ``secFiled`` naming the newest filing behind those
+        lines. The four keys are absent, not ``None``, on every other period, so
+        read them with ``period.get("source")``.
+
+        Args:
+            ticker: Stock ticker symbol.
+            timeframe: ``"quarterly"`` (the server default) or ``"annual"``.
+            limit: Periods to return. The server defaults to 12 quarters or 10
+                years and clamps anything above 40 quarters or 20 years.
+
+        Example:
+            >>> hist = client.get_fundamentals_history("AAPL", timeframe="annual", limit=5)
+            >>> [(p["fiscalYear"], p["revenue"]) for p in hist["periods"]]
+            >>> sec_lines = hist["periods"][0].get("lineSources", {})
+        """
+        params: Dict[str, Any] = {"ticker": ticker}
+        if timeframe:
+            params["timeframe"] = timeframe
+        if limit is not None:
+            params["limit"] = limit
+        return self._get("/api/v1/stocks/fundamentals/history", params=params).json()
 
     def get_historical_revenue(self, ticker: str) -> Dict[str, Any]:
         """Get historical revenue data for a ticker.
@@ -2245,9 +2297,10 @@ class SentiSenseClient:
         :class:`~sentisense.types.EtfQuote`. During pre-market and after-hours a typed
         ``extendedHours`` object is attached.
 
-        :meth:`get_stock_quote` answers an ETF ticker with an HTTP 400 ``APIError``
-        whose body names the error ``ticker_is_etf`` (read it from
-        ``exc.response.json()["error"]``); call this method for those tickers instead.
+        :meth:`get_stock_quote` also answers a fund ticker, with a plain quote that
+        leaves out AUM, NAV and the expense ratio. When this endpoint covers the fund,
+        that quote's ``seeInstead`` lists this endpoint's path (for example
+        ``["/api/v1/etfs/SPY/quote"]``), so check it and call this method instead.
 
         Args:
             ticker: ETF ticker (e.g. ``"SPY"``). Upper-cased for you.

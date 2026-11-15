@@ -10,10 +10,15 @@ import pytest
 from sentisense import (
     AnalystAction,
     AnalystEarningsSurprise,
+    EarningsEvent,
     GraphNode,
+    Insight,
     InstitutionDetail,
     OptionsSummary,
+    RankedReportedEarnings,
     SentiSenseClient,
+    StockQuote,
+    StockRating,
 )
 
 PAYLOADS = json.loads(
@@ -203,8 +208,11 @@ def test_the_retired_bare_sample_key_is_not_read():
     assert not hasattr(result, "sample")
     row = {"ticker": "AAPL", "kpiCount": 8, "sample": True}
     coverage = call_with_payload("list_kpi_coverage", {"count": 1, "tickers": [row]})
+    # The retired key is never read as sampleCompany. Like any undeclared key it is
+    # still visible as received, but only as an extra, never as a typed field.
     assert coverage.tickers[0].sampleCompany is None
-    assert not hasattr(coverage.tickers[0], "sample")
+    assert "sample" not in type(coverage.tickers[0]).__dataclass_fields__
+    assert dict(coverage.tickers[0].extra_fields) == {"sample": True}
 
 
 @pytest.mark.parametrize("method,args", [
@@ -249,3 +257,94 @@ def test_analyst_action_annotation_names_the_wire_keys():
                 "priceTarget", "priorPriceTarget"):
         assert key in keys
     assert AnalystAction.__total__ is False
+
+
+# ── Documented fields the typed models now declare ──────────────────────────
+
+
+def _envelope(data):
+    return {"isPreview": False, "previewReason": None, "data": data}
+
+
+_LATEST_ROW = {
+    "ticker": "AAPL",
+    "companyName": "Apple Inc.",
+    "earningsDate": "2026-11-02",
+    "earningsTime": "after_close",
+    "fiscalQuarter": "Q4 2026",
+    "confirmed": True,
+    "estimatedEps": 1.50,
+    "actualEps": 1.60,
+    "epsSurprisePct": 6.67,
+    "epsBasis": "adjusted",
+}
+
+
+def test_ticker_calendar_types_the_latest_reported_row():
+    payload = _envelope({"earnings": [], "metadata": {"count": 0}, "latestReported": _LATEST_ROW})
+    cal = call_with_payload("get_earnings_calendar", payload, ticker="AAPL")
+    latest = cal.latestReported
+    assert isinstance(latest, EarningsEvent)
+    assert latest.earningsDate == "2026-11-02"
+    assert latest.actualEps == 1.60
+    assert latest.epsBasis == "adjusted"
+    # Independent of the window: present while `earnings` is empty.
+    assert cal.earnings == []
+    assert "latestReported" not in cal.extra_fields
+
+
+def test_market_wide_calendar_has_no_latest_reported():
+    cal = call_with_payload("get_earnings_calendar", _envelope({"earnings": [], "metadata": {}}))
+    assert cal.latestReported is None
+
+
+def test_insight_rows_name_their_ticker():
+    rows = [
+        {"insightType": "sentiment_shift", "insightText": "t", "ticker": "TSLA"},
+        {"insightType": "market_theme", "insightText": "t", "ticker": None},
+        {"insightType": "market_theme", "insightText": "t"},
+    ]
+    result = call_with_payload("get_latest_insights", _envelope(rows))
+    assert [i.ticker for i in result] == ["TSLA", None, None]
+    assert all(isinstance(i, Insight) for i in result)
+
+
+def test_fund_quote_carries_see_instead():
+    payload = {"ticker": "SPY", "currentPrice": 1.0, "seeInstead": ["/api/v1/etfs/SPY/quote"]}
+    quote = call_with_payload("get_stock_quote", payload, "SPY")
+    assert isinstance(quote, StockQuote)
+    assert quote.seeInstead == ["/api/v1/etfs/SPY/quote"]
+    assert call_with_payload("get_stock_quote", {"ticker": "AAPL"}, "AAPL").seeInstead is None
+
+
+def test_rating_carries_company_name_and_beta_notice():
+    payload = {"ticker": "AAPL", "rated": True, "companyName": "Apple Inc.", "betaNotice": "Beta: n"}
+    rating = call_with_payload("get_rating", payload, "AAPL")
+    assert rating.companyName == "Apple Inc."
+    assert rating.betaNotice == "Beta: n"
+    assert dict(rating.extra_fields) == {}
+    legacy = call_with_payload("get_rating", {"ticker": "AAPL", "rated": False}, "AAPL")
+    assert legacy.companyName is None and legacy.betaNotice is None
+
+
+def test_ranked_reported_rows_carry_the_surprise_flag():
+    payload = _envelope({
+        "asOf": 1,
+        "reported": {"rows": [
+            {"ticker": "AAA", "outcome": "BEAT", "estimateEps": -0.10, "actualEps": 0.20,
+             "surpriseFlag": "SIGN_FLIP"},
+            {"ticker": "BBB", "outcome": "BEAT", "surprisePct": 4.0},
+        ]},
+        "upcoming": {"rows": []},
+    })
+    rows = call_with_payload("get_ranked_earnings", payload).reported.rows
+    assert rows[0].surpriseFlag == "SIGN_FLIP" and rows[0].surprisePct is None
+    assert rows[1].surpriseFlag is None and rows[1].surprisePct == 4.0
+
+
+def test_new_fields_append_after_the_existing_positional_arguments():
+    # Each class grew at its end, so positional construction binds as before.
+    assert StockQuote("SPY", 1.0).seeInstead is None
+    assert Insight("t", "x", 0.5).ticker is None
+    assert StockRating("AAPL").companyName is None
+    assert RankedReportedEarnings("AAA", "2026-11-02").surpriseFlag is None
