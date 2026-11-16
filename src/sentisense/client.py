@@ -28,6 +28,7 @@ from sentisense.types import (
     EarningsQuarter,
     EarningsSummariesResult,
     DocumentSearchResponse,
+    EntitySearchResult,
     FundamentalsPeriod,
     EtfAnalystAggregate,
     EtfHoldings,
@@ -66,6 +67,7 @@ from sentisense.types import (
     SimilarStock,
     StockDetail,
     StockGraph,
+    StockImage,
     StockPrice,
     StockQuote,
     StockRating,
@@ -358,6 +360,52 @@ class SentiSenseClient:
         """
         return self._get(f"/api/v1/stocks/{ticker}/profile").json()
 
+    def get_stock_images(
+        self, tickers: List[str], forced: bool = False
+    ) -> Dict[str, StockImage]:
+        """Get icon and logo URLs for several tickers in one call.
+
+        Returns a dict keyed by ticker, each value a :class:`StockImage` with
+        ``iconUrl`` and ``logoUrl``. ``GET`` a URL to receive the image bytes; the image
+        fetch needs no API key, so a URL works directly in an ``<img src>`` tag.
+
+        An ETF has no company branding, so its entry carries only ``iconUrl``, the image
+        of its fund family. A ticker with no image at all is absent from the dict, so
+        read entries with ``.get(ticker)``. Keys are spelled as you passed them, so
+        ``"msft"`` comes back under ``"msft"``.
+
+        URLs change when brand assets are refreshed. Re-read them from this method
+        rather than storing them long term.
+
+        Args:
+            tickers: Ticker symbols, up to 600 per call (e.g. ``["AAPL", "NVDA"]``).
+            forced: ``True`` bypasses the cache. Default ``False``.
+        """
+        params: Dict[str, Any] = {"tickers": ",".join(tickers)}
+        if forced:
+            params["forced"] = True
+        data = self._get("/api/v1/stocks/images", params=params).json()
+        return {ticker: StockImage.from_dict(urls) for ticker, urls in (data or {}).items()}
+
+    def get_stock_descriptions(
+        self, tickers: List[str], forced: bool = False
+    ) -> Dict[str, Dict[str, Any]]:
+        """Get company profiles for several tickers in one call.
+
+        Returns a dict keyed by ticker. Each value is a company profile with branding,
+        market cap and sector, as a plain dict like :meth:`get_stock_profile` returns.
+        A ticker with no profile is absent from the dict, so read entries with
+        ``.get(ticker)``. Keys are spelled as you passed them.
+
+        Args:
+            tickers: Ticker symbols (e.g. ``["AAPL", "MSFT"]``).
+            forced: ``True`` bypasses the cache. Default ``False``.
+        """
+        params: Dict[str, Any] = {"tickers": ",".join(tickers)}
+        if forced:
+            params["forced"] = True
+        return self._get("/api/v1/stocks/descriptions", params=params).json()
+
     def get_stock_sentiment(self, ticker: str) -> PreviewResult[Dict[str, Any]]:
         """Get the headline sentiment picture for a stock in one call.
 
@@ -485,6 +533,27 @@ class SentiSenseClient:
             params={"depth": depth},
         ).json()
 
+    def get_stock_metrics_breakdown(
+        self, ticker: str, metric_type: str, start_time: int, end_time: int
+    ) -> Dict[str, Any]:
+        """Get a stock's sentiment or mention metrics broken down by entity over a window.
+
+        Returns the response as a plain dict.
+
+        Args:
+            ticker: Stock ticker symbol (e.g. ``"AAPL"``).
+            metric_type: Metric to break down, e.g. ``"sentiment"`` or ``"mentions"``.
+            start_time: Start of the window as epoch milliseconds. Required by the API.
+            end_time: End of the window as epoch milliseconds. Required by the API.
+
+        Raises:
+            NotFoundError: SentiSense does not track the ticker.
+        """
+        return self._get(
+            f"/api/v1/stocks/{ticker}/metrics/{metric_type}/breakdown",
+            params={"startTime": start_time, "endTime": end_time},
+        ).json()
+
     def get_similar_stocks(self, ticker: str, limit: int = 5) -> List[SimilarStock]:
         """Get peer/similar stocks with current prices.
 
@@ -586,6 +655,17 @@ class SentiSenseClient:
         ``shareClasses``; see :class:`~sentisense.types.StockDetail`.
         """
         return self._parse_list(self._get("/api/v1/stocks/detailed").json(), StockDetail)
+
+    def get_popular_stocks(self) -> List[str]:
+        """Get the tickers of popular stocks."""
+        return self._get("/api/v1/stocks/popular").json()
+
+    def get_popular_stocks_detailed(self) -> List[StockDetail]:
+        """Get popular stocks with company names and entity IDs.
+
+        Rows have the same shape as :meth:`get_all_stocks_detailed`.
+        """
+        return self._parse_list(self._get("/api/v1/stocks/popular/detailed").json(), StockDetail)
 
     def get_market_status(self) -> MarketStatus:
         """Get current market status (open/closed)."""
@@ -2257,6 +2337,42 @@ class SentiSenseClient:
         """
         return self._get("/api/v1/kb/entities/popular").json()
 
+    def search_entities(
+        self, q: str, type: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[EntitySearchResult]:
+        """Find the people, companies, products and other entities matching a name.
+
+        Matches are scored across names, aliases, tickers and slugs, best match first.
+        Each :class:`EntitySearchResult` carries ``name``, ``urlSlug``, ``type`` and
+        ``ticker``; a company match also carries ``listingCoverage``, plus ``listing``
+        for a company listed on a market SentiSense does not price. Pass ``urlSlug``
+        to :meth:`get_metrics` to read the entity's time series.
+
+        This resolves names you already know rather than listing the catalog: the
+        query needs at least 2 characters and results are capped. A query that
+        matches nothing returns ``[]``.
+
+        Args:
+            q: Case-insensitive name, alias, ticker or slug fragment, at least 2
+                characters (e.g. ``"pelosi"``).
+            type: Narrow to one entity type: ``"company"``, ``"country"``, ``"etf"``,
+                ``"organization"``, ``"person"``, ``"product"`` or ``"topic"``.
+                Omitted, every type is searched.
+            limit: Maximum matches, capped at 25. Omitted, the API returns up to 10.
+
+        Raises:
+            APIError: ``q`` is under 2 characters or ``type`` is not a listed value
+                (status 400, ``code == "invalid_parameter"``).
+        """
+        params: Dict[str, Any] = {"q": q}
+        if type is not None:
+            params["type"] = type
+        if limit is not None:
+            params["limit"] = limit
+        return self._parse_list(
+            self._get("/api/v1/kb/entities/search", params=params).json(), EntitySearchResult
+        )
+
     # ── ETF endpoints ───────────────────────────────────────────
 
     def list_etfs(self) -> List[EtfInfo]:
@@ -2723,8 +2839,8 @@ class SentiSenseClient:
 
         Args:
             symbol: Stock ticker symbol (e.g. "AAPL") or entity urlSlug
-                (e.g. "Nancy-Pelosi"). Case-insensitive. Discover slugs via
-                ``GET /api/v1/kb/entities/search?q=`` or ``get_stock_entities()``.
+                (e.g. "Nancy-Pelosi"). Case-insensitive. Discover slugs with
+                :meth:`search_entities` or :meth:`get_stock_entities`.
             metric_type: Metric to retrieve: "mentions", "sentiment",
                 "sentisense_score" (the SentiSense Score),
                 "sentisense_rating" (the SentiSense Rating score, 0-100), or

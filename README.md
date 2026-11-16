@@ -93,6 +93,8 @@ Each section lists the methods and links to the API docs page that explains ever
 |--------|-------------|
 | `get_stock_price(ticker)` | Latest price, delayed 15 minutes |
 | `get_stock_prices(tickers)` | Latest prices for several stocks in one call |
+| `get_stock_images(tickers, forced=False)` | Icon and logo URLs for several stocks, keyed by ticker |
+| `get_stock_descriptions(tickers, forced=False)` | Company profiles for several stocks, keyed by ticker |
 | `get_stock_quote(ticker)` | Day range, 52-week range, market cap, P/E, EPS, dividend yield |
 | `get_stock_profile(ticker)` | Company profile |
 | `get_stock_entities(ticker)` | People, products and organizations linked to a stock |
@@ -103,6 +105,8 @@ Each section lists the methods and links to the API docs page that explains ever
 | `get_stock_chart(ticker, timeframe="1M")` | Price bars, oldest first |
 | `get_all_stocks()` | Every ticker we cover |
 | `get_all_stocks_detailed()` | The same, with names and entity ids |
+| `get_popular_stocks()` | Popular tickers |
+| `get_popular_stocks_detailed()` | Popular stocks, with names and entity ids |
 | `get_market_status()` | Whether the market is open |
 
 For a fund, use `get_etf_quote`. `get_stock_quote` accepts a fund ticker but leaves out AUM, NAV and expense ratio. Only the `10Y` and `MAX` charts are dividend-adjusted, so don't compare their closes with a `1Y` chart. [Stocks API docs](https://sentisense.ai/docs/api/stocks/)
@@ -129,6 +133,7 @@ Figures are in the company's own currency (`reportedCurrency`), never converted.
 | `get_stock_sentiment(ticker)` | The headline picture in one call: Score, mentions, tone by source, what's driving it |
 | `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | One metric over time |
 | `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | One metric split by source |
+| `get_stock_metrics_breakdown(ticker, metric_type, start_time, end_time)` | One metric for a stock, split across the people, products and companies linked to it |
 
 Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance`, `creators`, `app_review_count`, `app_rating`, `app_all_ratings_count` and `app_all_ratings_avg`.
 
@@ -346,6 +351,9 @@ Tracker rows keep any column we don't type yet, so `row.get("marketCap")` works.
 | Method | Description |
 |--------|-------------|
 | `get_popular_kb_entities()` | The most-followed people, products and companies |
+| `search_entities(q, type=None, limit=None)` | Find a person, company, product or topic by name, with the `urlSlug` that `get_metrics` takes |
+
+[Entities API docs](https://sentisense.ai/docs/api/entities/)
 
 ## Error Handling
 
@@ -370,12 +378,6 @@ except RateLimitError as exc:
 | `APIError` | other | Anything else |
 
 All of them inherit from `SentiSenseError` and carry `.status_code`, `.message`, `.code` and `.response`. The client already retried what it could before raising.
-
-## Not yet in the Python SDK
-
-A few endpoints have no method yet. Call them over HTTP if you need them: `/api/v1/stocks/images`,
-`/api/v1/stocks/descriptions`, `/api/v1/stocks/popular`, `/api/v1/kb/entities/search` and
-`/api/v1/stocks/{ticker}/metrics/{metricType}/breakdown`.
 
 ## Links
 

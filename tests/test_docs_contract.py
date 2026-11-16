@@ -52,20 +52,28 @@ class TestReadmeMethodTables:
         assert not hasattr(SentiSenseClient, "get_story")
         assert "`get_story(" not in readme
 
-    def test_unwrapped_endpoints_are_listed_as_such(self, readme):
-        section = readme.split("## Not yet in the Python SDK", 1)[1]
-        # Single-story detail is wrapped by get_story_detail, so it must not be listed as
-        # missing (it was, for several releases after the method shipped).
-        assert "/api/v1/documents/stories/{clusterId}" not in section
-        assert hasattr(SentiSenseClient, "get_story_detail")
-        assert "/api/v1/stocks/images" in section
-        # get_stock_entities has shipped since 0.30.0, so its endpoint must not still
-        # be advertised as unavailable.
-        assert "/api/v1/stocks/{ticker}/entities" not in section
-        assert hasattr(SentiSenseClient, "get_stock_entities")
-        # Same for the report endpoint, wrapped since 0.35.0.
-        assert "/api/v1/stocks/{ticker}/ai-summary" not in section
-        assert hasattr(SentiSenseClient, "get_stock_ai_summary")
+    # Endpoints that have a method. Each was once listed as missing for several releases
+    # after its method shipped, so none may appear in a "Not yet in the Python SDK"
+    # section again. The section is gone while every documented endpoint has a method;
+    # if it returns, it may only name endpoints that really have none.
+    WRAPPED = {
+        "/api/v1/documents/stories/{clusterId}": "get_story_detail",
+        "/api/v1/stocks/{ticker}/entities": "get_stock_entities",
+        "/api/v1/stocks/{ticker}/ai-summary": "get_stock_ai_summary",
+        "/api/v1/stocks/images": "get_stock_images",
+        "/api/v1/stocks/descriptions": "get_stock_descriptions",
+        "/api/v1/stocks/popular": "get_popular_stocks",
+        "/api/v1/stocks/popular/detailed": "get_popular_stocks_detailed",
+        "/api/v1/kb/entities/search": "search_entities",
+        "/api/v1/stocks/{ticker}/metrics/{metricType}/breakdown": "get_stock_metrics_breakdown",
+    }
+
+    def test_wrapped_endpoints_are_not_listed_as_missing(self, readme):
+        parts = readme.split("## Not yet in the Python SDK", 1)
+        section = parts[1].split("\n## ", 1)[0] if len(parts) == 2 else ""
+        for path, method in self.WRAPPED.items():
+            assert hasattr(SentiSenseClient, method), method
+            assert path not in section, "%s has %s but is listed as missing" % (path, method)
 
 
 class TestReadmeCodeSamples:

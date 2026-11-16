@@ -556,3 +556,33 @@ class TestGetRankedEarnings:
         assert len(result.upcoming.rows) == 3
         assert result.reported.rows[1].estimateEps is None
         assert result.upcoming.rows[1].estimatedEps is None
+
+    @patch.object(SentiSenseClient, "_get")
+    def test_after_hours_reaction_is_typed_and_absent_by_default(self, mock_get, client):
+        # The extended-hours reading stands in while the reacting session has not opened,
+        # so it arrives without movePct or liveReactionPct and with reactionPending true.
+        after_close = {
+            "ticker": "EXMP",
+            "reportDate": "2026-09-09",
+            "outcome": "BEAT",
+            "reactionPending": True,
+            "afterHoursReactionPct": 4.13,
+            "importance": 0.71,
+        }
+        payload = {
+            **RANKED_PRO_PAYLOAD,
+            "reported": {
+                **RANKED_PRO_PAYLOAD["reported"],
+                "rows": [RANKED_PRO_PAYLOAD["reported"]["rows"][0], after_close],
+            },
+        }
+        mock_get.return_value = _mock_response({"isPreview": False, "data": payload})
+
+        settled, pending = client.get_ranked_earnings().reported.rows
+
+        assert pending.afterHoursReactionPct == 4.13
+        assert pending.movePct is None and pending.liveReactionPct is None
+        assert pending.reactionPending is True
+        assert "afterHoursReactionPct" not in pending.extra_fields
+        assert settled.afterHoursReactionPct is None
+        assert settled.movePct == -6.38

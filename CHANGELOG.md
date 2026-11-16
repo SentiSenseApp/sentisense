@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.76.0
+
+- New `search_entities(q, type=None, limit=None)`: find the people, companies, products and
+  other entities matching a name, best match first, as a list of `EntitySearchResult` (`name`,
+  `urlSlug`, `type`, `ticker`, and on a company `listingCoverage` and `listing`). Pass `urlSlug`
+  to `get_metrics`. A query that matches nothing returns `[]`.
+- New `get_stock_images(tickers, forced=False)`: icon and logo URLs for up to 600 tickers in one
+  call, as a dict of `StockImage` (`iconUrl`, `logoUrl`) keyed by ticker. An ETF carries only
+  `iconUrl`, its fund family's image.
+- New `get_stock_descriptions(tickers, forced=False)`: company profiles for several tickers, as a
+  dict of plain dicts keyed by ticker.
+- In both batch lookups a ticker with nothing to return is left out of the dict, and keys are
+  spelled as you passed them.
+- New `get_popular_stocks()` and `get_popular_stocks_detailed()`: popular tickers, and the same
+  stocks as `StockDetail` rows.
+- New `get_stock_metrics_breakdown(ticker, metric_type, start_time, end_time)`: one metric for a
+  stock broken down by the entities linked to it, returned as a plain dict. `start_time` and
+  `end_time` are epoch milliseconds and required.
+- `RankedReportedEarnings` declares `afterHoursReactionPct`, the extended-hours move in signed
+  percent against the report day's regular close. It is `None` on most rows.
+- `StockImage` and `EntitySearchResult` are importable from `sentisense`.
+
 ## 0.75.1
 
 - `Story.clusterId` is deprecated: read `Story.id`. The attribute stays and existing code keeps

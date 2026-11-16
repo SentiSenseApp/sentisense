@@ -545,6 +545,21 @@ class StockDetail(APIModel):
 
 
 @dataclass
+class StockImage(APIModel):
+    """Image URLs for one ticker. Returned by ``client.get_stock_images``.
+
+    ``GET`` a URL to receive the image bytes. The image fetch itself needs no API key,
+    so a URL works directly in an ``<img src>`` tag. URLs change when brand assets are
+    refreshed, so re-read them rather than storing them long term.
+    """
+
+    # Square icon. For an ETF, the image of its fund family.
+    iconUrl: Optional[str] = None
+    # Company logo. None for an ETF, which has no company branding.
+    logoUrl: Optional[str] = None
+
+
+@dataclass
 class MarketStatus(APIModel):
     """Market open/closed status."""
 
@@ -690,6 +705,33 @@ class StockGraph(APIModel):
             nodes=[GraphNode.from_dict(n) for n in (data.get("nodes") or [])],
             edges=[GraphEdge.from_dict(e) for e in (data.get("edges") or [])],
         ), data)
+
+
+# ── Knowledge base types ────────────────────────────────────
+
+
+@dataclass
+class EntitySearchResult(APIModel):
+    """One match from ``client.search_entities``. Matches arrive best first.
+
+    Pass ``urlSlug`` to ``client.get_metrics`` as ``symbol`` to read the entity's
+    sentiment, mentions or SentiSense Score over time.
+    """
+
+    name: str = ""  # display name
+    # Canonical handle for the metrics endpoints' symbol argument.
+    urlSlug: Optional[str] = None
+    # "company", "country", "etf", "organization", "person", "product" or "topic".
+    type: str = ""
+    # Primary ticker for a company or ETF; None for every other entity.
+    ticker: Optional[str] = None
+    # Companies only: "public_tracked" (listed on a market we price), "public_untracked"
+    # (listed on a market we do not price) or "private" (not listed). None for every other
+    # entity type.
+    listingCoverage: Optional[str] = None
+    # The untracked listing as one string, e.g. "KRX: 005930". Set only when
+    # listingCoverage is "public_untracked"; show it in place of a ticker.
+    listing: Optional[str] = None
 
 
 # ── Calendar types ──────────────────────────────────────────
@@ -1066,6 +1108,8 @@ class RankedReportedEarnings(APIModel):
     # is zero. When set, surprisePct is None: the estimate and the reported EPS are usually
     # on different bases, while estimateEps, actualEps and outcome are still served.
     surpriseFlag: Optional[str] = None
+    # The extended-hours move, in signed percent against the report day's regular close.
+    afterHoursReactionPct: Optional[float] = None
 
 
 @dataclass
