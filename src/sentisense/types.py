@@ -745,6 +745,17 @@ class EarningsEvent(APIModel):
     companyName: str = ""
     earningsDate: str = ""  # ISO calendar day "YYYY-MM-DD"
     earningsTime: str = ""  # before_open | after_close | during_market | unknown
+    # Start of the earnings conference call as the company's own announcement states it: an ISO 8601
+    # date-time WITH the UTC offset, e.g. "2026-11-19T10:00:00-05:00". It is an ISO string, not epoch
+    # seconds (an exception to the usual timestamp convention). It can fall on the day after
+    # earningsDate (a release after the close, a call the next morning). None when the row is not
+    # confirmed, the announcement gives no time, or the company holds no call. Never derived from
+    # earningsTime.
+    callTime: Optional[str] = None
+    # The https link the company's announcement gives for the call's webcast; None when it gives none.
+    # Some links need a free registration, and some go live only shortly before the call. Filled only
+    # on confirmed rows.
+    webcastUrl: Optional[str] = None
     fiscalQuarter: Optional[str] = None
     confirmed: bool = False
     estimatedEps: Optional[float] = None

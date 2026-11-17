@@ -348,3 +348,24 @@ def test_new_fields_append_after_the_existing_positional_arguments():
     assert Insight("t", "x", 0.5).ticker is None
     assert StockRating("AAPL").companyName is None
     assert RankedReportedEarnings("AAA", "2026-11-02").surpriseFlag is None
+
+
+def test_earnings_row_carries_call_time_and_webcast_url():
+    row = dict(_LATEST_ROW, callTime="2026-11-03T08:30:00-05:00", webcastUrl="https://example.com/webcast")
+    cal = call_with_payload(
+        "get_earnings_calendar", _envelope({"earnings": [row], "metadata": {"count": 1}}), ticker="AAPL"
+    )
+    e = cal.earnings[0]
+    assert e.callTime == "2026-11-03T08:30:00-05:00"
+    assert e.webcastUrl == "https://example.com/webcast"
+    assert "callTime" not in e.extra_fields and "webcastUrl" not in e.extra_fields
+
+
+def test_earnings_row_call_fields_null():
+    row = dict(_LATEST_ROW, callTime=None, webcastUrl=None)
+    cal = call_with_payload(
+        "get_earnings_calendar", _envelope({"earnings": [row], "metadata": {"count": 1}}), ticker="AAPL"
+    )
+    e = cal.earnings[0]
+    assert e.callTime is None
+    assert e.webcastUrl is None

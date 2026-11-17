@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.77.0
+
+- Earnings calendar rows carry the conference call time and webcast link: `EarningsEvent.callTime`
+  (an ISO 8601 date-time with the UTC offset, not epoch seconds; it can fall on the day after
+  `earningsDate`) and `EarningsEvent.webcastUrl`. Both are `None` unless the company has confirmed the
+  date and announced them. This includes the `latestReported` row.
+
 ## 0.76.0
 
 - New `search_entities(q, type=None, limit=None)`: find the people, companies, products and
