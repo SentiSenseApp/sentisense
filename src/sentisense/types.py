@@ -267,6 +267,29 @@ class APIModel:
 # ── Preview wrapper ─────────────────────────────────────────
 
 
+@dataclass
+class DossierAllowance(APIModel):
+    """A free key's monthly allowance of full options dossiers, as one call left it.
+
+    Read it from :attr:`PreviewResult.dossier_allowance` on a free key's options
+    summary, when the response carries it; it can be absent, and ``None`` then means
+    unknown, not zero left. The allowance belongs to the account, so every key on it
+    draws from one count, and
+    another request can spend it before your next call: ``is_preview`` says what a
+    response is, ``remaining`` only what this call left.
+    """
+
+    limit: Optional[int] = None
+    """Full dossiers the account receives per calendar month."""
+    remaining: Optional[int] = None
+    """Full dossiers left after this call, never negative: ``0`` on the last full dossier
+    and on every preview. On a sample company's summary it is the count as it stands,
+    unchanged by that call."""
+    resetsAt: Optional[int] = None
+    """When the allowance next resets, Unix epoch seconds: the start of the first day of
+    next month, Eastern time."""
+
+
 class PreviewResult(Generic[T]):
     """Transparent proxy wrapping auto-unwrapped API data with preview metadata.
 
@@ -292,10 +315,28 @@ class PreviewResult(Generic[T]):
     key received real, full data because the ticker is one of the sample
     companies, and ``None`` otherwise. It never marks placeholder data.
 
+    ``.dossier_allowance`` (wire key ``dossierAllowance``) is set, when available, only
+    on options summary responses for a free key, full dossiers, previews and sample
+    companies alike: a :class:`DossierAllowance` with how many full dossiers the key's
+    account has left this calendar month (``remaining`` of ``limit``) and when the
+    count resets (``resetsAt``, Unix epoch seconds). It is ``None`` when the response
+    does not carry it, as on every PRO key, a delisted ticker, a summary with no
+    snapshot and every other endpoint.
+
     For list-wrapped endpoints (e.g. ``get_politician_members()``), prefer
     ``result.data``, ``list(result)``, or ``for item in result`` over
     attribute access, since a list has no named fields to delegate to.
     """
+
+    if not TYPE_CHECKING:
+        # Defaults for an object restored without these attributes, such as one pickled or
+        # cached by a version that predates them. Without them the lookup would fall
+        # through to the payload and raise. Every constructed object sets its own value.
+        # Hidden from type checkers so the attributes type exactly as before.
+        total_count = None
+        upgrade = None
+        sample_company = None
+        dossier_allowance = None
 
     def __init__(
         self,
@@ -305,6 +346,7 @@ class PreviewResult(Generic[T]):
         total_count: Optional[int] = None,
         upgrade: Optional[dict] = None,
         sample_company: Optional[bool] = None,
+        dossier_allowance: Optional[DossierAllowance] = None,
     ):
         object.__setattr__(self, "_data", data)
         object.__setattr__(self, "is_preview", is_preview)
@@ -312,6 +354,7 @@ class PreviewResult(Generic[T]):
         object.__setattr__(self, "total_count", total_count)
         object.__setattr__(self, "upgrade", upgrade)
         object.__setattr__(self, "sample_company", sample_company)
+        object.__setattr__(self, "dossier_allowance", dossier_allowance)
 
     @property
     def data(self) -> T:
@@ -1850,32 +1893,50 @@ class OptionsAggregate(APIModel):
     """One session's options aggregate for a ticker.
 
     Shared by the dossier's ``latest`` and by every element of an
-    :class:`OptionsHistory` series, so a chart built off one reads the other.
+    :class:`OptionsHistory` series, so a chart built off one reads the other. ``date``
+    is the session the aggregate describes; on ``latest`` it is the dossier's ``asOf``.
+
+    A session whose primary end-of-day chain arrived with a whole side missing can be
+    completed from a secondary feed. Its premium figures are then valued at each
+    contract's last trade of the session instead of the closing mark, unless a complete
+    primary chain later replaces it.
     """
 
     date: Optional[str] = None
     callVol: Optional[int] = None
+    """Calls traded in the session itself."""
     putVol: Optional[int] = None
+    """Puts traded in the session itself."""
     callOi: Optional[int] = None
+    """Call open interest going into the session, counted at the previous close."""
     putOi: Optional[int] = None
+    """Put open interest going into the session, counted at the previous close."""
     pcVol: Optional[float] = None
     """Put/call volume ratio. Omitted when call volume is zero."""
     pcOi: Optional[float] = None
-    """Put/call open-interest ratio."""
+    """Put/call open-interest ratio of ``putOi`` to ``callOi``: open interest going into
+    the session, counted at the previous close."""
     vwIv: Optional[float] = None
     """Volume-weighted implied volatility."""
     atmIv: Optional[float] = None
-    """At-the-money implied volatility as a fraction, so ``0.42`` is 42%."""
+    """At-the-money implied volatility as a fraction, so ``0.42`` is 42%. Read on the
+    listed expiry closest to 30 calendar days out, with no interpolation to a constant
+    maturity."""
     skew25d: Optional[float] = None
-    """``iv25p - iv25c``: positive means puts are bid up relative to calls."""
+    """``iv25p - iv25c``, a fraction on the same scale as implied volatility (``0.03`` is
+    3 IV points): positive means puts are bid up relative to calls. Read on the listed
+    expiry closest to 30 calendar days out, with no interpolation to a constant
+    maturity."""
     atmIv60: Optional[float] = None
     """Roughly 60-day at-the-money implied volatility: the term structure."""
     atmIv90: Optional[float] = None
     """Roughly 90-day at-the-money implied volatility."""
     iv25c: Optional[float] = None
-    """Raw 25-delta call implied volatility."""
+    """25-delta call implied volatility, read on the listed expiry closest to 30 calendar
+    days out, with no interpolation to a constant maturity."""
     iv25p: Optional[float] = None
-    """Raw 25-delta put implied volatility."""
+    """25-delta put implied volatility, read on the listed expiry closest to 30 calendar
+    days out, with no interpolation to a constant maturity."""
     expectedMove1d: Optional[float] = None
     """Calibrated 90% expected move over 1 trading session, as a fraction of price,
     so ``0.0407`` is 4.07%. ``k * atmIv * sqrt(h / 252)`` with an empirical ``k``."""
@@ -1892,10 +1953,15 @@ class OptionsAggregate(APIModel):
     """One-sigma expected move over 20 trading sessions."""
     netDelta: Optional[float] = None
     notionalVol: Optional[float] = None
-    """Premium traded this session: volume times mark times 100."""
+    """Estimated premium activity this session in USD: volume times the closing mark
+    times 100, summed across the chain. A mark-based valuation, not observed execution
+    spending; a session completed from a secondary feed is valued at each contract's
+    last trade instead."""
     contracts: Optional[int] = None
     maxUnusualPremium: Optional[float] = None
-    """Largest unusual-contract premium this session; zero when none qualified."""
+    """Largest unusual-contract premium this session in USD; zero when none qualified.
+    Valued at the closing mark, an estimate rather than money paid; a session completed
+    from a secondary feed is valued at each contract's last trade instead."""
     maxUnusualPremiumEx0dte: Optional[float] = None
     """Premium of the session's highlight contract: the largest qualifying premium with
     an expiry at least one day after the session. Zero when the session was evaluated and
@@ -1998,6 +2064,9 @@ class OptionsUnusualContract(APIModel):
     oi: Optional[int] = None
     volOiRatio: Optional[float] = None
     premium: Optional[float] = None
+    """Estimated premium in USD: volume times the closing mark times 100, an estimate at
+    the mark rather than money paid. A session completed from a secondary feed is valued
+    at the contract's last trade instead."""
     oiPrior: Optional[int] = None
     oiNext: Optional[int] = None
     oiChange: Optional[int] = None
@@ -2189,7 +2258,7 @@ class OptionsHistory(APIModel):
 
     ``window`` echoes what the server actually served, which need not be what was asked
     for: an unrecognised value clamps to ``"1y"``, and a free key is held at ``"1y"``
-    whatever it requests.
+    whatever it requests, except on a sample company.
     """
 
     ticker: Optional[str] = None
@@ -2230,10 +2299,18 @@ class OptionsOverviewRow(APIModel):
     pcVol: Optional[float] = None
     pcVolPctl1y: Optional[float] = None
     atmIv: Optional[float] = None
+    """At-the-money implied volatility as a fraction (``0.42`` is 42%), read on the listed
+    expiry closest to 30 calendar days out, with no interpolation to a constant maturity."""
     ivRank1y: Optional[float] = None
     skew25d: Optional[float] = None
+    """25-delta skew, ``iv25p - iv25c``, a fraction on the same scale as implied volatility
+    (``0.03`` is 3 IV points). Read on the listed expiry closest to 30 calendar days out,
+    with no interpolation to a constant maturity."""
     skewPctl1y: Optional[float] = None
     notionalVol: Optional[float] = None
+    """Estimated premium activity this session in USD: volume times the closing mark
+    times 100, summed. A mark-based valuation, not observed execution spending; a session
+    completed from a secondary feed is valued at each contract's last trade instead."""
     ivMove20: Optional[float] = None
     """Signed change of ``atmIv`` against its ~20-session mean. Rank by absolute value."""
     expectedMove1d: Optional[float] = None
@@ -2252,6 +2329,9 @@ class OptionsOverviewRow(APIModel):
     unusualCount: Optional[int] = None
     maxVolOiRatio: Optional[float] = None
     maxUnusualPremium: Optional[float] = None
+    """Largest premium (USD) among the row's unusual contracts, valued at the closing
+    mark rather than money paid; a session completed from a secondary feed is valued at
+    each contract's last trade instead."""
     wallSide: Optional[str] = None
     """Side of the single heaviest open-interest wall, ``"call"`` or ``"put"``."""
     wallStrike: Optional[float] = None
@@ -2273,6 +2353,9 @@ class OptionsHighlight(APIModel):
     oi: Optional[int] = None
     volOiRatio: Optional[float] = None
     premium: Optional[float] = None
+    """Estimated premium in USD: volume times the closing mark times 100, an estimate at
+    the mark rather than money paid. A session completed from a secondary feed is valued
+    at the contract's last trade instead."""
     premiumPctl1y: Optional[float] = None
     """Percentile against this ticker's trailing-year largest daily unusual premiums."""
     oiPrior: Optional[int] = None
@@ -2301,8 +2384,10 @@ class OptionsOverview(APIModel):
 
     The aggregates split the same way: ``medianIvRank``, ``marketPcVol``, ``extremeCount``
     and ``coverageCount`` describe the stock board alone, and the ``etf``-prefixed fields
-    describe the ETF board. On a free key ``etfTotalCount`` reports the full ETF board the
-    way the envelope's ``total_count`` reports the full stock board.
+    describe the ETF board. A free key receives the top 25 rows and the top 3 session
+    highlights of each board, plus every aggregate for both; ``etfTotalCount`` then
+    reports the full ETF board the way the envelope's ``total_count`` reports the full
+    stock board.
 
     ``intradayActiveCount``, ``intradayRanking`` and ``capabilities`` summarize today's
     intraday board across stocks, dated by ``intradayAsOf`` (epoch seconds) and
@@ -2399,8 +2484,10 @@ class OptionsIntradayPoint(APIModel):
     session (same-day expiries excluded) against its own trailing year. ``None`` when
     nothing qualifies, and while that history holds fewer than 60 sessions."""
     atmIv: Optional[float] = None
-    """At-the-money implied volatility as a fraction (``0.42`` is 42%), by the same rule
-    as the end-of-day ``atmIv``. ``None`` when that expiry has no usable contract."""
+    """At-the-money implied volatility as a fraction (``0.42`` is 42%), read on the listed
+    expiry closest to 30 calendar days out. Its rule is related to the end-of-day
+    ``atmIv``'s but not identical, so the two can differ on the same chain. ``None`` when
+    unavailable, for example when that expiry has no usable contract."""
 
 
 @dataclass
@@ -2408,8 +2495,9 @@ class OptionsIntradayHistory(APIModel):
     """One ticker's intraday options series for one session, oldest cycle first.
 
     The board is rebuilt every 15 minutes from 15-minute delayed chains, from 09:45 to
-    16:15 ET, so a full session holds 27 cycles. A ticker appears only on the cycles where
-    it was on the board, so ``cycles`` can be below that and the gaps show in each point's
+    16:15 ET, so a full session holds 27 cycles. ``cycles`` counts the session's stored
+    cycles. A ticker has a point only on the cycles where it was on the board, so
+    ``series`` can be shorter than ``cycles``, and the gaps show in each point's
     ``cycle`` and ``asOf``.
 
     No data is an empty ``series``, not a ``None`` payload: a weekend, a holiday, a
@@ -2427,13 +2515,15 @@ class OptionsIntradayHistory(APIModel):
     delayMinutes: Optional[int] = None
     """How far the chain data behind each point trails the market, in minutes."""
     cycles: Optional[int] = None
-    """Number of points in ``series``."""
+    """Number of stored cycles in the session. ``series`` has fewer points when the
+    ticker was not on the intraday board for some of them."""
     missingCycles: Optional[List[int]] = None
-    """Cycles of the session whose board was published but whose stored point could not
-    be found, ascending: this ticker's numbers at those cycles are unknown, not absent.
-    ``None`` when there are none."""
+    """Cycle numbers of the session with no stored history, ascending: a cycle that
+    published no board, or one whose history was lost. This ticker's numbers at those
+    cycles are unknown, not zero. A gap seen right after a cycle publishes can clear on
+    a later read. ``None`` when there are none."""
     series: List[OptionsIntradayPoint] = field(default_factory=list)
-    """One point per cycle that carried this ticker, oldest first."""
+    """One point per stored cycle that carried this ticker, oldest first."""
 
     @classmethod
     def from_dict(cls, data: dict) -> "OptionsIntradayHistory":

@@ -22,6 +22,7 @@ from sentisense.types import (
     CompanyKpis,
     CongressTrade,
     Document,
+    DossierAllowance,
     EarningsCalendar,
     EarningsReactions,
     EarningsStatistics,
@@ -275,16 +276,22 @@ class SentiSenseClient:
         """Auto-unwrap the preview envelope and parse into typed models.
 
         PRO-gated endpoints return ``{isPreview, previewReason, data}``, plus
-        ``totalCount`` on preview responses and on paged endpoints, and ``upgrade``
-        on previews only. This strips the envelope, parses ``data``, and returns a
+        ``totalCount`` on preview responses and on paged endpoints, ``upgrade``
+        on previews only, and ``dossierAllowance`` on a free key's options summary.
+        This strips the envelope, parses ``data``, and returns a
         :class:`~sentisense.types.PreviewResult` with ``.is_preview``,
-        ``.preview_reason``, ``.total_count``, ``.upgrade`` and ``.sample_company`` metadata.
+        ``.preview_reason``, ``.total_count``, ``.upgrade``, ``.sample_company`` and
+        ``.dossier_allowance`` metadata.
         """
         is_preview = json_data.get("isPreview", False)
         preview_reason = json_data.get("previewReason")
         total_count = json_data.get("totalCount")
         upgrade = json_data.get("upgrade")
         sample_company = json_data.get("sampleCompany")
+        allowance = json_data.get("dossierAllowance")
+        dossier_allowance = (
+            DossierAllowance.from_dict(allowance) if isinstance(allowance, dict) else None
+        )
         data = json_data.get("data", json_data)
 
         if list_cls is not None and isinstance(data, list):
@@ -294,7 +301,10 @@ class SentiSenseClient:
         else:
             parsed = data
 
-        return PreviewResult(parsed, is_preview, preview_reason, total_count, upgrade, sample_company)
+        return PreviewResult(
+            parsed, is_preview, preview_reason, total_count, upgrade, sample_company,
+            dossier_allowance,
+        )
 
     # ── Stock endpoints ─────────────────────────────────────────
 
@@ -1512,9 +1522,10 @@ class SentiSenseClient:
         before the first nightly build populates it, which is a cold start rather than an
         error.
 
-        A free key receives the top 25 stock rows plus every aggregate, with
-        ``result.total_count`` reporting the full stock board and ``result.etfTotalCount``
-        the full ETF board. A PRO key receives every row.
+        A free key receives the top 25 ranked rows and the top 3 session highlights of
+        each board, plus every aggregate for both boards, with ``result.total_count``
+        reporting the full stock board and ``result.etfTotalCount`` the full ETF board. A
+        PRO key receives every row and every highlight.
         """
         return self._unwrap(
             self._get("/api/v1/options/overview").json(),
@@ -1542,9 +1553,16 @@ class SentiSenseClient:
         ``result.oiWalls`` and ``result.unusual``; check ``result.is_preview`` for tier
         status. A free key receives the full dossier for the first ten calls each calendar
         month and a headline-only preview after that; calls that return no dossier do not
-        spend that allowance. The headline preview has no nested objects: its readings
-        arrive flat as ``result.ivRank1y``, ``result.atmIv``, ``result.expectedMove1d``,
-        ``result.pcVol``, ``result.pcVolPctl1y`` and ``result.maxPain``.
+        spend that allowance, and neither does a sample company's full dossier. The
+        headline preview has no nested objects: its readings arrive flat as
+        ``result.ivRank1y``, ``result.atmIv``, ``result.expectedMove1d``, ``result.pcVol``,
+        ``result.pcVolPctl1y`` and ``result.maxPain``.
+
+        On a free key, ``result.dossier_allowance``, when available, reports how many full
+        dossiers the account has left this calendar month and when the count resets: a
+        :class:`~sentisense.types.DossierAllowance` with ``limit``, ``remaining`` and
+        ``resetsAt`` (Unix epoch seconds). It is ``None`` when the response does not carry
+        it, as on a PRO key, a delisted ticker and a summary with no snapshot.
 
         Args:
             ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
@@ -1571,8 +1589,8 @@ class SentiSenseClient:
         ``series`` is empty, so check the list's length rather than the payload.
 
         The window served is not always the window requested: an unrecognised value
-        clamps to ``"1y"`` rather than raising, and a free key always receives ``"1y"``.
-        Read ``result.window`` for what you actually got.
+        clamps to ``"1y"`` rather than raising, and a free key receives ``"1y"`` except on
+        a sample company. Read ``result.window`` for what you actually got.
 
         Args:
             ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
@@ -1602,16 +1620,19 @@ class SentiSenseClient:
         implied volatility. It never carries a contract symbol, strike, price, premium,
         open interest or print size.
 
-        PRO only. A free key receives the standard preview: ``result.is_preview`` is
-        ``True``, ``result.preview_reason`` is ``"PRO_REQUIRED"``, ``result.upgrade`` says
-        how to lift the gate, and ``result.data`` is ``None``.
+        PRO only, except for the sample companies. A free key receives the standard
+        preview: ``result.is_preview`` is ``True``, ``result.preview_reason`` is
+        ``"PRO_REQUIRED"``, ``result.upgrade`` says how to lift the gate, and
+        ``result.data`` is ``None``.
 
         **No data is an empty series, not a null payload.** A weekend, a holiday, a session
         from before the history was kept, a ticker outside the board and an unknown symbol
-        all answer with ``result.series`` empty, so check the list's length. A ticker that
-        was on the board for only part of the day has fewer points than the session has
-        cycles; ``result.missingCycles`` lists cycles whose stored point could not be read,
-        which are unknown rather than absent. A malformed or future ``session`` raises
+        all answer with ``result.series`` empty, so check the list's length.
+        ``result.cycles`` counts the session's stored cycles, and a ticker that was on the
+        board for only part of the day has fewer points than that.
+        ``result.missingCycles`` lists the cycles with no stored history (a cycle that
+        published no board, or one whose history was lost), where this ticker's numbers
+        are unknown rather than zero. A malformed or future ``session`` raises
         :class:`~sentisense.exceptions.APIError` (HTTP 400, ``code`` ``"invalid_session"``).
         A 503 means the stored series could not be read; it is retried like any other 503
         and never answered with a partial series.

@@ -204,7 +204,7 @@ Count real buying and selling by `transactionCode` (`P` and `S` are open-market 
 | `get_stock_options_history(ticker, window="1y")` | The same readings as a daily series |
 | `get_stock_options_intraday_history(ticker, session=None)` | Every 15-minute reading from one session (PRO) |
 
-Apart from the intraday history, these are end-of-day readings, each measured against the stock's own past year. For an uncovered ticker the summary's `data` is `None`. [Options API docs](https://sentisense.ai/docs/api/options/)
+Apart from the intraday history, these are end-of-day readings, each measured against the stock's own past year. For an uncovered ticker the summary's `data` is `None`; on a free key, its `dossier_allowance`, when present, counts the full dossiers left this month. [Options API docs](https://sentisense.ai/docs/api/options/)
 
 ### Congressional trading
 

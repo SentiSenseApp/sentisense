@@ -25,6 +25,7 @@ from sentisense import SentiSenseClient
 from sentisense.exceptions import APIError
 from sentisense.types import (
     APIModel,
+    DossierAllowance,
     OptionsCapabilities,
     OptionsHistory,
     OptionsHighlight,
@@ -559,6 +560,101 @@ class TestSummaryHeadlinePreview:
             assert getattr(result, name) is None, name
 
 
+def _with_allowance(envelope, allowance):
+    """A copy of ``envelope`` with ``dossierAllowance`` placed just before ``data``, where
+    the server puts it."""
+    out = {}
+    for key, value in envelope.items():
+        if key == "data":
+            out["dossierAllowance"] = allowance
+        out[key] = value
+    return out
+
+
+class TestDossierAllowance:
+    """A free key's options summary carries its monthly dossier allowance on the envelope,
+    beside ``data``, on full dossiers, previews and sample companies alike. Before it was
+    typed the client dropped it while unwrapping, so a caller could not see how many full
+    dossiers were left."""
+
+    def _summary(self, client, payload):
+        with patch.object(client.session, "get", return_value=_mock_response(payload)):
+            return client.get_stock_options_summary("NVDA")
+
+    def test_a_free_full_dossier_carries_the_allowance(self, client):
+        payload = _with_allowance(
+            _load("options_summary_live.json"),
+            {"limit": 10, "remaining": 7, "resetsAt": 1793505600},
+        )
+        result = self._summary(client, payload)
+        assert result.is_preview is False
+        assert isinstance(result.data, OptionsSummary)
+        allowance = result.dossier_allowance
+        assert isinstance(allowance, DossierAllowance)
+        assert allowance.limit == 10
+        assert allowance.remaining == 7
+        assert allowance.resetsAt == 1793505600
+        assert isinstance(allowance.resetsAt, int)
+        # The payload is untouched: the allowance is envelope metadata, not a data key.
+        assert result.latest is not None
+        assert "dossierAllowance" not in result.data.extra_fields
+
+    def test_the_headline_preview_carries_it_too(self, client):
+        payload = _with_allowance(
+            TestSummaryHeadlinePreview.PAYLOAD,
+            {"limit": 10, "remaining": 0, "resetsAt": 1793505600},
+        )
+        result = self._summary(client, payload)
+        assert result.is_preview is True
+        assert result.preview_reason == "PRO_REQUIRED"
+        assert result.dossier_allowance.remaining == 0
+        assert result.dossier_allowance.limit == 10
+        assert result.atmIv == 0.4
+
+    def test_a_sample_company_dossier_carries_it_beside_the_sample_flag(self, client):
+        payload = dict(_load("options_summary_live.json"), sampleCompany=True)
+        payload = _with_allowance(payload, {"limit": 10, "remaining": 10, "resetsAt": 1784332800})
+        result = self._summary(client, payload)
+        assert result.sample_company is True
+        assert result.dossier_allowance.remaining == 10
+
+    def test_a_pro_envelope_without_the_key_reads_none(self, client):
+        result = self._summary(client, _load("options_summary_live.json"))
+        assert result.is_preview is False
+        assert result.dossier_allowance is None
+
+    def test_a_null_allowance_reads_none(self, client):
+        payload = _with_allowance(_load("options_summary_live.json"), None)
+        assert self._summary(client, payload).dossier_allowance is None
+
+    def test_unknown_keys_inside_the_allowance_are_kept(self, client):
+        payload = _with_allowance(
+            _load("options_summary_live.json"),
+            {"limit": 10, "remaining": 3, "resetsAt": 1793505600, "zzUnknown": "zz-marker"},
+        )
+        allowance = self._summary(client, payload).dossier_allowance
+        assert allowance.remaining == 3
+        assert allowance.get("zzUnknown") == "zz-marker"
+        assert allowance["zzUnknown"] == "zz-marker"
+        assert dict(allowance.extra_fields) == {"zzUnknown": "zz-marker"}
+
+    def test_omitted_allowance_fields_default_to_none(self):
+        allowance = DossierAllowance.from_dict({"limit": 10})
+        assert allowance.limit == 10
+        assert allowance.remaining is None
+        assert allowance.resetsAt is None
+
+    def test_other_endpoints_leave_it_none(self, client):
+        with patch.object(client.session, "get", return_value=_mock_response(OVERVIEW_PAYLOAD)):
+            assert client.get_options_overview().dossier_allowance is None
+
+    def test_is_exported_from_the_package(self):
+        import sentisense
+
+        assert sentisense.DossierAllowance is DossierAllowance
+        assert "DossierAllowance" in sentisense.__all__
+
+
 def _error_response(status, body):
     resp = MagicMock()
     resp.status_code = status
@@ -605,7 +701,7 @@ class TestIntradayHistory:
         assert result.delayMinutes == 15
         assert result.cycles == len(result.series) == 4
         assert all(isinstance(p, OptionsIntradayPoint) for p in result.series)
-        # Gaps show in the cycle numbers; a cycle whose point could not be read is listed.
+        # Gaps show in the cycle numbers; a cycle with no stored history is listed.
         assert [p.cycle for p in result.series] == [1, 2, 4, 5]
         assert result.missingCycles == [3]
         first, last = result.series[0], result.series[-1]

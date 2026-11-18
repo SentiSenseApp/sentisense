@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.78.0
+
+- An options summary on a free key carries the monthly dossier allowance:
+  `PreviewResult.dossier_allowance`, a `DossierAllowance` with `limit`, `remaining` (full
+  dossiers left after this call) and `resetsAt` (Unix epoch seconds). It is set, when
+  available, on full dossiers, previews and sample companies alike, and is `None` when the
+  response does not carry it, as on a PRO key and on every other endpoint. Earlier versions
+  dropped the key while unwrapping. `DossierAllowance` is importable from `sentisense`, and
+  `PreviewResult` takes it as a new last constructor argument, so positional construction
+  is unchanged.
+- A `PreviewResult` restored from a pickle or cache made by an earlier version reads `None`
+  for `total_count`, `upgrade`, `sample_company` and `dossier_allowance` when that version
+  did not have them, instead of raising `AttributeError`.
+- Several options descriptions were corrected to match the API reference. `callOi`, `putOi`
+  and `pcOi` are the open interest going into the session, counted at the previous close.
+  `atmIv`, `skew25d`, `iv25c` and `iv25p` read the listed expiry closest to 30 calendar days
+  out, with no interpolation. `notionalVol`, `premium` and `maxUnusualPremium` are
+  estimates at the closing mark, valued at each contract's last trade on a session
+  completed from a secondary feed. `OptionsIntradayHistory.cycles` counts the session's
+  stored cycles, so `series` can be shorter, and `missingCycles` lists the cycles with no
+  stored history. An intraday point's `atmIv` follows a rule related to the end-of-day
+  reading but not identical to it, so the two can differ. A free key's overview holds the
+  top 25 rows and the top 3 highlights of each board, and the history and intraday history
+  descriptions name the sample-company exceptions.
+
 ## 0.77.0
 
 - Earnings calendar rows carry the conference call time and webcast link: `EarningsEvent.callTime`

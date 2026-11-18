@@ -1,6 +1,7 @@
 """Optional response fields and compatibility with earlier payloads."""
 
 import json
+import pickle
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -10,11 +11,14 @@ import pytest
 from sentisense import (
     AnalystAction,
     AnalystEarningsSurprise,
+    DossierAllowance,
     EarningsEvent,
+    EarningsSummariesResult,
     GraphNode,
     Insight,
     InstitutionDetail,
     OptionsSummary,
+    PreviewResult,
     RankedReportedEarnings,
     SentiSenseClient,
     StockQuote,
@@ -348,6 +352,64 @@ def test_new_fields_append_after_the_existing_positional_arguments():
     assert Insight("t", "x", 0.5).ticker is None
     assert StockRating("AAPL").companyName is None
     assert RankedReportedEarnings("AAA", "2026-11-02").surpriseFlag is None
+
+
+def test_preview_result_grew_at_its_end():
+    # The dossier allowance is the last constructor argument, so code that builds a
+    # result positionally binds every earlier argument as before.
+    result = PreviewResult({"k": 1}, True, "PRO_REQUIRED", 5, {"plan": "PRO"}, True)
+    assert result.total_count == 5
+    assert result.upgrade == {"plan": "PRO"}
+    assert result.sample_company is True
+    assert result.dossier_allowance is None
+    summaries = EarningsSummariesResult([], False, None, 0, None, ticker="AAPL", sample_company=True)
+    assert summaries.sample_company is True
+    assert summaries.dossier_allowance is None
+
+
+# Metadata added to PreviewResult after its first release. An object pickled or cached by
+# an earlier version has no instance attribute for the ones that version lacked.
+_LATER_METADATA = ("total_count", "upgrade", "sample_company", "dossier_allowance")
+
+
+def _full_result(data):
+    return PreviewResult(
+        data, False, None, 3, {"plan": "PRO"}, True, DossierAllowance(10, 4, 1793505600)
+    )
+
+
+@pytest.mark.parametrize("name", _LATER_METADATA)
+def test_preview_result_without_a_later_attribute_reads_none(name):
+    result = _full_result({"k": 1})
+    delattr(result, name)
+    assert getattr(result, name) is None
+
+
+def test_an_old_pickle_without_the_later_attributes_loads_with_none():
+    result = _full_result(OptionsSummary("2026-08-04", 0.1))
+    for name in _LATER_METADATA:
+        delattr(result, name)
+    restored = pickle.loads(pickle.dumps(result))
+    for name in _LATER_METADATA:
+        assert getattr(restored, name) is None, name
+    # The proxy still reaches the payload by attribute and by item.
+    assert restored.is_preview is False
+    assert restored.asOf == "2026-08-04"
+    assert restored["sentiment"] == 0.1
+
+
+def test_a_constructed_result_keeps_its_own_metadata_and_proxy():
+    result = _full_result({"dossier_allowance": "payload", "k": 1})
+    assert result.total_count == 3
+    assert result.upgrade == {"plan": "PRO"}
+    assert result.sample_company is True
+    assert result.dossier_allowance == DossierAllowance(10, 4, 1793505600)
+    # Item access reads the payload, even for a key spelled like the attribute.
+    assert result["dossier_allowance"] == "payload"
+    assert result.k == 1
+    restored = pickle.loads(pickle.dumps(result))
+    assert restored.dossier_allowance == DossierAllowance(10, 4, 1793505600)
+    assert restored.sample_company is True
 
 
 def test_earnings_row_carries_call_time_and_webcast_url():
