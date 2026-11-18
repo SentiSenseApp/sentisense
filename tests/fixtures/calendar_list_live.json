@@ -1,0 +1,9 @@
+{
+ "calendars": [
+  {
+   "description": "Upcoming company earnings dates (forward window)",
+   "type": "earnings",
+   "path": "/api/v1/calendar/earnings"
+  }
+ ]
+}

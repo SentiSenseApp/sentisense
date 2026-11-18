@@ -193,3 +193,51 @@ class TestFullResponse:
     def test_payload_type_has_no_data_field(self):
         # PreviewResult.data would shadow a field of that name.
         assert "data" not in {f.name for f in dataclasses.fields(HoldersHistory)}
+
+
+class TestTickerWording:
+    """The holders ``ticker`` is described once, with its share-class caveats.
+
+    It names the security answered for, per share class, in SentiSense's spelling, and it
+    can differ from what was asked. The response carries other names for the requested
+    and resolved symbol; none of them is a typed field, and the text does not lean on them.
+    """
+
+    HELD_NAMES = ("resolvedTicker", "requestedTicker", "storedTicker", "resolution")
+    TYPES_PY = Path(__file__).resolve().parent.parent / "src" / "sentisense" / "types.py"
+
+    def _ticker_text(self) -> str:
+        import ast
+
+        tree = ast.parse(self.TYPES_PY.read_text(encoding="utf-8"))
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "HoldersHistory")
+        for stmt, following in zip(cls.body, cls.body[1:]):
+            if isinstance(stmt, ast.AnnAssign) and getattr(stmt.target, "id", None) == "ticker":
+                return " ".join(following.value.value.split())
+        raise AssertionError("HoldersHistory.ticker has no docstring")
+
+    def test_history_ticker_carries_the_caveats(self):
+        text = self._ticker_text()
+        for phrase in ("share class", "CUSIP", "``GOOGL``", "``BRKB`` answers ``BRK.B``",
+                       "a recognized former ticker", "not the raw 13F key", "added together"):
+            assert phrase in text, phrase
+
+    def test_holders_docstring_carries_the_caveats(self):
+        doc = " ".join((SentiSenseClient.get_stock_holders.__doc__ or "").split())
+        for phrase in ("``ticker``", "share class", "CUSIP", "``BRKB`` gives ``BRK.B``",
+                       "a recognized former ticker", "not the raw 13F key", "add them together"):
+            assert phrase in doc, phrase
+
+    def test_no_other_name_for_the_ticker_is_typed_or_taught(self):
+        import sentisense.types as T
+
+        texts = [
+            self._ticker_text(),
+            SentiSenseClient.get_stock_holders.__doc__ or "",
+            SentiSenseClient.get_stock_holders_history.__doc__ or "",
+        ]
+        for name in self.HELD_NAMES:
+            assert all(name not in text for text in texts), name
+            for model in vars(T).values():
+                if isinstance(model, type) and dataclasses.is_dataclass(model):
+                    assert name not in {f.name for f in dataclasses.fields(model)}, (model, name)

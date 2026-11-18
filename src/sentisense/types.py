@@ -848,6 +848,37 @@ class EarningsCalendar(APIModel):
         ), data)
 
 
+@dataclass
+class CalendarListing(APIModel):
+    """One calendar advertised by ``client.list_calendars()``."""
+
+    type: Optional[str] = None
+    """The calendar's id, e.g. ``"earnings"``."""
+    path: Optional[str] = None
+    """The API path that serves it, e.g. ``"/api/v1/calendar/earnings"``."""
+    description: Optional[str] = None
+    """One line on what the calendar holds."""
+
+
+@dataclass
+class CalendarListResponse(APIModel):
+    """Discovery envelope returned by ``client.list_calendars()``.
+
+    Iterate ``calendars`` rather than hardcoding paths. Today it lists one calendar,
+    ``earnings``, which :meth:`SentiSenseClient.get_earnings_calendar` reads.
+    """
+
+    calendars: List[CalendarListing] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CalendarListResponse":
+        if data is None:
+            return None  # type: ignore[return-value]
+        return _with_extra(cls(
+            calendars=[CalendarListing.from_dict(c) for c in (data.get("calendars") or []) if c is not None],
+        ), data)
+
+
 # ── Earnings analysis report types ──────────────────────────
 
 
@@ -1589,6 +1620,220 @@ class MarketSummary(APIModel):
     generatedAt: Optional[int] = None
 
 
+# ── Sentiment rollups ───────────────────────────────────────
+#
+# Market-wide news-and-social tone across the covered US stock universe, precomputed once
+# a day. Reading one never recomputes it, so ``generatedAt`` is the freshness signal. The
+# server omits a field it cannot fill, so each one defaults to ``None``.
+
+
+@dataclass
+class SentimentBreadthBucket(APIModel):
+    """One day of market-wide sentiment breadth.
+
+    Each covered stock casts one vote by its mean sentiment. The stock-weighted fields
+    (``bullish``, ``neutral``, ``bearish`` and their ``Pct`` forms) count one vote per
+    stock; the ``MentionPct`` fields weight the same votes by each stock's mention volume.
+    When the two disagree, a few heavily covered names are carrying the tone.
+    """
+
+    date: Optional[str] = None
+    """New York calendar day of this bucket, ISO date (``YYYY-MM-DD``)."""
+    coveredStocks: Optional[int] = None
+    """Stocks with a reading that cleared the snapshot's ``minMentions``: the breadth
+    denominator."""
+    totalMentions: Optional[int] = None
+    """Summed mention volume across those stocks."""
+    bullish: Optional[int] = None
+    """Covered stocks classified bullish."""
+    neutral: Optional[int] = None
+    """Covered stocks classified neutral."""
+    bearish: Optional[int] = None
+    """Covered stocks classified bearish."""
+    bullishPct: Optional[float] = None
+    """Bullish share of covered stocks, in percent (``0`` to ``100``)."""
+    neutralPct: Optional[float] = None
+    """Neutral share of covered stocks, in percent."""
+    bearishPct: Optional[float] = None
+    """Bearish share of covered stocks, in percent."""
+    netBreadth: Optional[float] = None
+    """``bullishPct`` minus ``bearishPct``, in percentage points (``-100`` to ``100``)."""
+    bullishMentionPct: Optional[float] = None
+    """Bullish share of mentions rather than of stocks, in percent."""
+    neutralMentionPct: Optional[float] = None
+    """Neutral share of mentions, in percent."""
+    bearishMentionPct: Optional[float] = None
+    """Bearish share of mentions, in percent."""
+    sentimentDispersion: Optional[float] = None
+    """Population standard deviation of per-stock sentiment polarity (``-1`` to ``1``)
+    across the covered stocks. High means stocks disagree with each other, low means one
+    shared mood. ``None`` when fewer than two stocks are covered."""
+
+
+@dataclass
+class SentimentBreadth(APIModel):
+    """Market-wide sentiment breadth, returned by ``client.get_sentiment_breadth()``.
+
+    The daily share of the covered US stock universe leaning bullish, neutral or bearish:
+    the tone analogue of an advance/decline line. ``latest`` is the newest entry of
+    ``series``. Before the first pipeline run of a new snapshot, ``latest`` is ``None``
+    and ``series`` is empty.
+    """
+
+    schemaVersion: Optional[str] = None
+    """Snapshot schema version."""
+    generatedAt: Optional[int] = None
+    """When the rollup was computed, Unix epoch seconds."""
+    asOf: Optional[str] = None
+    """New York calendar day the snapshot represents, ISO date (``YYYY-MM-DD``)."""
+    minMentions: Optional[int] = None
+    """Minimum mention volume for a stock to count toward breadth."""
+    latest: Optional[SentimentBreadthBucket] = None
+    """Today's bucket: the newest entry of ``series``."""
+    series: List[SentimentBreadthBucket] = field(default_factory=list)
+    """Daily buckets, oldest to newest."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SentimentBreadth":
+        if data is None:
+            return None  # type: ignore[return-value]
+        latest = data.get("latest")
+        return _with_extra(cls(
+            schemaVersion=data.get("schemaVersion"),
+            generatedAt=data.get("generatedAt"),
+            asOf=data.get("asOf"),
+            minMentions=data.get("minMentions"),
+            latest=SentimentBreadthBucket.from_dict(latest) if isinstance(latest, dict) else None,
+            series=[SentimentBreadthBucket.from_dict(b) for b in (data.get("series") or []) if isinstance(b, dict)],
+        ), data)
+
+
+@dataclass
+class SentimentStockRef(APIModel):
+    """A member stock named on a sector row, with its own sentiment polarity."""
+
+    ticker: Optional[str] = None
+    value: Optional[float] = None
+    """That stock's sentiment polarity, ``-1`` to ``1``."""
+
+
+@dataclass
+class SentimentSector(APIModel):
+    """One GICS sector's news-and-social tone, measured against the market's own tone.
+
+    Financial news reads positive as a genre, so an absolute sector reading is bullish on
+    most days; compare sectors on ``consensusVsMarket``. A negative ``consensusVsMarket``
+    means the sector runs cooler than the market, not that it is bearish.
+    ``consensusRatio`` and ``consensusVsMarket`` are tone ratios on their own scale, not
+    SentiSense Scores, so do not read them with the Score's bands.
+    """
+
+    sector: Optional[str] = None
+    """GICS level-1 display name, e.g. ``"Information Technology"``."""
+    meanSentiment: Optional[float] = None
+    """Mean sentiment polarity across covered member stocks, ``-1`` to ``1``."""
+    label: Optional[str] = None
+    """Tone label for ``meanSentiment``: ``"Bullish"``, ``"Neutral"`` or ``"Bearish"``."""
+    meanScore: Optional[float] = None
+    """Mean SentiSense Score across covered members: conviction-weighted, signed, with no
+    fixed range."""
+    scoreLabel: Optional[str] = None
+    """Band label for ``meanScore``."""
+    consensusRatio: Optional[float] = None
+    """The sector's own directional-consensus ratio over its members' summed bullish and
+    bearish mentions, between ``-1`` and ``1``."""
+    consensusVsMarket: Optional[float] = None
+    """``consensusRatio`` minus the snapshot's ``marketConsensusRatio``. Positive means the
+    sector runs hotter than the market over the same window, negative cooler."""
+    consensusLabel: Optional[str] = None
+    """Band label for ``consensusVsMarket``: ``"Hotter than market"``,
+    ``"In line with market"`` or ``"Cooler than market"``."""
+    bullMentions: Optional[int] = None
+    """Summed bullish member mentions for the window."""
+    bearMentions: Optional[int] = None
+    """Summed bearish member mentions for the window."""
+    stockCount: Optional[int] = None
+    """Member stocks that had a sentiment reading."""
+    totalMentions: Optional[int] = None
+    """Summed mention volume across those stocks."""
+    topStock: Optional[SentimentStockRef] = None
+    """The most bullish member stock."""
+    bottomStock: Optional[SentimentStockRef] = None
+    """The most bearish member stock."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SentimentSector":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = _declared_fields(cls)
+        kwargs = {k: v for k, v in data.items() if k in known}
+        for name in ("topStock", "bottomStock"):
+            ref = data.get(name)
+            kwargs[name] = SentimentStockRef.from_dict(ref) if isinstance(ref, dict) else None
+        return _with_extra(cls(**kwargs), data)
+
+
+@dataclass
+class SentimentSectors(APIModel):
+    """Per-sector sentiment, returned by ``client.get_sentiment_sectors()``.
+
+    The 11 GICS sectors compared against the covered market's own news-and-social tone.
+    ``sectors`` is empty before the first pipeline run of a new snapshot.
+    """
+
+    schemaVersion: Optional[str] = None
+    """Snapshot schema version."""
+    generatedAt: Optional[int] = None
+    """When the rollup was computed, Unix epoch seconds."""
+    asOf: Optional[str] = None
+    """New York calendar day the snapshot represents, ISO date (``YYYY-MM-DD``)."""
+    narrative: Optional[str] = None
+    """One-line summary naming the hottest and coolest sector and the covered stock count."""
+    marketConsensusRatio: Optional[float] = None
+    """The whole covered universe's directional-consensus ratio for the window, between
+    ``-1`` and ``1``: the reference each sector's ``consensusVsMarket`` is measured against."""
+    sectors: List[SentimentSector] = field(default_factory=list)
+    """One row per GICS sector."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SentimentSectors":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = _declared_fields(cls)
+        kwargs = {k: v for k, v in data.items() if k in known and k != "sectors"}
+        kwargs["sectors"] = [
+            SentimentSector.from_dict(s) for s in (data.get("sectors") or []) if isinstance(s, dict)
+        ]
+        return _with_extra(cls(**kwargs), data)
+
+
+# ── Metric slices ───────────────────────────────────────────
+
+
+@dataclass
+class MetricSlice(APIModel):
+    """One dimension a metric can be split by, from ``client.get_metrics_slices()``."""
+
+    metricType: Optional[str] = None
+    """The metric type the slice applies to."""
+    dimension: Optional[str] = None
+    """The dimension key, e.g. ``"source"``: the ``dimension`` that
+    ``client.get_metrics_distribution()`` takes."""
+    values: List[str] = field(default_factory=list)
+    """The dimension's values present in the data, in no set order."""
+    displayName: Optional[str] = None
+    """Human-readable dimension label."""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MetricSlice":
+        if data is None:
+            return None  # type: ignore[return-value]
+        known = _declared_fields(cls)
+        kwargs = {k: v for k, v in data.items() if k in known and k != "values"}
+        kwargs["values"] = list(data.get("values") or [])
+        return _with_extra(cls(**kwargs), data)
+
+
 # ── Institutional types ─────────────────────────────────────
 
 
@@ -1686,6 +1931,59 @@ class InstitutionalFlows(APIModel):
 
 
 @dataclass
+class InstitutionalBondFlow(APIModel):
+    """One company's convertible bonds as institutions reported them for a 13F quarter.
+
+    Rows are grouped by the equity ticker the bonds belong to, largest total value first.
+    ``bondTickers`` is one comma-joined string on the wire, not a list.
+    """
+
+    baseTicker: Optional[str] = None
+    """The equity ticker the bonds belong to, e.g. ``"ABNB"``."""
+    companyName: Optional[str] = None
+    positionCount: Optional[int] = None
+    """Institutional positions in this company's bonds."""
+    totalValue: Optional[int] = None
+    """Total value of those positions, in US dollars."""
+    netSharesChange: Optional[int] = None
+    """Net change in the shares or units held."""
+    bondTickers: Optional[str] = None
+    """The bond notations held, in ONE comma-joined string rather than a list, e.g.
+    ``"ABNB 0 03/15/26, ABNB 0.5 06/15/27"``. Split it yourself:
+    ``[t.strip() for t in flow.bondTickers.split(",")]``."""
+    hedgeFundCount: Optional[int] = None
+    """Hedge funds holding these bonds."""
+
+
+@dataclass
+class InstitutionalOptionFlow(APIModel):
+    """One ticker's call and put positions as institutions reported them for a 13F quarter.
+
+    These are the option positions institutions disclose on their quarterly 13F filings,
+    not the market's options activity: for implied volatility, put/call volume and open
+    interest, use ``client.get_options_overview()`` and
+    ``client.get_stock_options_summary()``. Rows come largest total option value first.
+    """
+
+    ticker: Optional[str] = None
+    companyName: Optional[str] = None
+    callValue: Optional[int] = None
+    """Total value of the call option positions, in US dollars."""
+    putValue: Optional[int] = None
+    """Total value of the put option positions, in US dollars."""
+    callPositions: Optional[int] = None
+    """Number of call option positions."""
+    putPositions: Optional[int] = None
+    """Number of put option positions."""
+    callNetChange: Optional[int] = None
+    """Net change in call option shares."""
+    putNetChange: Optional[int] = None
+    """Net change in put option shares."""
+    hedgeFundCount: Optional[int] = None
+    """Hedge funds with options in this ticker."""
+
+
+@dataclass
 class HoldersHistoryQuarter(APIModel):
     """One quarter of a stock's 13F ownership history.
 
@@ -1757,7 +2055,14 @@ class HoldersHistory(APIModel):
     """
 
     ticker: str = ""
-    """The security answered for, in SentiSense's spelling (``BRK.B``, ``GOOG``)."""
+    """The security answered for, in SentiSense's spelling (``BRK.B``, ``GOOG``).
+
+    Ownership is per share class, because 13F filings report each class under its own
+    CUSIP: ``GOOG`` is Alphabet's Class C and ``GOOGL`` its Class A. It can differ from
+    the ticker you asked for: ``BRKB`` answers ``BRK.B``, and a recognized former ticker
+    answers the company's current one. It is not the raw 13F key the filings are recorded under. Two
+    classes are answered separately and must not be added together as the issuer's
+    holders."""
     quarters: List[HoldersHistoryQuarter] = field(default_factory=list)
 
     @classmethod

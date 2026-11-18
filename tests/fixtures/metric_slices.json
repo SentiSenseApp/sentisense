@@ -1,0 +1,23 @@
+[
+ {
+  "metricType": "sentiment",
+  "dimension": "source",
+  "values": [
+   "News",
+   "Reddit",
+   "X",
+   "YouTube",
+   "Substack"
+  ],
+  "displayName": "Source"
+ },
+ {
+  "metricType": "sentiment",
+  "dimension": "publisher",
+  "values": [
+   "Example Wire",
+   "Example Daily"
+  ],
+  "displayName": "publisher"
+ }
+]

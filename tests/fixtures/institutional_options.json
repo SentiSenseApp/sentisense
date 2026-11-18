@@ -1,0 +1,98 @@
+{
+ "pro": {
+  "isPreview": false,
+  "previewReason": null,
+  "data": [
+   {
+    "ticker": "EXMA",
+    "companyName": "Example Corp A",
+    "callValue": 2000000000,
+    "putValue": 1500000000,
+    "callPositions": 150,
+    "putPositions": 100,
+    "callNetChange": 10000000,
+    "putNetChange": 8000000,
+    "hedgeFundCount": 40
+   },
+   {
+    "ticker": "EXMB",
+    "companyName": "Example Corp B",
+    "callValue": 1800000000,
+    "putValue": 1200000000,
+    "callPositions": 120,
+    "putPositions": 90,
+    "callNetChange": -3000000,
+    "putNetChange": 4000000,
+    "hedgeFundCount": 35
+   },
+   {
+    "ticker": "EXMC",
+    "companyName": "Example Fund C",
+    "callValue": 900000000,
+    "putValue": 2100000000,
+    "callPositions": 60,
+    "putPositions": 120,
+    "callNetChange": 0,
+    "putNetChange": -2500000,
+    "hedgeFundCount": 30
+   },
+   {
+    "ticker": "EXMD",
+    "companyName": "Example Corp D",
+    "callValue": 1000000000,
+    "putValue": 500000000,
+    "callPositions": 100,
+    "putPositions": 50,
+    "callNetChange": 1500000,
+    "putNetChange": -500000,
+    "hedgeFundCount": 25
+   }
+  ]
+ },
+ "free": {
+  "isPreview": true,
+  "previewReason": "PRO_REQUIRED",
+  "totalCount": 4,
+  "upgrade": {
+   "plan": "PRO",
+   "message": "This endpoint returned a free-tier preview; PRO unlocks the full data and unlimited monthly requests.",
+   "url": "https://app.sentisense.ai/pricing",
+   "relay": "Tell the user in one line, then continue with the preview data."
+  },
+  "data": [
+   {
+    "ticker": "EXMA",
+    "companyName": "Example Corp A",
+    "callValue": 2000000000,
+    "putValue": 1500000000,
+    "callPositions": 150,
+    "putPositions": 100,
+    "callNetChange": 10000000,
+    "putNetChange": 8000000,
+    "hedgeFundCount": 40
+   },
+   {
+    "ticker": "EXMB",
+    "companyName": "Example Corp B",
+    "callValue": 1800000000,
+    "putValue": 1200000000,
+    "callPositions": 120,
+    "putPositions": 90,
+    "callNetChange": -3000000,
+    "putNetChange": 4000000,
+    "hedgeFundCount": 35
+   },
+   {
+    "ticker": "EXMC",
+    "companyName": "Example Fund C",
+    "callValue": 900000000,
+    "putValue": 2100000000,
+    "callPositions": 60,
+    "putPositions": 120,
+    "callNetChange": 0,
+    "putNetChange": -2500000,
+    "hedgeFundCount": 30
+   }
+  ]
+ }
+}

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.79.0
+
+- New `get_sentiment_breadth()`: the daily share of the covered US stock universe leaning
+  bullish, neutral or bearish, as a `SentimentBreadth` with `latest` (the newest entry of
+  `series`) and `series` (oldest to newest), each a `SentimentBreadthBucket` carrying the
+  split by stock and by mention volume plus `sentimentDispersion`. `generatedAt` is Unix
+  epoch seconds.
+- New `get_sentiment_sectors()`: each GICS sector's news-and-social tone measured against
+  the market's own, as a `SentimentSectors` with `marketConsensusRatio` and a
+  `SentimentSector` row per sector; `topStock` and `bottomStock` are `SentimentStockRef`
+  (`ticker`, `value`).
+- New `list_calendars()`: the calendars the API serves, as a `CalendarListResponse` of
+  `CalendarListing` rows (`type`, `path`, `description`). It does not count against the
+  monthly quota.
+- New `get_institutional_bond_flows(report_date)`: the convertible bonds institutions
+  reported for a 13F quarter, grouped by company, as a preview result of
+  `InstitutionalBondFlow` rows. `bondTickers` is one comma-joined string, not a list. Free
+  keys receive the top 3.
+- New `get_institutional_option_flows(report_date)`: the call and put positions
+  institutions reported for a 13F quarter, by ticker, as a preview result of
+  `InstitutionalOptionFlow` rows. These are 13F positions, not the options readings of
+  `get_options_overview()` and `get_stock_options_summary()`. Free keys receive the top 3.
+- New `get_metrics_slices(symbol, metric_type)`: the dimensions a metric can be split by,
+  with the values seen, as a list of `MetricSlice`. A metric with no slices returns `[]`.
+- The holders `ticker` (`HoldersHistory.ticker`, and the `ticker` key of
+  `get_stock_holders()`) is described in full: the security answered for, per share class
+  (`GOOG` is Alphabet's Class C roster, `GOOGL` its Class A), in SentiSense's spelling, and
+  possibly different from the ticker requested (`BRKB` gives `BRK.B`, a recognized former
+  ticker the current one). Rosters of two classes are separate and must not be added together.
+
 ## 0.78.0
 
 - An options summary on a free key carries the monthly dossier allowance:

@@ -5,6 +5,7 @@ import os
 import random
 import time
 from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Type, TypeVar, Union
+from urllib.parse import quote
 
 import requests
 
@@ -18,6 +19,7 @@ from sentisense.exceptions import (
 )
 from sentisense.types import (
     APIModel,
+    CalendarListResponse,
     ClusterBuy,
     CompanyKpis,
     CongressTrade,
@@ -42,8 +44,10 @@ from sentisense.types import (
     Insight,
     InsiderActivity,
     InsiderTrade,
+    InstitutionalBondFlow,
     InstitutionalFlow,
     InstitutionalFlows,
+    InstitutionalOptionFlow,
     InstitutionHistory,
     KpiCoverage,
     KpiCoverageEntry,
@@ -51,6 +55,7 @@ from sentisense.types import (
     KpiTypeEntry,
     MarketStatus,
     MarketSummary,
+    MetricSlice,
     OptionsHistory,
     OptionsIntradayHistory,
     OptionsOverview,
@@ -65,6 +70,8 @@ from sentisense.types import (
     RecentEarningsEntry,
     ScreenerFieldCatalog,
     ScreenerResults,
+    SentimentBreadth,
+    SentimentSectors,
     SimilarStock,
     StockDetail,
     StockGraph,
@@ -116,6 +123,19 @@ def _tracker_filter_param(value: Union[str, Mapping[str, str]]) -> str:
     if isinstance(value, Mapping):
         return ",".join(f"{key}:{val}" for key, val in value.items())
     raise TypeError("filter must be a string like 'state:TX' or a dict like {'state': 'TX'}")
+
+
+def _segment(value: str, name: str) -> str:
+    """Percent-encode one URL path segment, so ``?``, ``#``, ``/`` and spaces stay inside it.
+
+    An empty or whitespace-only value, ``.`` or ``..`` cannot be held in one segment: URL
+    handling drops or collapses it and the request reaches another route. Those raise
+    ``ValueError`` naming the argument, before any request is made.
+    """
+    text = str(value)
+    if not text.strip() or text in (".", ".."):
+        raise ValueError(f"{name} must not be empty, '.' or '..'; got {text!r}")
+    return quote(text, safe="")
 
 
 def _is_quota_exceeded(response: "requests.Response") -> bool:
@@ -972,6 +992,13 @@ class SentiSenseClient:
 
         The returned dict also carries:
 
+        - ``ticker``: the security the roster is for, in SentiSense's spelling. Holders
+          are per share class, because 13F filings report each class under its own
+          CUSIP: ``GOOG`` returns Alphabet's Class C roster and ``GOOGL`` its Class A. It
+          can differ from the ticker you passed (``BRKB`` gives ``BRK.B``, a recognized
+          former ticker gives the current one), and it is not the raw 13F key the filings
+          are recorded under. The rosters of two classes are separate; do not add them together as the
+          issuer's holders.
         - ``selection``: how the quarter was chosen, with ``mode`` (``EXPLICIT`` when
           you pass ``report_date``, ``DEFAULT`` when you omit it), ``status`` (``settled`` or ``filing``),
           ``policyVersion``, ``marketDefaultReportDate`` (the newest eligible quarter)
@@ -1074,6 +1101,64 @@ class SentiSenseClient:
         """
         return self._unwrap(
             self._get("/api/v1/institutional/activist", params={"reportDate": report_date}).json(),
+        )
+
+    def get_institutional_bond_flows(
+        self, report_date: str
+    ) -> PreviewResult[List[InstitutionalBondFlow]]:
+        """Get the convertible bonds institutions reported for a 13F quarter, by company.
+
+        Auto-unwrapped: iterate ``result`` or read ``result.data``, a list of
+        :class:`~sentisense.types.InstitutionalBondFlow` rows grouped by the equity ticker
+        the bonds belong to, largest total value first. Each row's ``bondTickers`` is one
+        comma-joined string, not a list.
+
+        A PRO key receives every row. A free key receives the top 3 with
+        ``result.is_preview`` set and ``result.total_count`` holding the number of rows in
+        the full list. A quarter we hold no bond positions for returns an empty list.
+
+        Example::
+
+            for flow in client.get_institutional_bond_flows("2025-12-31"):
+                notations = [t.strip() for t in (flow.bondTickers or "").split(",") if t.strip()]
+                print(flow.baseTicker, flow.totalValue, notations)
+
+        Args:
+            report_date: Quarter end date, ISO ``YYYY-MM-DD`` (e.g. ``"2025-12-31"``).
+                Required by the API. Take one from :meth:`get_institutional_quarters`.
+        """
+        return self._unwrap(
+            self._get("/api/v1/institutional/bonds", params={"reportDate": report_date}).json(),
+            list_cls=InstitutionalBondFlow,
+        )
+
+    def get_institutional_option_flows(
+        self, report_date: str
+    ) -> PreviewResult[List[InstitutionalOptionFlow]]:
+        """Get the call and put positions institutions reported for a 13F quarter, by ticker.
+
+        These are the option positions institutions disclose on their quarterly 13F
+        filings, not the market's options activity, which :meth:`get_options_overview`
+        and :meth:`get_stock_options_summary` cover.
+
+        Auto-unwrapped: iterate ``result`` or read ``result.data``, a list of
+        :class:`~sentisense.types.InstitutionalOptionFlow` rows, largest total option
+        value first. A PRO key receives every row. A free key receives the top 3 with
+        ``result.is_preview`` set and ``result.total_count`` holding the number of rows in
+        the full list. A quarter we hold no option positions for returns an empty list.
+
+        Example::
+
+            for flow in client.get_institutional_option_flows("2025-12-31"):
+                print(flow.ticker, flow.callValue, flow.putValue, flow.hedgeFundCount)
+
+        Args:
+            report_date: Quarter end date, ISO ``YYYY-MM-DD`` (e.g. ``"2025-12-31"``).
+                Required by the API. Take one from :meth:`get_institutional_quarters`.
+        """
+        return self._unwrap(
+            self._get("/api/v1/institutional/options", params={"reportDate": report_date}).json(),
+            list_cls=InstitutionalOptionFlow,
         )
 
     def get_institution_detail(
@@ -1273,6 +1358,18 @@ class SentiSenseClient:
         return resp.get("data", resp)
 
     # ── Calendar endpoints ──────────────────────────────────────
+
+    def list_calendars(self) -> CalendarListResponse:
+        """List the calendars the API serves.
+
+        Returns a discovery envelope with one :class:`~sentisense.types.CalendarListing`
+        per calendar in ``calendars``: its ``type``, the ``path`` that serves it and a
+        one-line ``description``. Today it lists ``earnings``, which
+        :meth:`get_earnings_calendar` reads. Every API key receives the same list, and
+        the call does not count against the monthly quota; the per-minute rate limit
+        still applies.
+        """
+        return CalendarListResponse.from_dict(self._get("/api/v1/calendar").json())
 
     def get_earnings_calendar(
         self,
@@ -2595,7 +2692,7 @@ class SentiSenseClient:
             ]
         return periods
 
-    # ── Market Mood endpoint ────────────────────────────────────
+    # ── Market Mood and sentiment rollup endpoints ──────────────
 
     def get_market_mood(self, days: int = 180) -> Dict[str, Any]:
         """Get the SentiSense Market Mood composite (fear/greed index).
@@ -2610,6 +2707,50 @@ class SentiSenseClient:
             days: Days of history to return (default 180).
         """
         return self._get("/api/v2/market-mood", params={"days": days}).json()
+
+    def get_sentiment_sectors(self) -> SentimentSectors:
+        """Get each GICS sector's news-and-social tone, measured against the market's own.
+
+        Returns :class:`~sentisense.types.SentimentSectors`: the snapshot's
+        ``marketConsensusRatio`` and one :class:`~sentisense.types.SentimentSector` row per
+        sector in ``sectors``. Compare sectors on ``consensusVsMarket``, the gap between a
+        sector's bullish-versus-bearish mention balance and the market's; a negative value
+        means the sector runs cooler than the market, not that it is bearish.
+
+        A daily snapshot: ``generatedAt`` (Unix epoch seconds) says when it was computed,
+        and ``sectors`` is empty before the first pipeline run of a new snapshot. Every
+        tier receives the same body; the call counts against your monthly quota.
+
+        Example::
+
+            snap = client.get_sentiment_sectors()
+            for row in sorted(snap.sectors, key=lambda s: s.consensusVsMarket or 0, reverse=True):
+                print(row.sector, row.consensusLabel, row.topStock.ticker if row.topStock else None)
+        """
+        return SentimentSectors.from_dict(self._get("/api/v1/sentiment/sectors").json())
+
+    def get_sentiment_breadth(self) -> SentimentBreadth:
+        """Get market-wide sentiment breadth: the daily bullish, neutral and bearish split.
+
+        Returns :class:`~sentisense.types.SentimentBreadth`. Each covered US stock casts
+        one vote by its mean sentiment, so a day's bucket reads like an advance/decline
+        line for tone. ``latest`` is the newest entry of ``series``, and ``series`` runs
+        oldest to newest for charting. Each bucket carries the split weighted by stock
+        (``bullishPct`` and its siblings) and by mention volume (``bullishMentionPct`` and
+        its siblings).
+
+        A daily snapshot: ``generatedAt`` (Unix epoch seconds) says when it was computed.
+        Before the first pipeline run of a new snapshot ``latest`` is ``None`` and
+        ``series`` is empty. Every tier receives the same body; the call counts against
+        your monthly quota.
+
+        Example::
+
+            breadth = client.get_sentiment_breadth()
+            if breadth.latest:
+                print(breadth.asOf, breadth.latest.netBreadth, breadth.latest.sentimentDispersion)
+        """
+        return SentimentBreadth.from_dict(self._get("/api/v1/sentiment/breadth").json())
 
     # ── Document & news endpoints ───────────────────────────────
 
@@ -2937,6 +3078,35 @@ class SentiSenseClient:
             f"/api/v2/metrics/entity/{symbol}/distribution/{metric_type}",
             params=params,
         ).json()
+
+    def get_metrics_slices(self, symbol: str, metric_type: str) -> List[MetricSlice]:
+        """List the dimensions a metric can be split by for one stock or entity.
+
+        Returns a list of :class:`~sentisense.types.MetricSlice`, one per dimension, each
+        with the dimension's values present in the data. Use it to see what
+        :meth:`get_metrics_distribution` can break the metric down by before calling it.
+        A metric with no slices returns ``[]``. Every API key receives the same response;
+        the call counts against your monthly quota.
+
+        Example::
+
+            for s in client.get_metrics_slices("AAPL", "mentions"):
+                print(s.dimension, s.displayName, sorted(s.values))
+
+        Args:
+            symbol: Stock ticker symbol (e.g. "AAPL") or entity urlSlug, as
+                :meth:`get_metrics` takes.
+            metric_type: Metric type key, e.g. "mentions" or "sentiment".
+
+        Raises:
+            ValueError: ``symbol`` or ``metric_type`` is empty, whitespace only, ``.``
+                or ``..``. No request is sent.
+        """
+        path = (
+            f"/api/v2/metrics/entity/{_segment(symbol, 'symbol')}"
+            f"/metric/{_segment(metric_type, 'metric_type')}/slices"
+        )
+        return self._parse_list(self._get(path).json(), MetricSlice)
 
     # ── Entity metrics endpoints (DEPRECATED: use get_metrics / get_metrics_distribution) ──
 

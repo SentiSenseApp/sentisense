@@ -1,0 +1,141 @@
+{
+ "schemaVersion": "1.0",
+ "generatedAt": 1768086000,
+ "asOf": "2026-01-10",
+ "narrative": "Synthetic example narrative: one sector leads and one lags.",
+ "marketConsensusRatio": 0.2,
+ "sectors": [
+  {
+   "sector": "Energy",
+   "meanSentiment": 0.3,
+   "label": "Bullish",
+   "meanScore": 8.0,
+   "scoreLabel": "Slightly Bullish",
+   "consensusRatio": 0.4,
+   "consensusVsMarket": 0.2,
+   "consensusLabel": "Hotter than market",
+   "bullMentions": 700,
+   "bearMentions": 300,
+   "stockCount": 100,
+   "totalMentions": 5000,
+   "topStock": {
+    "ticker": "EXMA",
+    "value": 0.9
+   },
+   "bottomStock": {
+    "ticker": "EXMB",
+    "value": -0.5
+   }
+  },
+  {
+   "sector": "Consumer Staples",
+   "meanSentiment": 0.2,
+   "label": "Bullish",
+   "meanScore": 6.0,
+   "scoreLabel": "Slightly Bullish",
+   "consensusRatio": 0.3,
+   "consensusVsMarket": 0.1,
+   "consensusLabel": "Hotter than market",
+   "bullMentions": 650,
+   "bearMentions": 350,
+   "stockCount": 80,
+   "totalMentions": 4000,
+   "topStock": {
+    "ticker": "EXMC",
+    "value": 0.8
+   },
+   "bottomStock": {
+    "ticker": "EXMD",
+    "value": -0.4
+   }
+  },
+  {
+   "sector": "Health Care",
+   "meanSentiment": 0.2,
+   "label": "Bullish",
+   "meanScore": 4.0,
+   "scoreLabel": "Neutral",
+   "consensusRatio": 0.2,
+   "consensusVsMarket": 0.0,
+   "consensusLabel": "In line with market",
+   "bullMentions": 600,
+   "bearMentions": 400,
+   "stockCount": 200,
+   "totalMentions": 8000,
+   "topStock": {
+    "ticker": "EXME",
+    "value": 1.0
+   },
+   "bottomStock": {
+    "ticker": "EXMF",
+    "value": -0.6
+   }
+  },
+  {
+   "sector": "Real Estate",
+   "meanSentiment": 0.1,
+   "label": "Bullish",
+   "meanScore": 3.0,
+   "scoreLabel": "Neutral",
+   "consensusRatio": 0.2,
+   "consensusVsMarket": 0.0,
+   "consensusLabel": "In line with market",
+   "bullMentions": 600,
+   "bearMentions": 400,
+   "stockCount": 60,
+   "totalMentions": 2000,
+   "topStock": {
+    "ticker": "EXMG",
+    "value": 0.7
+   },
+   "bottomStock": {
+    "ticker": "EXMH",
+    "value": -0.3
+   }
+  },
+  {
+   "sector": "Communication Services",
+   "meanSentiment": 0.0,
+   "label": "Neutral",
+   "meanScore": 2.0,
+   "scoreLabel": "Neutral",
+   "consensusRatio": 0.1,
+   "consensusVsMarket": -0.1,
+   "consensusLabel": "Cooler than market",
+   "bullMentions": 550,
+   "bearMentions": 450,
+   "stockCount": 50,
+   "totalMentions": 9000,
+   "topStock": {
+    "ticker": "EXMI",
+    "value": 0.6
+   },
+   "bottomStock": {
+    "ticker": "EXMJ",
+    "value": -0.7
+   }
+  },
+  {
+   "sector": "Materials",
+   "meanSentiment": -0.1,
+   "label": "Bearish",
+   "meanScore": -6.0,
+   "scoreLabel": "Slightly Bearish",
+   "consensusRatio": -0.2,
+   "consensusVsMarket": -0.4,
+   "consensusLabel": "Cooler than market",
+   "bullMentions": 400,
+   "bearMentions": 600,
+   "stockCount": 90,
+   "totalMentions": 3000,
+   "topStock": {
+    "ticker": "EXMK",
+    "value": 0.5
+   },
+   "bottomStock": {
+    "ticker": "EXML",
+    "value": -0.8
+   }
+  }
+ ]
+}

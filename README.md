@@ -134,6 +134,7 @@ Figures are in the company's own currency (`reportedCurrency`), never converted.
 | `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | One metric over time |
 | `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | One metric split by source |
 | `get_stock_metrics_breakdown(ticker, metric_type, start_time, end_time)` | One metric for a stock, split across the people, products and companies linked to it |
+| `get_metrics_slices(symbol, metric_type)` | Which dimensions a metric can be split by, with the values seen |
 
 Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance`, `creators`, `app_review_count`, `app_rating`, `app_all_ratings_count` and `app_all_ratings_avg`.
 
@@ -237,8 +238,10 @@ print(f"{len(page)} of {page.total_count} disclosures")
 | `get_institution_detail(slug_or_cik, limit=None, offset=None, sort_by=None, sort_dir=None, change_type=None, q=None, min_weight=None)` | One fund's holdings and what changed since its last filing |
 | `get_institution_history(slug_or_cik, quarters=None, tickers=None)` | One fund's book, filing by filing |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Find funds, largest first |
+| `get_institutional_bond_flows(report_date)` | Convertible bonds institutions reported for a quarter, by company |
+| `get_institutional_option_flows(report_date)` | Calls and puts institutions reported for a quarter, by ticker |
 
-The newest quarter is often incomplete, so pick one by its `pending` flag rather than taking the first. A widely held stock has thousands of holders, so pass `limit` to `get_stock_holders`. On `get_stock_holders` and `get_institution_detail`, the sort and filter arguments are ignored without `limit`.
+The newest quarter is often incomplete, so pick one by its `pending` flag rather than taking the first. A widely held stock has thousands of holders, so pass `limit` to `get_stock_holders`. On `get_stock_holders` and `get_institution_detail`, the sort and filter arguments are ignored without `limit`. The option flows are the positions funds report on their 13F filings, not the options readings under Options.
 
 ```python
 filed = [q for q in client.get_institutional_quarters() if not q.get("pending")]
@@ -269,6 +272,7 @@ Action rows are plain dicts. `priceTarget` is `None` when the firm gave none. [A
 
 | Method | Description |
 |--------|-------------|
+| `list_calendars()` | The calendars we serve (no quota cost) |
 | `get_earnings_calendar(ticker=None, week=None, date_from=None, date_to=None)` | Upcoming report dates and EPS estimates |
 | `get_earnings_summaries(ticker, limit=None)` | Each quarter written up: headline, KPIs, guidance, call summary |
 | `get_recent_earnings(days=None, limit=None)` | Who reported recently |
@@ -338,13 +342,15 @@ for row in res.results:
 | Method | Description |
 |--------|-------------|
 | `get_market_mood(days=180)` | Market Mood, from fear to greed, with its history |
+| `get_sentiment_sectors()` | Each sector's tone, measured against the market's own |
+| `get_sentiment_breadth()` | The daily share of stocks leaning bullish, neutral or bearish |
 | `list_indexes()` | Our indexes |
 | `get_index(index_id)` | One index today |
 | `get_index_history(index_id, days=180)` | One index over time |
 | `list_trackers()` | Our trackers |
 | `get_tracker(tracker_id, filter=None)` | One tracker's data, optionally filtered |
 
-Tracker rows keep any column we don't type yet, so `row.get("marketCap")` works. [Trackers API docs](https://sentisense.ai/docs/api/trackers/)
+Tracker rows keep any column we don't type yet, so `row.get("marketCap")` works. [Market Mood API docs](https://sentisense.ai/docs/api/market-mood/), [Trackers API docs](https://sentisense.ai/docs/api/trackers/)
 
 ### Knowledge base
 

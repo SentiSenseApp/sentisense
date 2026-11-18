@@ -1,0 +1,93 @@
+{
+ "pro": {
+  "isPreview": false,
+  "previewReason": null,
+  "data": [
+   {
+    "baseTicker": "EXMA",
+    "companyName": "Example Corp A",
+    "positionCount": 20,
+    "totalValue": 800000000,
+    "netSharesChange": 5000000,
+    "bondTickers": "EXMA 0 03/15/30, EXMA 0.5 06/15/31",
+    "hedgeFundCount": 15
+   },
+   {
+    "baseTicker": "EXMB",
+    "companyName": "Example Corp B",
+    "positionCount": 15,
+    "totalValue": 600000000,
+    "netSharesChange": -1000000,
+    "bondTickers": "EXMB 0.25 04/01/30",
+    "hedgeFundCount": 12
+   },
+   {
+    "baseTicker": "EXMC",
+    "companyName": "Example Corp C",
+    "positionCount": 10,
+    "totalValue": 400000000,
+    "netSharesChange": 0,
+    "bondTickers": "EXMC 0 03/15/29",
+    "hedgeFundCount": 8
+   },
+   {
+    "baseTicker": "EXMD",
+    "companyName": null,
+    "positionCount": 8,
+    "totalValue": 250000000,
+    "netSharesChange": 750000,
+    "bondTickers": "EXMD 0 12/01/29, EXMD 0.625 09/15/30, EXMD 2.25 06/15/32",
+    "hedgeFundCount": 6
+   },
+   {
+    "baseTicker": "EXME",
+    "companyName": "Example Corp E",
+    "positionCount": 5,
+    "totalValue": 100000000,
+    "netSharesChange": -400000,
+    "bondTickers": "EXME 3.5 10/15/30",
+    "hedgeFundCount": 3
+   }
+  ]
+ },
+ "free": {
+  "isPreview": true,
+  "previewReason": "PRO_REQUIRED",
+  "totalCount": 5,
+  "upgrade": {
+   "plan": "PRO",
+   "message": "This endpoint returned a free-tier preview; PRO unlocks the full data and unlimited monthly requests.",
+   "url": "https://app.sentisense.ai/pricing",
+   "relay": "Tell the user in one line, then continue with the preview data."
+  },
+  "data": [
+   {
+    "baseTicker": "EXMA",
+    "companyName": "Example Corp A",
+    "positionCount": 20,
+    "totalValue": 800000000,
+    "netSharesChange": 5000000,
+    "bondTickers": "EXMA 0 03/15/30, EXMA 0.5 06/15/31",
+    "hedgeFundCount": 15
+   },
+   {
+    "baseTicker": "EXMB",
+    "companyName": "Example Corp B",
+    "positionCount": 15,
+    "totalValue": 600000000,
+    "netSharesChange": -1000000,
+    "bondTickers": "EXMB 0.25 04/01/30",
+    "hedgeFundCount": 12
+   },
+   {
+    "baseTicker": "EXMC",
+    "companyName": "Example Corp C",
+    "positionCount": 10,
+    "totalValue": 400000000,
+    "netSharesChange": 0,
+    "bondTickers": "EXMC 0 03/15/29",
+    "hedgeFundCount": 8
+   }
+  ]
+ }
+}
