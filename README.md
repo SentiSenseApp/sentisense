@@ -134,7 +134,7 @@ Figures are in the company's own currency (`reportedCurrency`), never converted.
 | `get_metrics(symbol, metric_type="sentiment", start_time=None, end_time=None, max_data_points=None)` | One metric over time |
 | `get_metrics_distribution(symbol, metric_type="mentions", dimension="source", start_time=None, end_time=None)` | One metric split by source |
 | `get_stock_metrics_breakdown(ticker, metric_type, start_time, end_time)` | One metric for a stock, split across the people, products and companies linked to it |
-| `get_metrics_slices(symbol, metric_type)` | Which dimensions a metric can be split by, with the values seen |
+| `get_metrics_slices(symbol, metric_type)` | The slice dimensions the API reports for a metric; today only the entity's type marker, so pass `"source"` to `get_metrics_distribution` directly |
 
 Metric types are `mentions`, `sentiment`, `sentisense_score`, `sentisense_rating`, `social_dominance`, `creators`, `app_review_count`, `app_rating`, `app_all_ratings_count` and `app_all_ratings_avg`.
 
@@ -238,8 +238,8 @@ print(f"{len(page)} of {page.total_count} disclosures")
 | `get_institution_detail(slug_or_cik, limit=None, offset=None, sort_by=None, sort_dir=None, change_type=None, q=None, min_weight=None)` | One fund's holdings and what changed since its last filing |
 | `get_institution_history(slug_or_cik, quarters=None, tickers=None)` | One fund's book, filing by filing |
 | `list_institutions(category=None, min_aum_usd=None, limit=50, offset=0)` | Find funds, largest first |
-| `get_institutional_bond_flows(report_date)` | Convertible bonds institutions reported for a quarter, by company |
-| `get_institutional_option_flows(report_date)` | Calls and puts institutions reported for a quarter, by ticker |
+| `get_institutional_bond_flows(report_date)` | Convertible bonds institutions reported for a quarter: up to 50 companies, largest total value first |
+| `get_institutional_option_flows(report_date)` | Calls and puts institutions reported for a quarter: up to 50 tickers, largest total value first |
 
 The newest quarter is often incomplete, so pick one by its `pending` flag rather than taking the first. A widely held stock has thousands of holders, so pass `limit` to `get_stock_holders`. On `get_stock_holders` and `get_institution_detail`, the sort and filter arguments are ignored without `limit`. The option flows are the positions funds report on their 13F filings, not the options readings under Options.
 

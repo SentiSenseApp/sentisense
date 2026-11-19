@@ -2073,6 +2073,60 @@ class HoldersHistory(APIModel):
         ), data)
 
 
+class StockHoldersResult(PreviewResult[Dict[str, Any]]):
+    """The result of :meth:`~sentisense.SentiSenseClient.get_stock_holders`.
+
+    A :class:`PreviewResult` subclass that reads like one over the holders payload, so
+    ``result["holders"]``, ``result.holders`` and ``result.data`` read as before, except
+    that the three attribute names below are the envelope's fields: a payload key of the
+    same name is read with ``result["resolution"]``-style item access. It adds three
+    fields from the response envelope that say how the ticker you passed was answered,
+    each ``None`` when the response does not carry it:
+
+    - ``requested_ticker``: the ticker as you passed it, trimmed and upper-cased.
+    - ``resolution``: how it resolved. ``"exact"``: the security's own ticker.
+      ``"spelling"``: a separator variant (``BRKB`` or ``BRK-B`` for ``BRK.B``).
+      ``"share_class"``: a separately listed class, answered with that class's own
+      roster (``GOOG``, ``BRK.A``). ``"rename"``: a former ticker, answered with the
+      company's current one (``FB`` for ``META``).
+    - ``stored_ticker``: the raw 13F key, the symbol this quarter's filings are recorded
+      under (``BRKB``, or a renamed company's old ticker). It is not for display or
+      joins: use the payload's ``ticker`` for those.
+    """
+
+    requested_ticker: Optional[str]
+    resolution: Optional[str]
+    stored_ticker: Optional[str]
+
+    if not TYPE_CHECKING:
+        # Defaults for an object restored without these attributes, as on PreviewResult.
+        requested_ticker = None
+        resolution = None
+        stored_ticker = None
+
+    def __init__(
+        self,
+        data: Dict[str, Any],
+        is_preview: bool,
+        preview_reason: Optional[str],
+        total_count: Optional[int] = None,
+        upgrade: Optional[dict] = None,
+        sample_company: Optional[bool] = None,
+        dossier_allowance: Optional[DossierAllowance] = None,
+        *,
+        requested_ticker: Optional[str] = None,
+        resolution: Optional[str] = None,
+        stored_ticker: Optional[str] = None,
+    ):
+        super().__init__(
+            data, is_preview, preview_reason, total_count, upgrade, sample_company,
+            dossier_allowance,
+        )
+        object.__setattr__(self, "requested_ticker", requested_ticker)
+        object.__setattr__(self, "resolution", resolution)
+        object.__setattr__(self, "stored_ticker", stored_ticker)
+
+
 @dataclass
 class InstitutionPositionPoint(APIModel):
     """One filing's holding of one ticker, from an institution's history."""

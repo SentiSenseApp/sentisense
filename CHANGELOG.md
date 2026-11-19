@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.80.0
+
+### Added
+
+- `get_stock_holders()` returns a `StockHoldersResult`, a `PreviewResult` that also says
+  how the ticker you passed was answered: `requested_ticker` (as you passed it, trimmed
+  and upper-cased), `resolution` (`exact`, `spelling`, `share_class` or `rename`) and
+  `stored_ticker` (the raw 13F key the quarter's filings are recorded under, not for
+  display or joins). Each is `None` when the response does not carry it. The security
+  answered for is still the payload's `ticker`. The preview metadata and positional
+  construction are unchanged, and the payload reads as before, except that a payload key
+  named `requested_ticker`, `resolution` or `stored_ticker` is read with `result["..."]`,
+  since those attribute names now carry the envelope's fields. `StockHoldersResult` is
+  importable from `sentisense`.
+
+### Fixed
+
+- **Path arguments are now percent-encoded.** Every method that puts a ticker, slug, id or
+  metric type into the request path sends it as exactly one path segment, so a value
+  containing `?`, `#` or `/` can no longer change which endpoint is called, turn the rest of
+  the path into a query string, or cut it off. A `/` inside an argument is now part of that
+  value rather than a path separator, and a value that already holds a percent-escape is
+  encoded again (`%2F` is sent as `%252F`), so pass values unencoded.
+- **`.` and `..` raise `ValueError`.** Neither can name a stock or entity, and URL handling
+  collapses both, so the request used to reach a different route. The error names the
+  argument and is raised before any request is made.
+- Ordinary tickers and slugs are sent exactly as before: `AAPL`, `BRK.B`, `BF-B`,
+  `Nancy-Pelosi`, a CIK passed as an int, and the rest. An empty argument still reaches the
+  API, which answers it as it always has.
+- `get_institutional_bond_flows()` and `get_institutional_option_flows()` no longer say a
+  PRO key receives every row. Each list holds up to 50 rows, the largest by total value,
+  with no paging past them; a free key receives the top 3, and its `total_count` counts that
+  capped list, so it is never more than 50.
+- `get_metrics_slices()` no longer presents itself as the way to find what
+  `get_metrics_distribution()` can break a metric down by. Today it returns only the
+  entity's own type marker (`dimension` `"type"`, `values` `["root"]`); pass
+  `dimension="source"` or `"publisher"` to the distribution call directly.
+- `get_stock_sentiment()` now says that `sentisenseScore` and `latestDirection` are `None`
+  until the day's first reading lands, mid-morning US Eastern, and that `None` there is
+  never a Score of zero.
+- `get_metrics()` and `get_metrics_distribution()` now state the default window: with
+  neither bound passed, the last 7 days.
+- `get_earnings_calendar()` documents `week="last"`, the seven days before the current
+  week, beside `"this"` and `"next"`.
+
 ## 0.79.0
 
 - New `get_sentiment_breadth()`: the daily share of the covered US stock universe leaning

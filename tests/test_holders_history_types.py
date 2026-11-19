@@ -199,11 +199,16 @@ class TestTickerWording:
     """The holders ``ticker`` is described once, with its share-class caveats.
 
     It names the security answered for, per share class, in SentiSense's spelling, and it
-    can differ from what was asked. The response carries other names for the requested
-    and resolved symbol; none of them is a typed field, and the text does not lean on them.
+    can differ from what was asked. The holders envelope also repeats that value as
+    ``resolvedTicker``, which is never typed or taught under any name. Its other three
+    fields carry different values (the ticker as asked, how it resolved, the raw 13F key)
+    and appear only as attributes of the holders result; the history response does not
+    carry them, so its text never mentions them, and no model types them as a field.
     """
 
     HELD_NAMES = ("resolvedTicker", "requestedTicker", "storedTicker", "resolution")
+    DUPLICATE_NAMES = ("resolvedTicker", "resolved_ticker")
+    RESULT_ATTRIBUTES = ("requested_ticker", "resolution", "stored_ticker")
     TYPES_PY = Path(__file__).resolve().parent.parent / "src" / "sentisense" / "types.py"
 
     def _ticker_text(self) -> str:
@@ -231,13 +236,17 @@ class TestTickerWording:
     def test_no_other_name_for_the_ticker_is_typed_or_taught(self):
         import sentisense.types as T
 
-        texts = [
-            self._ticker_text(),
-            SentiSenseClient.get_stock_holders.__doc__ or "",
-            SentiSenseClient.get_stock_holders_history.__doc__ or "",
-        ]
+        history_texts = [self._ticker_text(), SentiSenseClient.get_stock_holders_history.__doc__ or ""]
+        holders_texts = [SentiSenseClient.get_stock_holders.__doc__ or "", T.StockHoldersResult.__doc__ or ""]
         for name in self.HELD_NAMES:
-            assert all(name not in text for text in texts), name
+            assert all(name not in text for text in history_texts), name
+        for name in self.DUPLICATE_NAMES:
+            assert all(name not in text for text in holders_texts), name
+            assert name not in vars(T.StockHoldersResult), name
+        # The holders texts teach the result's attribute names, not the wire spellings.
+        for name in ("requestedTicker", "storedTicker"):
+            assert all(name not in text for text in holders_texts), name
+        for name in self.HELD_NAMES + self.DUPLICATE_NAMES + self.RESULT_ATTRIBUTES:
             for model in vars(T).values():
                 if isinstance(model, type) and dataclasses.is_dataclass(model):
                     assert name not in {f.name for f in dataclasses.fields(model)}, (model, name)

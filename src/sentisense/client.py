@@ -78,6 +78,7 @@ from sentisense.types import (
     StockImage,
     StockPrice,
     StockQuote,
+    StockHoldersResult,
     StockRating,
     Story,
     IndexHistoryResponse,
@@ -125,16 +126,18 @@ def _tracker_filter_param(value: Union[str, Mapping[str, str]]) -> str:
     raise TypeError("filter must be a string like 'state:TX' or a dict like {'state': 'TX'}")
 
 
-def _segment(value: str, name: str) -> str:
-    """Percent-encode one URL path segment, so ``?``, ``#``, ``/`` and spaces stay inside it.
+def _segment(value: Any, name: str, *, strict: bool = False) -> str:
+    """Percent-encode one URL path segment, so ``?``, ``#``, ``/``, ``%`` and spaces stay inside it.
 
-    An empty or whitespace-only value, ``.`` or ``..`` cannot be held in one segment: URL
-    handling drops or collapses it and the request reaches another route. Those raise
-    ``ValueError`` naming the argument, before any request is made.
+    ``.`` and ``..`` cannot be held in one segment: URL handling collapses them and the
+    request reaches another route. They raise ``ValueError`` naming the argument, before
+    any request is made. Any other value is sent, an empty one included, and the API
+    answers it. ``strict`` also rejects an empty or whitespace-only value.
     """
     text = str(value)
-    if not text.strip() or text in (".", ".."):
-        raise ValueError(f"{name} must not be empty, '.' or '..'; got {text!r}")
+    if text in (".", "..") or (strict and not text.strip()):
+        rule = "empty, '.' or '..'" if strict else "'.' or '..'"
+        raise ValueError(f"{name} must not be {rule}; got {text!r}")
     return quote(text, safe="")
 
 
@@ -360,7 +363,7 @@ class SentiSenseClient:
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
-        return self._parse(self._get(f"/api/v1/stocks/{ticker}/quote").json(), StockQuote)
+        return self._parse(self._get(f"/api/v1/stocks/{_segment(ticker, 'ticker')}/quote").json(), StockQuote)
 
     def get_stock_prices(self, tickers: List[str]) -> List[StockPrice]:
         """Get the latest stock prices for multiple tickers, delayed 15 minutes.
@@ -388,7 +391,7 @@ class SentiSenseClient:
         you request. It is absent otherwise. :class:`~sentisense.types.ShareClass`
         types one entry.
         """
-        return self._get(f"/api/v1/stocks/{ticker}/profile").json()
+        return self._get(f"/api/v1/stocks/{_segment(ticker, 'ticker')}/profile").json()
 
     def get_stock_images(
         self, tickers: List[str], forced: bool = False
@@ -456,6 +459,12 @@ class SentiSenseClient:
         Note that ``mentionShare`` and ``socialDominance`` are in different units: the
         first is a percent, the second a fraction.
 
+        ``sentisenseScore`` and ``latestDirection`` are today's reading, and both are
+        ``None`` until the day's first reading lands, mid-morning US Eastern (later at
+        weekends). ``None`` there means no reading yet, never a Score of zero, so do not
+        coerce it to 0. Meanwhile read ``sentisenseScoreAvg30d``, ``scoreLabel`` and
+        ``direction``, which come from the 30-day average and are always present.
+
         Auto-unwrapped. Available in full on every API-key tier.
 
         Use :meth:`get_metrics` with ``metric_type="sentiment"`` instead when you
@@ -468,7 +477,7 @@ class SentiSenseClient:
             NotFoundError: The ticker has no sentiment coverage.
         """
         return self._unwrap(
-            self._get(f"/api/v1/stocks/{ticker}/sentiment").json(),
+            self._get(f"/api/v1/stocks/{_segment(ticker, 'ticker')}/sentiment").json(),
         )
 
     def get_stock_entities(self, ticker: str) -> List[Dict[str, Any]]:
@@ -487,7 +496,7 @@ class SentiSenseClient:
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
-        return self._get(f"/api/v1/stocks/{ticker}/entities").json()
+        return self._get(f"/api/v1/stocks/{_segment(ticker, 'ticker')}/entities").json()
 
     def get_stock_graph(self, ticker: str, depth: int = 1, cap: int = 75) -> StockGraph:
         """Get the company knowledge graph around a stock: its people, products and peers.
@@ -518,7 +527,7 @@ class SentiSenseClient:
         """
         return StockGraph.from_dict(
             self._get(
-                f"/api/v1/stocks/{ticker.upper()}/graph",
+                f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/graph",
                 params={"depth": depth, "cap": cap},
             ).json()
         )
@@ -559,7 +568,7 @@ class SentiSenseClient:
                 (``code == "rate_limit_exceeded"``) and is retried first.
         """
         return self._get(
-            f"/api/v1/stocks/{ticker}/ai-summary",
+            f"/api/v1/stocks/{_segment(ticker, 'ticker')}/ai-summary",
             params={"depth": depth},
         ).json()
 
@@ -580,7 +589,7 @@ class SentiSenseClient:
             NotFoundError: SentiSense does not track the ticker.
         """
         return self._get(
-            f"/api/v1/stocks/{ticker}/metrics/{metric_type}/breakdown",
+            f"/api/v1/stocks/{_segment(ticker, 'ticker')}/metrics/{_segment(metric_type, 'metric_type')}/breakdown",
             params={"startTime": start_time, "endTime": end_time},
         ).json()
 
@@ -591,7 +600,7 @@ class SentiSenseClient:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
             limit: Maximum number of results (default 5).
         """
-        return self._parse_list(self._get(f"/api/v1/stocks/{ticker}/similar", params={"limit": limit}).json(), SimilarStock)
+        return self._parse_list(self._get(f"/api/v1/stocks/{_segment(ticker, 'ticker')}/similar", params={"limit": limit}).json(), SimilarStock)
 
     def get_stock_etfs(self, ticker: str, limit: Optional[int] = None) -> List[EtfMembership]:
         """List the ETFs that hold a stock, heaviest weight first.
@@ -621,7 +630,7 @@ class SentiSenseClient:
         if limit is not None:
             params["limit"] = limit
         return self._parse_list(
-            self._get(f"/api/v1/stocks/{ticker}/etfs", params=params).json(), EtfMembership
+            self._get(f"/api/v1/stocks/{_segment(ticker, 'ticker')}/etfs", params=params).json(), EtfMembership
         )
 
     def get_stock_chart(self, ticker: str, timeframe: str = "1M") -> List[Dict[str, Any]]:
@@ -978,10 +987,15 @@ class SentiSenseClient:
         offset: Optional[int] = None,
         sort_by: Optional[Literal["shares", "valueUsd", "sharesChangePct"]] = None,
         sort_dir: Optional[Literal["asc", "desc"]] = None,
-    ) -> PreviewResult:
+    ) -> StockHoldersResult:
         """Get institutional holders for a specific stock.
 
-        Auto-unwrapped. Check ``result.is_preview`` for tier status.
+        Auto-unwrapped into a :class:`~sentisense.types.StockHoldersResult`. Check
+        ``result.is_preview`` for tier status. The result also says how the ticker you
+        passed was answered: ``result.requested_ticker`` (as you passed it, trimmed and
+        upper-cased), ``result.resolution`` (``"exact"``, ``"spelling"``, ``"share_class"`` or
+        ``"rename"``) and ``result.stored_ticker`` (the raw 13F key, not for display or
+        joins). Each is ``None`` when the response does not carry it.
 
         A widely held ticker returns thousands of rows: a megacap quarter is about
         6,000 holders and 1.5 MB. Pass ``limit`` unless you really want all of them.
@@ -997,7 +1011,7 @@ class SentiSenseClient:
           CUSIP: ``GOOG`` returns Alphabet's Class C roster and ``GOOGL`` its Class A. It
           can differ from the ticker you passed (``BRKB`` gives ``BRK.B``, a recognized
           former ticker gives the current one), and it is not the raw 13F key the filings
-          are recorded under. The rosters of two classes are separate; do not add them together as the
+          are recorded under (that is ``result.stored_ticker``). The rosters of two classes are separate; do not add them together as the
           issuer's holders.
         - ``selection``: how the quarter was chosen, with ``mode`` (``EXPLICIT`` when
           you pass ``report_date``, ``DEFAULT`` when you omit it), ``status`` (``settled`` or ``filing``),
@@ -1045,8 +1059,21 @@ class SentiSenseClient:
             params["sortBy"] = sort_by
         if sort_dir is not None:
             params["sortDir"] = sort_dir
-        return self._unwrap(
-            self._get(f"/api/v1/institutional/holders/{ticker}", params=params).json(),
+        json_data = self._get(
+            f"/api/v1/institutional/holders/{_segment(ticker, 'ticker')}", params=params
+        ).json()
+        result = self._unwrap(json_data)
+        return StockHoldersResult(
+            result.data,
+            result.is_preview,
+            result.preview_reason,
+            result.total_count,
+            result.upgrade,
+            result.sample_company,
+            result.dossier_allowance,
+            requested_ticker=json_data.get("requestedTicker"),
+            resolution=json_data.get("resolution"),
+            stored_ticker=json_data.get("storedTicker"),
         )
 
     def get_stock_holders_history(
@@ -1087,7 +1114,7 @@ class SentiSenseClient:
         if quarters is not None:
             params["quarters"] = quarters
         return self._unwrap(
-            self._get(f"/api/v1/institutional/holders/{ticker}/history", params=params).json(),
+            self._get(f"/api/v1/institutional/holders/{_segment(ticker, 'ticker')}/history", params=params).json(),
             item_cls=HoldersHistory,
         )
 
@@ -1113,9 +1140,10 @@ class SentiSenseClient:
         the bonds belong to, largest total value first. Each row's ``bondTickers`` is one
         comma-joined string, not a list.
 
-        A PRO key receives every row. A free key receives the top 3 with
-        ``result.is_preview`` set and ``result.total_count`` holding the number of rows in
-        the full list. A quarter we hold no bond positions for returns an empty list.
+        The list stops at the 50 largest companies by total value, and there is no paging
+        past them. A PRO key receives up to 50 rows. A free key receives the top 3 with
+        ``result.is_preview`` set, and ``result.total_count`` counts that capped list, so it
+        is never more than 50. A quarter we hold no bond positions for returns an empty list.
 
         Example::
 
@@ -1143,9 +1171,11 @@ class SentiSenseClient:
 
         Auto-unwrapped: iterate ``result`` or read ``result.data``, a list of
         :class:`~sentisense.types.InstitutionalOptionFlow` rows, largest total option
-        value first. A PRO key receives every row. A free key receives the top 3 with
-        ``result.is_preview`` set and ``result.total_count`` holding the number of rows in
-        the full list. A quarter we hold no option positions for returns an empty list.
+        value first. The list stops at the 50 largest tickers by total option value, and
+        there is no paging past them. A PRO key receives up to 50 rows. A free key
+        receives the top 3 with ``result.is_preview`` set, and ``result.total_count``
+        counts that capped list, so it is never more than 50. A quarter we hold no option
+        positions for returns an empty list.
 
         Example::
 
@@ -1250,7 +1280,7 @@ class SentiSenseClient:
             params["minWeight"] = min_weight
         kwargs: Dict[str, Any] = {"params": params} if params else {}
         return self._unwrap(
-            self._get(f"/api/v1/institutional/institution/{slug_or_cik}", **kwargs).json(),
+            self._get(f"/api/v1/institutional/institution/{_segment(slug_or_cik, 'slug_or_cik')}", **kwargs).json(),
         )
 
     def get_institution_history(
@@ -1309,7 +1339,7 @@ class SentiSenseClient:
             if joined:
                 params["tickers"] = joined
         return self._unwrap(
-            self._get(f"/api/v1/institutional/institution/{slug_or_cik}/history", params=params).json(),
+            self._get(f"/api/v1/institutional/institution/{_segment(slug_or_cik, 'slug_or_cik')}/history", params=params).json(),
             item_cls=InstitutionHistory,
         )
 
@@ -1389,7 +1419,10 @@ class SentiSenseClient:
 
         Args:
             ticker: Filter to a single ticker (e.g. ``"AAPL"``).
-            week: Shorthand window: ``"this"`` or ``"next"``.
+            week: Shorthand window: ``"this"`` (the Monday-to-Sunday week holding today's
+                US Eastern date), ``"next"`` (the seven days after it) or ``"last"`` (the
+                seven days before it). Used only when neither ``date_from`` nor
+                ``date_to`` is given.
             date_from: Inclusive lower bound, ISO ``YYYY-MM-DD`` (overrides ``week``).
             date_to: Inclusive upper bound, ISO ``YYYY-MM-DD``.
             confirmed: Two-sided. ``True`` returns only company-confirmed dates,
@@ -1457,7 +1490,7 @@ class SentiSenseClient:
         if limit is not None:
             params["limit"] = limit
         json_data = self._get(
-            f"/api/v1/stocks/{ticker.upper()}/earnings-summaries", params=params
+            f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/earnings-summaries", params=params
         ).json()
         result = self._unwrap(json_data, list_cls=EarningsQuarter)
         return EarningsSummariesResult(
@@ -1522,7 +1555,7 @@ class SentiSenseClient:
         """
         return self._parse(
             self._get(
-                f"/api/v1/stocks/{ticker.upper()}/earnings/reactions", params={}
+                f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/earnings/reactions", params={}
             ).json(),
             EarningsReactions,
         )
@@ -1665,7 +1698,7 @@ class SentiSenseClient:
             ticker: Stock or ETF ticker symbol (e.g., ``"NVDA"``, ``"SPY"``).
         """
         return self._unwrap(
-            self._get(f"/api/v1/stocks/{ticker.upper()}/options/summary").json(),
+            self._get(f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/options/summary").json(),
             item_cls=OptionsSummary,
         )
 
@@ -1697,7 +1730,7 @@ class SentiSenseClient:
         """
         return self._unwrap(
             self._get(
-                f"/api/v1/stocks/{ticker.upper()}/options/history",
+                f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/options/history",
                 params={"window": window},
             ).json(),
             item_cls=OptionsHistory,
@@ -1746,7 +1779,7 @@ class SentiSenseClient:
             params["session"] = session
         return self._unwrap(
             self._get(
-                f"/api/v1/stocks/{ticker.upper()}/options/intraday-history",
+                f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/options/intraday-history",
                 params=params,
             ).json(),
             item_cls=OptionsIntradayHistory,
@@ -1798,7 +1831,7 @@ class SentiSenseClient:
         Args:
             ticker: Stock ticker symbol (e.g. ``"AAPL"``).
         """
-        return self._parse(self._get(f"/api/v1/rating/{ticker.upper()}").json(), StockRating)
+        return self._parse(self._get(f"/api/v1/rating/{_segment(ticker.upper(), 'ticker')}").json(), StockRating)
 
     # ── Insider trading endpoints ───────────────────────────────
 
@@ -1827,7 +1860,7 @@ class SentiSenseClient:
             lookback_days: Number of days to look back (1-365). Default 90.
         """
         return self._unwrap(
-            self._get(f"/api/v1/insider/trades/{ticker.upper()}", params={"lookbackDays": lookback_days}).json(),
+            self._get(f"/api/v1/insider/trades/{_segment(ticker.upper(), 'ticker')}", params={"lookbackDays": lookback_days}).json(),
             list_cls=InsiderTrade,
         )
 
@@ -1900,7 +1933,7 @@ class SentiSenseClient:
             lookback_days: Number of days to look back (1-365). Default 90.
         """
         return self._unwrap(
-            self._get(f"/api/v1/politicians/filings/{ticker.upper()}", params={"lookbackDays": lookback_days}).json(),
+            self._get(f"/api/v1/politicians/filings/{_segment(ticker.upper(), 'ticker')}", params={"lookbackDays": lookback_days}).json(),
             list_cls=CongressTrade,
         )
 
@@ -1992,7 +2025,7 @@ class SentiSenseClient:
         if offset is not None:
             params["offset"] = offset
         return self._unwrap(
-            self._get(f"/api/v1/politicians/member/{slug}", params=params).json(),
+            self._get(f"/api/v1/politicians/member/{_segment(slug, 'slug')}", params=params).json(),
             item_cls=PoliticianDetail,
         )
 
@@ -2020,7 +2053,7 @@ class SentiSenseClient:
         if insight_type:
             params["insightType"] = insight_type
         return self._unwrap(
-            self._get(f"/api/v1/insights/stock/{ticker.upper()}", params=params).json(),
+            self._get(f"/api/v1/insights/stock/{_segment(ticker.upper(), 'ticker')}", params=params).json(),
             list_cls=Insight,
         )
 
@@ -2044,7 +2077,7 @@ class SentiSenseClient:
         Args:
             ticker: Stock ticker symbol (e.g., ``"AAPL"``).
         """
-        return self._get(f"/api/v1/insights/stock/{ticker.upper()}/types").json()
+        return self._get(f"/api/v1/insights/stock/{_segment(ticker.upper(), 'ticker')}/types").json()
 
     def get_stock_insights_range(
         self,
@@ -2071,7 +2104,7 @@ class SentiSenseClient:
         if insight_type:
             params["insightType"] = insight_type
         return self._unwrap(
-            self._get(f"/api/v1/insights/stock/{ticker.upper()}/range", params=params).json(),
+            self._get(f"/api/v1/insights/stock/{_segment(ticker.upper(), 'ticker')}/range", params=params).json(),
             list_cls=Insight,
         )
 
@@ -2132,7 +2165,7 @@ class SentiSenseClient:
             ticker: Stock ticker symbol (e.g. ``"AAPL"``).
         """
         return self._unwrap(
-            self._get(f"/api/v1/analyst/{ticker.upper()}/consensus").json(),
+            self._get(f"/api/v1/analyst/{_segment(ticker.upper(), 'ticker')}/consensus").json(),
         )
 
     def get_analyst_consensus_history(
@@ -2171,7 +2204,7 @@ class SentiSenseClient:
             params["limit"] = limit
         return self._unwrap(
             self._get(
-                f"/api/v1/analyst/{ticker.upper()}/consensus/history",
+                f"/api/v1/analyst/{_segment(ticker.upper(), 'ticker')}/consensus/history",
                 params=params,
             ).json(),
         )
@@ -2205,7 +2238,7 @@ class SentiSenseClient:
             params["limit"] = limit
         return self._unwrap(
             self._get(
-                f"/api/v1/analyst/{ticker.upper()}/called-it", params=params
+                f"/api/v1/analyst/{_segment(ticker.upper(), 'ticker')}/called-it", params=params
             ).json(),
         )
 
@@ -2234,7 +2267,7 @@ class SentiSenseClient:
         """
         return self._unwrap(
             self._get(
-                f"/api/v1/analyst/{ticker.upper()}/actions",
+                f"/api/v1/analyst/{_segment(ticker.upper(), 'ticker')}/actions",
                 params={"lookbackDays": lookback_days},
             ).json(),
         )
@@ -2277,7 +2310,7 @@ class SentiSenseClient:
             ticker: Stock ticker symbol.
         """
         return self._unwrap(
-            self._get(f"/api/v1/analyst/{ticker.upper()}/estimates").json(),
+            self._get(f"/api/v1/analyst/{_segment(ticker.upper(), 'ticker')}/estimates").json(),
         )
 
     def get_analyst_market_activity(
@@ -2362,7 +2395,7 @@ class SentiSenseClient:
             params["lookbackDays"] = lookback_days
         return self._unwrap(
             self._get(
-                f"/api/v1/analyst/{ticker.upper()}/coverage", params=params
+                f"/api/v1/analyst/{_segment(ticker.upper(), 'ticker')}/coverage", params=params
             ).json(),
         )
 
@@ -2392,7 +2425,7 @@ class SentiSenseClient:
             NotFoundError: The slug matches no analyst.
         """
         return self._unwrap(
-            self._get(f"/api/v1/analyst/people/{slug}").json(),
+            self._get(f"/api/v1/analyst/people/{_segment(slug, 'slug')}").json(),
         )
 
     def get_analyst_calls(
@@ -2437,7 +2470,7 @@ class SentiSenseClient:
         if offset is not None:
             params["offset"] = offset
         return self._unwrap(
-            self._get(f"/api/v1/analyst/people/{slug}/calls", params=params).json(),
+            self._get(f"/api/v1/analyst/people/{_segment(slug, 'slug')}/calls", params=params).json(),
         )
 
     # ── Knowledge Base (KB) endpoints ───────────────────────────
@@ -2515,7 +2548,7 @@ class SentiSenseClient:
             ticker: ETF ticker (e.g. ``"QQQ"``).
         """
         return EtfHoldings.from_dict(
-            self._get(f"/api/v1/etfs/{ticker.upper()}/holdings").json()
+            self._get(f"/api/v1/etfs/{_segment(ticker.upper(), 'ticker')}/holdings").json()
         )
 
     def get_etf_quote(self, ticker: str) -> EtfQuote:
@@ -2545,7 +2578,7 @@ class SentiSenseClient:
             NotFoundError: No quote data is available for the ticker.
         """
         return EtfQuote.from_dict(
-            self._get(f"/api/v1/etfs/{ticker.upper()}/quote").json()
+            self._get(f"/api/v1/etfs/{_segment(ticker.upper(), 'ticker')}/quote").json()
         )
 
     def get_etf_analyst_aggregate(self, ticker: str) -> PreviewResult[EtfAnalystAggregate]:
@@ -2560,7 +2593,7 @@ class SentiSenseClient:
             ticker: ETF ticker.
         """
         return self._unwrap(
-            self._get(f"/api/v1/etfs/{ticker.upper()}/aggregates/analyst").json(),
+            self._get(f"/api/v1/etfs/{_segment(ticker.upper(), 'ticker')}/aggregates/analyst").json(),
             item_cls=EtfAnalystAggregate,
         )
 
@@ -2583,7 +2616,7 @@ class SentiSenseClient:
         """
         return self._unwrap(
             self._get(
-                f"/api/v1/etfs/{ticker.upper()}/aggregates/insider",
+                f"/api/v1/etfs/{_segment(ticker.upper(), 'ticker')}/aggregates/insider",
                 params={"lookbackDays": lookback_days},
             ).json(),
             item_cls=EtfInsiderAggregate,
@@ -2605,7 +2638,7 @@ class SentiSenseClient:
             ticker: ETF ticker.
         """
         return self._unwrap(
-            self._get(f"/api/v1/etfs/{ticker.upper()}/aggregates/sentiment").json(),
+            self._get(f"/api/v1/etfs/{_segment(ticker.upper(), 'ticker')}/aggregates/sentiment").json(),
             item_cls=EtfSentimentAggregate,
         )
 
@@ -2626,7 +2659,7 @@ class SentiSenseClient:
             ticker: Stock ticker symbol.
         """
         return self._unwrap(
-            self._get(f"/api/v1/stocks/{ticker.upper()}/kpis").json(),
+            self._get(f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/kpis").json(),
             item_cls=CompanyKpis,
         )
 
@@ -2658,7 +2691,7 @@ class SentiSenseClient:
         Args:
             ticker: Stock ticker symbol.
         """
-        data = self._get(f"/api/v1/stocks/{ticker.upper()}/kpis/types").json()
+        data = self._get(f"/api/v1/stocks/{_segment(ticker.upper(), 'ticker')}/kpis/types").json()
         return [KpiTypeEntry.from_dict(t) for t in (data or [])]
 
     # ── Fundamentals endpoint ───────────────────────────────────
@@ -2780,7 +2813,7 @@ class SentiSenseClient:
             params["hours"] = hours
         if limit is not None:
             params["limit"] = limit
-        return self._parse(self._get(f"/api/v1/documents/ticker/{ticker}", params=params).json(), DocumentSearchResponse)
+        return self._parse(self._get(f"/api/v1/documents/ticker/{_segment(ticker, 'ticker')}", params=params).json(), DocumentSearchResponse)
 
     def get_documents_by_ticker_range(
         self,
@@ -2804,7 +2837,7 @@ class SentiSenseClient:
             params["source"] = source
         if limit is not None:
             params["limit"] = limit
-        return self._parse(self._get(f"/api/v1/documents/ticker/{ticker}/range", params=params).json(), DocumentSearchResponse)
+        return self._parse(self._get(f"/api/v1/documents/ticker/{_segment(ticker, 'ticker')}/range", params=params).json(), DocumentSearchResponse)
 
     def get_documents_by_entity(
         self,
@@ -2832,7 +2865,7 @@ class SentiSenseClient:
             params["hours"] = hours
         if limit is not None:
             params["limit"] = limit
-        return self._parse(self._get(f"/api/v1/documents/entity/{entity_id}", params=params).json(), DocumentSearchResponse)
+        return self._parse(self._get(f"/api/v1/documents/entity/{_segment(entity_id, 'entity_id')}", params=params).json(), DocumentSearchResponse)
 
     def search_documents(
         self,
@@ -2887,7 +2920,7 @@ class SentiSenseClient:
             params["limit"] = limit
         if sort is not None:
             params["sort"] = sort
-        return self._parse(self._get(f"/api/v1/documents/source/{source}", params=params).json(), DocumentSearchResponse)
+        return self._parse(self._get(f"/api/v1/documents/source/{_segment(source, 'source')}", params=params).json(), DocumentSearchResponse)
 
     def get_stories(
         self,
@@ -2967,7 +3000,7 @@ class SentiSenseClient:
             and the bullish and bearish views. Returned as a dict rather than a
             typed model because the shape is editorial and varies by story.
         """
-        return self._get(f"/api/v1/documents/stories/{story_id}").json()
+        return self._get(f"/api/v1/documents/stories/{_segment(story_id, 'story_id')}").json()
 
     def get_stories_by_ticker(self, ticker: str, limit: Optional[int] = None) -> List[Story]:
         """Get news stories for a specific stock.
@@ -2979,7 +3012,7 @@ class SentiSenseClient:
         params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
-        return self._parse_list(self._get(f"/api/v1/documents/stories/ticker/{ticker}", params=params).json(), Story)
+        return self._parse_list(self._get(f"/api/v1/documents/stories/ticker/{_segment(ticker, 'ticker')}", params=params).json(), Story)
 
     # ── Market summary endpoint ────────────────────────────────
 
@@ -3016,8 +3049,9 @@ class SentiSenseClient:
                 The two all-ratings series have no point on a day with no net new
                 ratings or when the store's totals fell; over a range, weight each
                 day's "app_all_ratings_avg" by "app_all_ratings_count".
-            start_time: Start of window as epoch milliseconds.
-            end_time: End of window as epoch milliseconds.
+            start_time: Start of window as epoch milliseconds. Omitted, it is 7 days
+                ago, so a call that passes neither bound covers the last 7 days.
+            end_time: End of window as epoch milliseconds. Omitted, it is now.
             max_data_points: Maximum number of data points to return.
 
         Returns:
@@ -3037,7 +3071,7 @@ class SentiSenseClient:
         if max_data_points is not None:
             params["maxDataPoints"] = max_data_points
         return self._get(
-            f"/api/v2/metrics/entity/{symbol}/metric/{metric_type}",
+            f"/api/v2/metrics/entity/{_segment(symbol, 'symbol')}/metric/{_segment(metric_type, 'metric_type')}",
             params=params,
         ).json()
 
@@ -3066,8 +3100,9 @@ class SentiSenseClient:
                 split, and "sentisense_rating" has no source breakdown; both
                 answer with an empty distribution.
             dimension: Dimension to break down by (e.g. "source").
-            start_time: Start of window as epoch milliseconds.
-            end_time: End of window as epoch milliseconds.
+            start_time: Start of window as epoch milliseconds. Omitted, it is 7 days
+                ago, so a call that passes neither bound covers the last 7 days.
+            end_time: End of window as epoch milliseconds. Omitted, it is now.
         """
         params: Dict[str, Any] = {"dimension": dimension}
         if start_time is not None:
@@ -3075,18 +3110,21 @@ class SentiSenseClient:
         if end_time is not None:
             params["endTime"] = end_time
         return self._get(
-            f"/api/v2/metrics/entity/{symbol}/distribution/{metric_type}",
+            f"/api/v2/metrics/entity/{_segment(symbol, 'symbol')}/distribution/{_segment(metric_type, 'metric_type')}",
             params=params,
         ).json()
 
     def get_metrics_slices(self, symbol: str, metric_type: str) -> List[MetricSlice]:
-        """List the dimensions a metric can be split by for one stock or entity.
+        """List the slice dimensions the API reports for one stock or entity's metric.
 
         Returns a list of :class:`~sentisense.types.MetricSlice`, one per dimension, each
-        with the dimension's values present in the data. Use it to see what
-        :meth:`get_metrics_distribution` can break the metric down by before calling it.
-        A metric with no slices returns ``[]``. Every API key receives the same response;
-        the call counts against your monthly quota.
+        with the values seen. Today it returns the same single row for every stock, entity
+        and metric: the entity's own type marker, ``dimension`` ``"type"`` with ``values``
+        ``["root"]``. It does not list ``"source"`` or ``"publisher"``, so do not use it to
+        find what :meth:`get_metrics_distribution` accepts: pass ``dimension="source"`` (or
+        ``"publisher"``) to that method directly. A metric with no slices returns ``[]``.
+        Every API key receives the same response; the call counts against your monthly
+        quota.
 
         Example::
 
@@ -3103,8 +3141,8 @@ class SentiSenseClient:
                 or ``..``. No request is sent.
         """
         path = (
-            f"/api/v2/metrics/entity/{_segment(symbol, 'symbol')}"
-            f"/metric/{_segment(metric_type, 'metric_type')}/slices"
+            f"/api/v2/metrics/entity/{_segment(symbol, 'symbol', strict=True)}"
+            f"/metric/{_segment(metric_type, 'metric_type', strict=True)}/slices"
         )
         return self._parse_list(self._get(path).json(), MetricSlice)
 
@@ -3141,7 +3179,7 @@ class SentiSenseClient:
         Args:
             index_id: Slug from :meth:`list_indexes`, e.g. ``"fed-sentiment"``.
         """
-        return IndexSnapshot.from_dict(self._get(f"/api/v1/indexes/{index_id}").json())
+        return IndexSnapshot.from_dict(self._get(f"/api/v1/indexes/{_segment(index_id, 'index_id')}").json())
 
     def get_index_history(self, index_id: str, days: int = 180) -> IndexHistoryResponse:
         """Return an index's historical scalar series, for charting.
@@ -3155,7 +3193,7 @@ class SentiSenseClient:
             days: Days of history to return. Defaults to the API's own 180.
         """
         return IndexHistoryResponse.from_dict(
-            self._get(f"/api/v1/indexes/{index_id}/history", params={"days": days}).json()
+            self._get(f"/api/v1/indexes/{_segment(index_id, 'index_id')}/history", params={"days": days}).json()
         )
 
     # ── Trackers ─────────────────────────────────────────────────
@@ -3205,7 +3243,7 @@ class SentiSenseClient:
         """
         if filter is not None:
             params["filter"] = _tracker_filter_param(filter)
-        body = self._get(f"/api/v1/trackers/{tracker_id}", params=params).json()
+        body = self._get(f"/api/v1/trackers/{_segment(tracker_id, 'tracker_id')}", params=params).json()
         return self._unwrap(body, item_cls=TrackerSnapshot)
 
     # ── Screener ─────────────────────────────────────────────────
